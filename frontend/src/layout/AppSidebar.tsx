@@ -51,6 +51,7 @@ function buildNavItems(permissions: string[]): NavItem[] {
     ...(hasPermission(permissions, "stock.manage") ? [{ name: "Đơn mua", path: "/purchasing" }] : []),
     ...(hasPermission(permissions, "stock.manage") ? [{ name: "Bán hàng", path: "/sales" }] : []),
     ...(hasPermission(permissions, "stock.manage") ? [{ name: "Trả hàng", path: "/returns" }] : []),
+    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Kiểm kê", path: "/stock-counts" }] : []),
     ...(hasPermission(permissions, "stock.manage") ? [{ name: "Phiếu nhập", path: "/receipts" }] : []),
     ...(hasPermission(permissions, "stock.manage") ? [{ name: "Phiếu xuất", path: "/outbounds" }] : []),
     ...(hasPermission(permissions, "outbound.pick") ? [{ name: "Soạn hàng", path: "/picking" }] : []),

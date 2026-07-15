@@ -225,6 +225,7 @@ export interface PaginationInfo {
 }
 
 export interface InventoryBalance {
+  id?: string;
   warehouseId: string;
   locationId: string;
   locationCode: string;
@@ -316,6 +317,8 @@ export interface SalesDocument{id:string;documentNo:string;kind:"quote"|"order"|
 export interface SalesClient{list():Promise<SalesDocument[]>;create(input:{documentNo:string;kind:"quote"|"order";customerId:string;lines:Array<{productId:string;quantity:number;unitPrice:number;taxRate:number}>}):Promise<{id:string}>;approve(id:string):Promise<{outboundId:string|null}>;invoice(id:string,documentNo:string):Promise<{id:string}>;listCustomers():Promise<Array<{id:string;code:string;name:string}>>;listProducts():Promise<Array<{id:string;sku:string;name:string}>>}
 export interface StockReturn{id:string;returnNo:string;kind:"customer"|"supplier";status:"draft"|"confirmed"|"cancelled";originalDocumentNo:string;lineCount:number}
 export interface ReturnClient{list():Promise<StockReturn[]>;create(input:{returnNo:string;kind:"customer"|"supplier";originalDocumentId:string;lines:Array<{originalMovementId:string;quantity:number}>}):Promise<{id:string}>;confirm(id:string):Promise<{alreadyConfirmed:boolean}>}
+export interface StockCount{id:string;countNo:string;status:"draft"|"submitted"|"confirmed"|"cancelled";lineCount:number;countedLines:number}
+export interface StockCountClient{list():Promise<StockCount[]>;create(input:{countNo:string;stockBalanceIds:string[]}):Promise<{id:string}>;submit(id:string):Promise<void>;approve(id:string):Promise<void>;listBalances():Promise<InventoryBalance[]>}
 
 export const authApi: AuthClient = {
   async session() {
@@ -492,3 +495,4 @@ export const outboundExceptionApi:OutboundExceptionClient={async list(){return(a
 export const purchasingApi:PurchasingClient={async list(){return(await request<{data:PurchaseOrder[]}>("/api/purchase-orders?pageSize=50")).data;},async create(input){return(await request<{purchaseOrder:{id:string}}>("/api/purchase-orders",{method:"POST",body:JSON.stringify(input)})).purchaseOrder;},async approve(id){await request(`/api/purchase-orders/${id}/approve`,{method:"POST"});},async listSuppliers(){return(await request<{data:Partner[]}>("/api/partners?pageSize=100")).data.filter(p=>p.kind==="supplier");},async listProducts(){return(await request<{data:Product[]}>("/api/products?pageSize=100")).data;}};
 export const salesApi:SalesClient={async list(){return(await request<{data:SalesDocument[]}>("/api/sales?pageSize=50")).data;},async create(input){return(await request<{document:{id:string}}>("/api/sales",{method:"POST",body:JSON.stringify(input)})).document;},async approve(id){return(await request<{result:{outboundId:string|null}}>(`/api/sales/${id}/approve`,{method:"POST"})).result;},async invoice(id,documentNo){return(await request<{invoice:{id:string}}>(`/api/sales/${id}/invoice`,{method:"POST",body:JSON.stringify({documentNo})})).invoice;},async listCustomers(){return(await request<{data:Partner[]}>("/api/partners?pageSize=100")).data.filter(p=>p.kind==="customer");},async listProducts(){return(await request<{data:Product[]}>("/api/products?pageSize=100")).data;}};
 export const returnApi:ReturnClient={async list(){return(await request<{data:StockReturn[]}>("/api/returns?pageSize=50")).data;},async create(input){return(await request<{return:{id:string}}>("/api/returns",{method:"POST",body:JSON.stringify(input)})).return;},async confirm(id){return(await request<{result:{alreadyConfirmed:boolean}}>(`/api/returns/${id}/confirm`,{method:"POST"})).result;}};
+export const stockCountApi:StockCountClient={async list(){return(await request<{data:StockCount[]}>("/api/stock-counts?pageSize=50")).data;},async create(input){return(await request<{stockCount:{id:string}}>("/api/stock-counts",{method:"POST",body:JSON.stringify(input)})).stockCount;},async submit(id){await request(`/api/stock-counts/${id}/submit`,{method:"POST"});},async approve(id){await request(`/api/stock-counts/${id}/approve`,{method:"POST"});},async listBalances(){return(await request<{data:InventoryBalance[]}>("/api/inventory/balances?pageSize=100")).data;}};

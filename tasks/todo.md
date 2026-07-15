@@ -38,7 +38,7 @@ Status: đang triển khai toàn bộ plan v2
 - [x] T20 Purchase orders.
 - [x] T21 Quote, sales order and invoice.
 - [x] T22 Returns.
-- [ ] T23 Stock count and adjustment.
+- [x] T23 Stock count and adjustment.
 - [ ] T24 Warehouse transfer.
 - [ ] T25 Dashboard, reports and export.
 - [ ] T26 Web print, labels and PWA device evidence.

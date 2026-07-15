@@ -13,6 +13,7 @@ import OutboundExceptions from "./features/outbound/OutboundExceptions";
 import PurchasingPage,{PurchaseCreatePage}from"./features/purchasing/PurchasingPage";
 import SalesPage,{SalesCreatePage}from"./features/sales/SalesPage";
 import ReturnsPage,{ReturnCreatePage}from"./features/returns/ReturnsPage";
+import StockCountsPage,{StockCountCreatePage}from"./features/stock-counts/StockCountsPage";
 import ProductsPage, { ProductCreatePage } from "./features/products/ProductsPage";
 import PartnersPage, { PartnerCreatePage } from "./features/partners/PartnersPage";
 import ReceiptPage, { ReceiptCreatePage } from "./features/receipts/ReceiptPage";
@@ -81,6 +82,8 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="sales/create" element={canStock ? <SalesCreatePage /> : <Navigate to="/" replace />} />
         <Route path="returns" element={canStock ? <ReturnsPage /> : <Navigate to="/" replace />} />
         <Route path="returns/create" element={canStock ? <ReturnCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="stock-counts" element={canStock ? <StockCountsPage /> : <Navigate to="/" replace />} />
+        <Route path="stock-counts/create" element={canStock ? <StockCountCreatePage /> : <Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

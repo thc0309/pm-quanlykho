@@ -18,6 +18,7 @@ export interface InventoryFilters {
 }
 
 export interface InventoryBalance {
+  id?: string;
   warehouseId: string;
   locationId: string;
   locationCode: string;
@@ -150,7 +151,7 @@ export function createPostgresInventoryStore(pool: Pool): InventoryStore {
         AND ($6::text IS NULL OR p.sku ILIKE '%' || $6 || '%' OR p.name ILIKE '%' || $6 || '%' OR loc.code ILIKE '%' || $6 || '%')`;
       const [rows, count] = await Promise.all([
         pool.query<InventoryBalance & { onHand: string; committed: string; available: string }>(
-          `SELECT sb.warehouse_id AS "warehouseId", sb.location_id AS "locationId", loc.code AS "locationCode",
+          `SELECT sb.id, sb.warehouse_id AS "warehouseId", sb.location_id AS "locationId", loc.code AS "locationCode",
                   sb.product_id AS "productId", p.sku, p.name AS "productName", lot.lot_code AS "lotCode",
                   serial.serial_code AS "serialCode", sb.on_hand AS "onHand", coalesce(r.committed, 0) AS committed,
                   sb.on_hand - coalesce(r.committed, 0) AS available

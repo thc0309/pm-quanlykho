@@ -137,6 +137,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T22: Add customer and supplier returns — [tasks/task-detail/task-22.md](task-detail/task-22.md)
   - Evidence (2026-07-15): migration `014_returns.sql` applied; backend 55/55 and focused returns UI test pass; builds pass. Returns lock/reference original movements, enforce cumulative quantity, preserve lot/serial stock keys and confirm idempotently with the correct reverse movement direction.
 - T23: Add stock count and approved adjustment — [tasks/task-detail/task-23.md](task-detail/task-23.md)
+  - Evidence (2026-07-15): migration `015_stock_counts.sql` applied; backend 57/57 and focused count UI test pass; builds pass. Counts freeze scoped balance/timestamp snapshots, require complete actuals, reject concurrent movement conflicts, and post only approved positive/negative variance with audit.
 - T24: Add two-sided warehouse transfer — [tasks/task-detail/task-24.md](task-detail/task-24.md)
 - T25: Add dashboard, reports and bounded export — [tasks/task-detail/task-25.md](task-detail/task-25.md)
 - T26: Add web print, labels and PWA device evidence — [tasks/task-detail/task-26.md](task-detail/task-26.md)

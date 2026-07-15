@@ -30,8 +30,8 @@ Status: đang triển khai toàn bộ plan v2
 - [x] T16 Picker workflow.
 - [x] T17 Independent checking and shipping.
 - [x] T18 Discrepancy, re-pick, cancellation and reassignment.
-- [ ] T19 Critical E2E and hardening.
-- [ ] Checkpoint C reviewed; internal-release decision recorded.
+- [x] T19 Critical E2E and hardening.
+- [x] Checkpoint C reviewed; internal-release decision recorded.
 
 ## Phase 4 — Extended scope
 

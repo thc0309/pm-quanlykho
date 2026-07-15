@@ -43,7 +43,7 @@ export function registerPickingRoutes(app: Hono, authStore: AuthStore, accessSto
     const current = await actor(c); const pagination = parsePagination(c.req.query());
     const result = await pool.query(
       `SELECT id, document_no AS "documentNo", status, picker_user_id AS "pickerUserId", version
-       FROM stock_documents WHERE warehouse_id = $1 AND document_type = 'issue' AND status IN ('ready_to_pick','picking')
+       FROM stock_documents WHERE warehouse_id = $1 AND document_type = 'issue' AND status IN ('ready_to_pick','picking','needs_repick')
        ORDER BY created_at LIMIT $2 OFFSET $3`, [current.user.warehouseId, pagination.pageSize, pagination.offset]);
     return c.json({ data: result.rows, pagination: { page: pagination.page, pageSize: pagination.pageSize } });
   });
@@ -55,7 +55,12 @@ export function registerPickingRoutes(app: Hono, authStore: AuthStore, accessSto
         const row = doc.rows[0]; if (!row) throw new Error("NOT_FOUND");
         if (row.status === "picking" && row.pickerUserId === current.user.id) return { resumed: true };
         if (row.status === "picking") throw new Error("PICKER_CONFLICT");
-        if (row.status !== "ready_to_pick") throw new Error("WRONG_STATE");
+        if (!["ready_to_pick", "needs_repick"].includes(row.status)) throw new Error("WRONG_STATE");
+        if (row.status === "needs_repick") {
+          await client.query("DELETE FROM picking_scans WHERE document_id=$1", [c.req.param("id")]);
+          await client.query("DELETE FROM checking_scans WHERE document_id=$1", [c.req.param("id")]);
+          await client.query("UPDATE stock_reservations SET status='reserved',expires_at=now()+interval '30 minutes',updated_at=now() WHERE document_id=$1 AND status='picked'", [c.req.param("id")]);
+        }
         await client.query("UPDATE stock_documents SET status='picking', picker_user_id=$2, picker_started_at=now(), version=version+1 WHERE id=$1", [c.req.param("id"), current.user.id]);
         return { resumed: false };
       });

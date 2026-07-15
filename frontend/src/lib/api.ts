@@ -299,7 +299,7 @@ export interface OutboundClient {
   releaseOutbound(id: string): Promise<{ alreadyReleased: boolean; reservedUntil: string }>;
   listProducts(): Promise<Array<{ id: string; sku: string; name: string }>>;
 }
-export interface PickingItem { id: string; documentNo: string; status: "ready_to_pick" | "picking"; pickerUserId: string | null; version: number }
+export interface PickingItem { id: string; documentNo: string; status: "ready_to_pick" | "picking" | "needs_repick"; pickerUserId: string | null; version: number }
 export interface PickingClient {
   list(): Promise<PickingItem[]>;
   claim(id: string): Promise<{ resumed: boolean }>;

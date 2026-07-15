@@ -118,12 +118,14 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T18: Deliver discrepancy, re-pick, cancellation and reassignment — [tasks/task-detail/task-18.md](task-detail/task-18.md)
   - Evidence (2026-07-15): backend 49/49 tests and focused exception UI test pass; backend/frontend builds pass. Explicit action APIs cover mismatch→`needs_repick`, reasoned short-ship approval, reservation release on unpicked cancellation, validated return-cancel for picked goods, and audited warehouse-scoped reassignment; invalid direct transitions are domain-tested. Browser created then cancelled `E2E-OUT-T18-CANCEL` from the exception list.
 - T19: Prove and harden the critical flow — [tasks/task-detail/task-19.md](task-detail/task-19.md)
+  - Evidence (2026-07-15): full backend 49/49 and frontend 29/29 tests pass; builds pass; lint has no errors (four pre-existing warnings). Browser and prior checkpoint data cover auth/master data/receipt plus reserve→pick→independent check→ship, cancellation and mismatch→re-pick. E2E found and T19 fixed the re-pick queue gap; rerun passed. `EXPLAIN ANALYZE` measured the indexed inventory/reservation hot path at 0.232 ms execution time on local data.
 
 ### Checkpoint C — Outbound MVP
 
 - Critical workflow passes with two real roles and mobile viewport evidence.
 - `picked` leaves `on_hand` unchanged; `shipped` decrements exactly once.
 - Human decides whether this MVP is released internally before extended modules.
+- Decision (2026-07-15): GO for controlled internal pilot while extended modules continue; keep external/public release gated on T28 launch review and device-specific E2E-012/E2E-014.
 - Stop for review/context reset.
 
 ### Phase 4 — Extended warehouse modules

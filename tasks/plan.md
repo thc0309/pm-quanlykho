@@ -112,6 +112,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T15: Deliver outbound draft and reservation release — [tasks/task-detail/task-15.md](task-detail/task-15.md)
   - Evidence (2026-07-15): migration `009_outbound_reservations.sql` applied; backend 43/43 and frontend 26/26 tests pass; backend/frontend builds pass; lint has no errors. Tests cover insufficient stock, concurrent/idempotent release and 30-minute expiry. Browser created/released `E2E-OUT-T15`; inventory reconciled `on_hand=5`, `committed=2`, `available=3` without a stock movement.
 - T16: Deliver the picker workflow — [tasks/task-detail/task-16.md](task-detail/task-16.md)
+  - Evidence (2026-07-15): migration `010_picking.sql` applied; backend 46/46 tests and focused UI test pass; both builds pass. Tests cover shelf/item mismatch, FEFO denial and duplicate scan. Mobile browser claimed `E2E-OUT-T15`, persisted two scans (`1/2` then `2/2`) and confirmed `picked`; reservations changed to `picked` without changing `on_hand`.
 - T17: Deliver independent checking and shipping — [tasks/task-detail/task-17.md](task-detail/task-17.md)
 - T18: Deliver discrepancy, re-pick, cancellation and reassignment — [tasks/task-detail/task-18.md](task-detail/task-18.md)
 - T19: Prove and harden the critical flow — [tasks/task-detail/task-19.md](task-detail/task-19.md)

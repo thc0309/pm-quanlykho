@@ -299,6 +299,13 @@ export interface OutboundClient {
   releaseOutbound(id: string): Promise<{ alreadyReleased: boolean; reservedUntil: string }>;
   listProducts(): Promise<Array<{ id: string; sku: string; name: string }>>;
 }
+export interface PickingItem { id: string; documentNo: string; status: "ready_to_pick" | "picking"; pickerUserId: string | null; version: number }
+export interface PickingClient {
+  list(): Promise<PickingItem[]>;
+  claim(id: string): Promise<{ resumed: boolean }>;
+  scan(id: string, input: { locationBarcode: string; itemBarcode: string }): Promise<{ picked: number; required: number }>;
+  confirm(id: string): Promise<void>;
+}
 
 export const authApi: AuthClient = {
   async session() {
@@ -463,4 +470,10 @@ export const outboundApi: OutboundClient = {
     return (await request<{ result: { alreadyReleased: boolean; reservedUntil: string } }>(`/api/outbounds/${id}/release`, { method: "POST" })).result;
   },
   async listProducts() { return (await request<{ data: Product[] }>("/api/products?pageSize=100")).data; },
+};
+export const pickingApi: PickingClient = {
+  async list() { return (await request<{ data: PickingItem[] }>("/api/picking?pageSize=50")).data; },
+  async claim(id) { return (await request<{ result: { resumed: boolean } }>(`/api/picking/${id}/claim`, { method: "POST" })).result; },
+  async scan(id,input) { return (await request<{ progress: { picked: number; required: number } }>(`/api/picking/${id}/scan`, { method: "POST", body: JSON.stringify(input) })).progress; },
+  async confirm(id) { await request(`/api/picking/${id}/confirm`, { method: "POST" }); },
 };

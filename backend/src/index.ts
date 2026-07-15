@@ -12,6 +12,7 @@ import { createPostgresCatalogStore, registerCatalogRoutes } from "./modules/cat
 import { createPostgresLocationStore, registerLocationRoutes } from "./modules/locations.js";
 import { createPostgresInventoryStore, registerInventoryRoutes } from "./modules/inventory.js";
 import { createPostgresOutboundStore, registerOutboundRoutes } from "./modules/outbound.js";
+import { registerPickingRoutes } from "./modules/picking.js";
 import { createPostgresPartnerStore, registerPartnerRoutes } from "./modules/partners.js";
 import { createPostgresProductStore, registerProductRoutes } from "./modules/products.js";
 import { createPostgresReceiptStore, registerReceiptRoutes } from "./modules/receipts.js";
@@ -36,6 +37,7 @@ registerCatalogRoutes(app, authStore, accessStore, createPostgresCatalogStore(po
 registerLocationRoutes(app, authStore, accessStore, createPostgresLocationStore(pool), config.SESSION_SECRET);
 registerInventoryRoutes(app, authStore, accessStore, createPostgresInventoryStore(pool), config.SESSION_SECRET);
 registerOutboundRoutes(app, authStore, accessStore, createPostgresOutboundStore(pool), config.SESSION_SECRET);
+registerPickingRoutes(app, authStore, accessStore, pool, config.SESSION_SECRET);
 registerPartnerRoutes(app, authStore, accessStore, createPostgresPartnerStore(pool), config.SESSION_SECRET);
 registerProductRoutes(app, authStore, accessStore, createPostgresProductStore(pool), config.SESSION_SECRET);
 registerStockRoutes(app, authStore, accessStore, createPostgresStockStore(pool), config.SESSION_SECRET);

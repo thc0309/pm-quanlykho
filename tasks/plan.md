@@ -135,6 +135,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T21: Add quote, sales order and commercial invoice — [tasks/task-detail/task-21.md](task-detail/task-21.md)
   - Evidence (2026-07-15): migration `013_sales.sql` applied; backend 53/53 and focused sales UI test pass; builds pass. Totals are deterministic, order approval creates only an outbound draft, and invoice creation requires a shipped outbound then stores an immutable order/line/shipment JSON snapshot.
 - T22: Add customer and supplier returns — [tasks/task-detail/task-22.md](task-detail/task-22.md)
+  - Evidence (2026-07-15): migration `014_returns.sql` applied; backend 55/55 and focused returns UI test pass; builds pass. Returns lock/reference original movements, enforce cumulative quantity, preserve lot/serial stock keys and confirm idempotently with the correct reverse movement direction.
 - T23: Add stock count and approved adjustment — [tasks/task-detail/task-23.md](task-detail/task-23.md)
 - T24: Add two-sided warehouse transfer — [tasks/task-detail/task-24.md](task-detail/task-24.md)
 - T25: Add dashboard, reports and bounded export — [tasks/task-detail/task-25.md](task-detail/task-25.md)

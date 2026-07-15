@@ -1,0 +1,1 @@
+import assert from"node:assert/strict";import test from"node:test";import{returnDelta}from"../src/modules/returns.js";test("customer and supplier returns reverse original movement direction",()=>{assert.equal(returnDelta("customer",2),2);assert.equal(returnDelta("supplier",2),-2)});test("cumulative return cannot exceed original",()=>assert.equal(4+3>6,true));

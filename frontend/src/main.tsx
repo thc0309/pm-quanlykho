@@ -15,3 +15,9 @@ createRoot(document.getElementById("root")!).render(
     </ThemeProvider>
   </StrictMode>,
 );
+
+// MDN ServiceWorkerContainer.register(): feature-detect before registration.
+// https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerContainer/register
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+}

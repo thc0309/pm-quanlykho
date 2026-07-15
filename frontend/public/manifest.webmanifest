@@ -1,0 +1,13 @@
+{
+  "name": "Warehouse Suite",
+  "short_name": "Warehouse",
+  "description": "Quản lý kho, soạn, kiểm và truy xuất hàng hóa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#465fff",
+  "icons": [
+    { "src": "/icons/warehouse-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "/icons/warehouse-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

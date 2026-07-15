@@ -69,6 +69,14 @@ export default function ReceiptPage({ api = receiptApi }: { api?: ReceiptClient 
                   <td className={tableCellClass}>{statusLabels[receipt.status]}</td>
                   <td className={tableCellClass}>{receipt.lineCount}</td>
                   <td className={`${tableCellClass} text-right`}>
+                    {receipt.status === "confirmed" && (
+                      <Link
+                        to={`/print/documents/${receipt.id}`}
+                        className="mr-2 inline-flex h-9 items-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                      >
+                        In phiếu
+                      </Link>
+                    )}
                     <button type="button" disabled={receipt.status !== "draft" || confirming === receipt.id} onClick={() => confirm(receipt)} aria-label={`Xác nhận phiếu ${receipt.documentNo}`} className={iconButtonClass}>
                       <CheckLineIcon className="h-4 w-4" />
                     </button>

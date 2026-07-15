@@ -790,3 +790,9 @@ span.flatpickr-weekday,
 .simplebar-scrollbar.simplebar-visible:before {
   @apply opacity-100;
 }
+@media print {
+  aside, header:not(.print-header), nav, [data-no-print] { display: none !important; }
+  body { background: #fff !important; color: #111 !important; }
+  main, .print-sheet { margin: 0 !important; max-width: none !important; padding: 0 !important; box-shadow: none !important; }
+  @page { margin: 12mm; }
+}

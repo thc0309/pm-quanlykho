@@ -4,6 +4,7 @@ import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
 import type { AccessInfo, SessionUser } from "../lib/api";
+import OfflineStatus from "../components/common/OfflineStatus";
 
 type AppLayoutProps = {
   access: AccessInfo;
@@ -26,6 +27,7 @@ const LayoutContent: React.FC<AppLayoutProps> = ({ access, user, onLogout }) => 
         } ${isMobileOpen ? "ml-0" : ""}`}
       >
         <AppHeader user={user} onLogout={onLogout} />
+        <OfflineStatus />
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
           <Outlet />
         </div>

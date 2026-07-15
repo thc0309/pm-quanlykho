@@ -16,6 +16,8 @@ import ReturnsPage,{ReturnCreatePage}from"./features/returns/ReturnsPage";
 import StockCountsPage,{StockCountCreatePage}from"./features/stock-counts/StockCountsPage";
 import TransfersPage,{TransferCreatePage}from"./features/transfers/TransfersPage";
 import ReportsPage,{DashboardPage}from"./features/reports/ReportsPage";
+import PrintPage,{LabelPrintPage}from"./features/print/PrintPage";
+import ScannerPage from"./features/scanner/ScannerPage";
 import ProductsPage, { ProductCreatePage } from "./features/products/ProductsPage";
 import PartnersPage, { PartnerCreatePage } from "./features/partners/PartnersPage";
 import ReceiptPage, { ReceiptCreatePage } from "./features/receipts/ReceiptPage";
@@ -89,6 +91,9 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="transfers" element={canStock ? <TransfersPage /> : <Navigate to="/" replace />} />
         <Route path="transfers/create" element={canStock ? <TransferCreatePage /> : <Navigate to="/" replace />} />
         <Route path="reports" element={canStock ? <ReportsPage /> : <Navigate to="/" replace />} />
+        <Route path="print/documents/:id" element={canStock ? <PrintPage /> : <Navigate to="/" replace />} />
+        <Route path="print/labels/:kind/:id" element={canStock ? <LabelPrintPage /> : <Navigate to="/" replace />} />
+        <Route path="scanner" element={canStock ? <ScannerPage /> : <Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

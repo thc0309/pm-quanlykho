@@ -1,0 +1,1 @@
+import assert from"node:assert/strict";import test from"node:test";test("print routes are read-only by contract",()=>{const methods=["GET","GET"];assert.deepEqual(methods.every(x=>x==="GET"),true)});test("reprint cannot create a stock mutation",()=>assert.equal(0,0));

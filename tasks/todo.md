@@ -20,7 +20,7 @@ Status: đang triển khai toàn bộ plan v2
 - [x] T10 Products and barcode lookup.
 - [x] T11 Partners.
 - [x] T12 Stock ledger and balance core.
-- [ ] T13 Receiving with lot/serial.
+- [x] T13 Receiving with lot/serial.
 - [ ] T14 Inventory and traceability views.
 - [ ] Checkpoint B reviewed.
 

@@ -181,6 +181,42 @@ export interface PartnerClient {
   setPartnerStatus(id: string, status: Partner["status"]): Promise<Partner>;
 }
 
+export interface Receipt {
+  id: string;
+  documentNo: string;
+  status: "draft" | "confirmed" | "cancelled" | "reversed";
+  lineCount: number;
+  confirmedAt: string | null;
+  createdAt: string;
+}
+
+export interface ReceiptInput {
+  documentNo: string;
+  lines: Array<{
+    locationId: string;
+    productId: string;
+    quantity: number;
+    lotCode?: string;
+    serialCode?: string;
+    manufacturedAt?: string;
+    expiresAt?: string;
+  }>;
+}
+
+export interface ReceiptClient {
+  listReceipts(): Promise<Receipt[]>;
+  createReceipt(input: ReceiptInput): Promise<{ id: string }>;
+  confirmReceipt(id: string): Promise<{ alreadyConfirmed: boolean }>;
+  listLocations(): Promise<Array<{ id: string; code: string; name: string }>>;
+  listProducts(): Promise<Array<{
+    id: string;
+    sku: string;
+    name: string;
+    trackingMode: Product["trackingMode"];
+    expiryManaged: boolean;
+  }>>;
+}
+
 export const authApi: AuthClient = {
   async session() {
     return (await request<{ user: SessionUser }>("/api/auth/session")).user;
@@ -298,5 +334,26 @@ export const partnerApi: PartnerClient = {
   },
   async setPartnerStatus(id, status) {
     return (await request<{ partner: Partner }>(`/api/partners/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).partner;
+  },
+};
+
+export const receiptApi: ReceiptClient = {
+  async listReceipts() {
+    return (await request<{ data: Receipt[] }>("/api/receipts")).data;
+  },
+  async createReceipt(input) {
+    return (await request<{ receipt: { id: string } }>("/api/receipts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    })).receipt;
+  },
+  async confirmReceipt(id) {
+    return (await request<{ result: { alreadyConfirmed: boolean } }>(`/api/receipts/${id}/confirm`, { method: "POST" })).result;
+  },
+  async listLocations() {
+    return (await request<{ data: WarehouseLocation[] }>("/api/locations")).data;
+  },
+  async listProducts() {
+    return (await request<{ data: Product[] }>("/api/products")).data;
   },
 };

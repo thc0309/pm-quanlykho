@@ -7,6 +7,7 @@ import { CategoriesPage, CategoryCreatePage, UnitCreatePage, UnitsPage } from ".
 import LocationsPage, { LocationCreatePage } from "./features/locations/LocationsPage";
 import ProductsPage, { ProductCreatePage } from "./features/products/ProductsPage";
 import PartnersPage, { PartnerCreatePage } from "./features/partners/PartnersPage";
+import ReceiptPage, { ReceiptCreatePage } from "./features/receipts/ReceiptPage";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import AppLayout from "./layout/AppLayout";
 import {
@@ -35,6 +36,7 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
   const canCatalog = canManage || access.permissions.includes("catalog.manage");
   const canProducts = canManage || access.permissions.includes("products.manage");
   const canPartners = canManage || access.permissions.includes("partners.manage");
+  const canStock = canManage || access.permissions.includes("stock.manage");
 
   return (
     <Routes>
@@ -57,6 +59,8 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="products/create" element={canProducts ? <ProductCreatePage /> : <Navigate to="/" replace />} />
         <Route path="partners" element={canPartners ? <PartnersPage /> : <Navigate to="/" replace />} />
         <Route path="partners/create" element={canPartners ? <PartnerCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="receipts" element={canStock ? <ReceiptPage /> : <Navigate to="/" replace />} />
+        <Route path="receipts/create" element={canStock ? <ReceiptCreatePage /> : <Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

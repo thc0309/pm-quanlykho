@@ -96,6 +96,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T11: Deliver partner management — [tasks/task-detail/task-11.md](task-detail/task-11.md)
 - T12: Build the stock ledger and balance core — [tasks/task-detail/task-12.md](task-detail/task-12.md)
 - T13: Deliver receiving with lot/serial — [tasks/task-detail/task-13.md](task-detail/task-13.md)
+  - Evidence (2026-07-15): backend 37/37 tests; frontend 22/22 tests; backend/frontend builds pass; migration `008_receipts.sql` applied. Browser created and confirmed `E2E-RCV-T13`; PostgreSQL verified `on_hand=5`, one movement, expiry `2027-12-31`, and idempotent retry. Responsive widths 320/768/1024/1440 had no document overflow; browser console had no warnings/errors.
 - T14: Deliver inventory and traceability views — [tasks/task-detail/task-14.md](task-detail/task-14.md)
 
 ### Checkpoint B — Stock foundation

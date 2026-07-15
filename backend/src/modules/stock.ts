@@ -43,6 +43,135 @@ export interface StockStore {
   listBalances(warehouseId: string | null, limit: number, offset: number): Promise<Page<StockBalance>>;
 }
 
+async function resolveLot(client: PoolClient, input: {
+  warehouseId: string;
+  productId: string;
+  lotCode: string;
+  manufacturedAt: string | null;
+  expiresAt: string | null;
+}) {
+  const result = await client.query<{ id: string }>(
+    `INSERT INTO lots (warehouse_id, product_id, lot_code, manufactured_at, expires_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (warehouse_id, product_id, lot_code)
+     DO UPDATE SET manufactured_at = COALESCE(lots.manufactured_at, EXCLUDED.manufactured_at),
+                   expires_at = COALESCE(lots.expires_at, EXCLUDED.expires_at)
+     RETURNING id`,
+    [input.warehouseId, input.productId, input.lotCode, input.manufacturedAt, input.expiresAt],
+  );
+  const id = result.rows[0]?.id;
+  if (!id) throw new Error("Lot upsert returned no row");
+  return id;
+}
+
+async function resolveSerial(client: PoolClient, input: {
+  warehouseId: string;
+  productId: string;
+  serialCode: string;
+  quantityDelta: number;
+}) {
+  if (input.quantityDelta > 0) {
+    const inserted = await client.query<{ id: string }>(
+      `INSERT INTO serials (warehouse_id, product_id, serial_code, status)
+       VALUES ($1, $2, $3, 'in_stock')
+       RETURNING id`,
+      [input.warehouseId, input.productId, input.serialCode],
+    );
+    const id = inserted.rows[0]?.id;
+    if (!id) throw new Error("Serial insert returned no row");
+    return id;
+  }
+
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM serials
+     WHERE warehouse_id = $1 AND product_id = $2 AND serial_code = $3
+     FOR UPDATE`,
+    [input.warehouseId, input.productId, input.serialCode],
+  );
+  const id = existing.rows[0]?.id;
+  if (!id) throw Object.assign(new Error("negative stock"), { code: "NEGATIVE_STOCK" });
+  await client.query(`UPDATE serials SET status = 'issued', updated_at = now() WHERE id = $1`, [id]);
+  return id;
+}
+
+async function applyBalance(client: PoolClient, input: {
+  warehouseId: string;
+  locationId: string;
+  productId: string;
+  lotId: string | null;
+  serialId: string | null;
+  quantityDelta: number;
+}) {
+  await client.query(
+    `INSERT INTO stock_balances (warehouse_id, location_id, product_id, lot_id, serial_id, on_hand)
+     VALUES ($1, $2, $3, $4, $5, 0)
+     ON CONFLICT (warehouse_id, location_id, product_id, lot_id, serial_id) DO NOTHING`,
+    [input.warehouseId, input.locationId, input.productId, input.lotId, input.serialId],
+  );
+  const current = await client.query<{ id: string; onHand: string }>(
+    `SELECT id, on_hand AS "onHand" FROM stock_balances
+     WHERE warehouse_id = $1
+       AND location_id = $2
+       AND product_id = $3
+       AND lot_id IS NOT DISTINCT FROM $4::uuid
+       AND serial_id IS NOT DISTINCT FROM $5::uuid
+     FOR UPDATE`,
+    [input.warehouseId, input.locationId, input.productId, input.lotId, input.serialId],
+  );
+  const row = current.rows[0];
+  if (!row) throw new Error("Balance upsert returned no row");
+  const onHand = nextOnHand(Number(row.onHand), input.quantityDelta);
+  await client.query(`UPDATE stock_balances SET on_hand = $1, updated_at = now() WHERE id = $2`, [onHand, row.id]);
+}
+
+export async function postStockLines(client: PoolClient, input: {
+  warehouseId: string;
+  documentId: string;
+  lines: StockMovementLineInput[];
+}) {
+  for (const line of input.lines) {
+    const lotId = line.lotCode
+      ? await resolveLot(client, {
+        warehouseId: input.warehouseId,
+        productId: line.productId,
+        lotCode: line.lotCode,
+        manufacturedAt: line.manufacturedAt,
+        expiresAt: line.expiresAt,
+      })
+      : null;
+    const serialId = line.serialCode
+      ? await resolveSerial(client, {
+        warehouseId: input.warehouseId,
+        productId: line.productId,
+        serialCode: line.serialCode,
+        quantityDelta: line.quantityDelta,
+      })
+      : null;
+
+    await applyBalance(client, { ...line, warehouseId: input.warehouseId, lotId, serialId });
+    await client.query(
+      `INSERT INTO stock_movements
+        (warehouse_id, document_id, location_id, product_id, lot_id, serial_id, quantity_delta, snapshot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        input.warehouseId,
+        input.documentId,
+        line.locationId,
+        line.productId,
+        lotId,
+        serialId,
+        line.quantityDelta,
+        {
+          lotCode: line.lotCode,
+          serialCode: line.serialCode,
+          manufacturedAt: line.manufacturedAt,
+          expiresAt: line.expiresAt,
+        },
+      ],
+    );
+  }
+}
+
 const documentTypes = [
   "receipt",
   "issue",
@@ -181,87 +310,6 @@ export function registerStockRoutes(
 }
 
 export function createPostgresStockStore(pool: Pool): StockStore {
-  async function resolveLot(client: PoolClient, input: {
-    warehouseId: string;
-    productId: string;
-    lotCode: string;
-    manufacturedAt: string | null;
-    expiresAt: string | null;
-  }) {
-    const result = await client.query<{ id: string }>(
-      `INSERT INTO lots (warehouse_id, product_id, lot_code, manufactured_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (warehouse_id, product_id, lot_code)
-       DO UPDATE SET manufactured_at = COALESCE(lots.manufactured_at, EXCLUDED.manufactured_at),
-                     expires_at = COALESCE(lots.expires_at, EXCLUDED.expires_at)
-       RETURNING id`,
-      [input.warehouseId, input.productId, input.lotCode, input.manufacturedAt, input.expiresAt],
-    );
-    const id = result.rows[0]?.id;
-    if (!id) throw new Error("Lot upsert returned no row");
-    return id;
-  }
-
-  async function resolveSerial(client: PoolClient, input: {
-    warehouseId: string;
-    productId: string;
-    serialCode: string;
-    quantityDelta: number;
-  }) {
-    if (input.quantityDelta > 0) {
-      const inserted = await client.query<{ id: string }>(
-        `INSERT INTO serials (warehouse_id, product_id, serial_code, status)
-         VALUES ($1, $2, $3, 'in_stock')
-         RETURNING id`,
-        [input.warehouseId, input.productId, input.serialCode],
-      );
-      const id = inserted.rows[0]?.id;
-      if (!id) throw new Error("Serial insert returned no row");
-      return id;
-    }
-
-    const existing = await client.query<{ id: string }>(
-      `SELECT id FROM serials
-       WHERE warehouse_id = $1 AND product_id = $2 AND serial_code = $3
-       FOR UPDATE`,
-      [input.warehouseId, input.productId, input.serialCode],
-    );
-    const id = existing.rows[0]?.id;
-    if (!id) throw Object.assign(new Error("negative stock"), { code: "NEGATIVE_STOCK" });
-    await client.query(`UPDATE serials SET status = 'issued', updated_at = now() WHERE id = $1`, [id]);
-    return id;
-  }
-
-  async function applyBalance(client: PoolClient, input: {
-    warehouseId: string;
-    locationId: string;
-    productId: string;
-    lotId: string | null;
-    serialId: string | null;
-    quantityDelta: number;
-  }) {
-    await client.query(
-      `INSERT INTO stock_balances (warehouse_id, location_id, product_id, lot_id, serial_id, on_hand)
-       VALUES ($1, $2, $3, $4, $5, 0)
-       ON CONFLICT (warehouse_id, location_id, product_id, lot_id, serial_id) DO NOTHING`,
-      [input.warehouseId, input.locationId, input.productId, input.lotId, input.serialId],
-    );
-    const current = await client.query<{ id: string; onHand: string }>(
-      `SELECT id, on_hand AS "onHand" FROM stock_balances
-       WHERE warehouse_id = $1
-         AND location_id = $2
-         AND product_id = $3
-         AND lot_id IS NOT DISTINCT FROM $4::uuid
-         AND serial_id IS NOT DISTINCT FROM $5::uuid
-       FOR UPDATE`,
-      [input.warehouseId, input.locationId, input.productId, input.lotId, input.serialId],
-    );
-    const row = current.rows[0];
-    if (!row) throw new Error("Balance upsert returned no row");
-    const onHand = nextOnHand(Number(row.onHand), input.quantityDelta);
-    await client.query(`UPDATE stock_balances SET on_hand = $1, updated_at = now() WHERE id = $2`, [onHand, row.id]);
-  }
-
   return {
     async defaultWarehouseId() {
       const result = await pool.query<{ id: string }>(`SELECT id FROM warehouses ORDER BY code LIMIT 2`);
@@ -280,54 +328,7 @@ export function createPostgresStockStore(pool: Pool): StockStore {
         const documentId = document.rows[0]?.id;
         if (!documentId) throw new Error("Stock document insert returned no row");
 
-        for (const line of input.lines) {
-          const lotId = line.lotCode
-            ? await resolveLot(client, {
-              warehouseId: input.warehouseId,
-              productId: line.productId,
-              lotCode: line.lotCode,
-              manufacturedAt: line.manufacturedAt,
-              expiresAt: line.expiresAt,
-            })
-            : null;
-          const serialId = line.serialCode
-            ? await resolveSerial(client, {
-              warehouseId: input.warehouseId,
-              productId: line.productId,
-              serialCode: line.serialCode,
-              quantityDelta: line.quantityDelta,
-            })
-            : null;
-
-          await applyBalance(client, {
-            warehouseId: input.warehouseId,
-            locationId: line.locationId,
-            productId: line.productId,
-            lotId,
-            serialId,
-            quantityDelta: line.quantityDelta,
-          });
-          await client.query(
-            `INSERT INTO stock_movements
-              (warehouse_id, document_id, location_id, product_id, lot_id, serial_id, quantity_delta, snapshot)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [
-              input.warehouseId,
-              documentId,
-              line.locationId,
-              line.productId,
-              lotId,
-              serialId,
-              line.quantityDelta,
-              {
-                lotCode: line.lotCode,
-                serialCode: line.serialCode,
-                manufacturedAt: line.manufacturedAt,
-                expiresAt: line.expiresAt,
-              },
-            ],
-          );
-        }
+        await postStockLines(client, { warehouseId: input.warehouseId, documentId, lines: input.lines });
 
         await client.query("COMMIT");
         return { documentId, movementCount: input.lines.length };

@@ -102,6 +102,36 @@ export interface LocationClient {
   findLocationByBarcode(barcode: string): Promise<WarehouseLocation>;
 }
 
+export interface CatalogCategory {
+  id: string;
+  warehouseId: string;
+  code: string;
+  name: string;
+  status: "active" | "inactive";
+}
+
+export interface CatalogUnit {
+  id: string;
+  warehouseId: string;
+  code: string;
+  name: string;
+  baseUnitId: string | null;
+  conversionFactor: string;
+  status: "active" | "inactive";
+}
+
+export interface CatalogClient {
+  listCategories(): Promise<CatalogCategory[]>;
+  createCategory(input: Pick<CatalogCategory, "code" | "name">): Promise<CatalogCategory>;
+  listUnits(): Promise<CatalogUnit[]>;
+  createUnit(input: {
+    code: string;
+    name: string;
+    baseUnitId?: string;
+    conversionFactor?: string;
+  }): Promise<CatalogUnit>;
+}
+
 export const authApi: AuthClient = {
   async session() {
     return (await request<{ user: SessionUser }>("/api/auth/session")).user;
@@ -177,5 +207,20 @@ export const locationApi: LocationClient = {
   },
   async findLocationByBarcode(barcode) {
     return (await request<{ location: WarehouseLocation }>(`/api/locations/lookup/${encodeURIComponent(barcode)}`)).location;
+  },
+};
+
+export const catalogApi: CatalogClient = {
+  async listCategories() {
+    return (await request<{ data: CatalogCategory[] }>("/api/catalog/categories")).data;
+  },
+  async createCategory(input) {
+    return (await request<{ category: CatalogCategory }>("/api/catalog/categories", { method: "POST", body: JSON.stringify(input) })).category;
+  },
+  async listUnits() {
+    return (await request<{ data: CatalogUnit[] }>("/api/catalog/units")).data;
+  },
+  async createUnit(input) {
+    return (await request<{ unit: CatalogUnit }>("/api/catalog/units", { method: "POST", body: JSON.stringify(input) })).unit;
   },
 };

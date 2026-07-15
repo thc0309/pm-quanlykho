@@ -1,10 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tasksDir = path.join(root, "tasks");
 const memoryDir = path.join(tasksDir, "memory");
+const taskDetailDir = path.join(tasksDir, "task-detail");
 const [todo, plan] = await Promise.all([
   readFile(path.join(tasksDir, "todo.md"), "utf8"),
   readFile(path.join(tasksDir, "plan.md"), "utf8"),
@@ -42,9 +43,17 @@ for (const line of plan.split(/\r?\n/)) {
   }
 }
 
+const taskDetailFiles = await readdir(taskDetailDir).catch(() => []);
+for (const file of taskDetailFiles.filter((name) => /^task-\d+\.md$/.test(name)).sort()) {
+  const detail = await readFile(path.join(taskDetailDir, file), "utf8");
+  const title = detail.match(/^# (T\d+:.+)$/m)?.[1] ?? file;
+  const evidence = detail.match(/^## Evidence\s+([\s\S]*?)(?=^## |\s*$)/m)?.[1]?.trim();
+  if (evidence) history.push(`- ${title}: ${evidence}`);
+}
+
 const longTerm = `# Long-term Memory
 
-> Generated from verified evidence in \`tasks/plan.md\`. Do not edit by hand.
+> Generated from verified evidence in \`tasks/plan.md\` and \`tasks/task-detail/\`. Do not edit by hand.
 
 ${history.join("\n") || "- No verified task evidence yet."}
 `;

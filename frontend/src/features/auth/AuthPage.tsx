@@ -82,11 +82,11 @@ export default function AuthPage({
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-10 text-gray-900 sm:px-6">
-      <section className="mx-auto w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-theme-sm sm:p-8">
-        <p className="mb-2 text-sm font-semibold text-brand-700">Warehouse Suite</p>
+    <main className="min-h-screen bg-gray-50 px-4 py-10 text-gray-900 dark:bg-gray-900 dark:text-white/90 sm:px-6">
+      <section className="mx-auto w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-sm dark:border-gray-800 dark:bg-gray-dark sm:p-8">
+        <p className="mb-2 text-sm font-semibold text-brand-700 dark:text-brand-400" translate="no">Warehouse Suite</p>
         {error && (
-          <p role="alert" className="mb-4 rounded-lg bg-error-50 p-3 text-sm text-error-700">
+          <p role="alert" className="mb-4 rounded-lg bg-error-50 p-3 text-sm text-error-700 dark:bg-error-500/15 dark:text-error-400">
             {error}
           </p>
         )}
@@ -94,34 +94,37 @@ export default function AuthPage({
         {!user && (
           <form onSubmit={login} className="space-y-5">
             <div>
-              <h1 className="text-2xl font-semibold">Đăng nhập</h1>
-              <p className="mt-1 text-sm text-gray-500">Dùng tài khoản do quản trị viên cấp.</p>
+              <h1 className="text-2xl font-semibold text-gray-900 text-pretty dark:text-white/90">Đăng nhập</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Dùng tài khoản do quản trị viên cấp.</p>
             </div>
-            <label className="block text-sm font-medium">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
               Email
               <input
+                name="email"
                 type="email"
                 required
                 autoComplete="username"
+                spellCheck={false}
                 value={email}
                 disabled={busy}
                 onChange={(event) => setEmail(event.target.value)}
-                className="mt-1 h-11 w-full rounded-lg border border-gray-300 px-3 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-gray-100"
+                className="mt-1 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-gray-800 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:disabled:bg-gray-800"
               />
             </label>
-            <label className="block text-sm font-medium">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
               Mật khẩu
               <input
+                name="password"
                 type="password"
                 required
                 autoComplete="current-password"
                 value={password}
                 disabled={busy}
                 onChange={(event) => setPassword(event.target.value)}
-                className="mt-1 h-11 w-full rounded-lg border border-gray-300 px-3 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-gray-100"
+                className="mt-1 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-gray-800 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:disabled:bg-gray-800"
               />
             </label>
-            <button disabled={busy} className="h-11 w-full rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button disabled={busy} className="h-11 w-full rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60">
               {busy ? "Đang đăng nhập…" : "Đăng nhập"}
             </button>
           </form>
@@ -130,12 +133,13 @@ export default function AuthPage({
         {user?.mustChangePassword && (
           <form onSubmit={changePassword} className="space-y-5">
             <div>
-              <h1 className="text-2xl font-semibold">Đổi mật khẩu tạm</h1>
-              <p className="mt-1 text-sm text-gray-500">Mật khẩu mới cần ít nhất 12 ký tự.</p>
+              <h1 className="text-2xl font-semibold text-gray-900 text-pretty dark:text-white/90">Đổi mật khẩu tạm</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Mật khẩu mới cần ít nhất 12 ký tự.</p>
             </div>
-            <label className="block text-sm font-medium">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
               Mật khẩu mới
               <input
+                name="new-password"
                 type="password"
                 required
                 minLength={12}
@@ -143,12 +147,13 @@ export default function AuthPage({
                 value={password}
                 disabled={busy}
                 onChange={(event) => setPassword(event.target.value)}
-                className="mt-1 h-11 w-full rounded-lg border border-gray-300 px-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-gray-100"
+                className="mt-1 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-gray-800 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:disabled:bg-gray-800"
               />
             </label>
-            <label className="block text-sm font-medium">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
               Nhập lại mật khẩu
               <input
+                name="confirm-password"
                 type="password"
                 required
                 minLength={12}
@@ -156,10 +161,10 @@ export default function AuthPage({
                 value={confirmation}
                 disabled={busy}
                 onChange={(event) => setConfirmation(event.target.value)}
-                className="mt-1 h-11 w-full rounded-lg border border-gray-300 px-3 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-gray-100"
+                className="mt-1 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-gray-800 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:disabled:bg-gray-800"
               />
             </label>
-            <button disabled={busy} className="h-11 w-full rounded-lg bg-brand-600 px-4 font-medium text-white disabled:opacity-60">
+            <button disabled={busy} className="h-11 w-full rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:opacity-60">
               {busy ? "Đang cập nhật…" : "Cập nhật mật khẩu"}
             </button>
           </form>
@@ -168,10 +173,10 @@ export default function AuthPage({
         {user && !user.mustChangePassword && (
           <div className="space-y-5">
             <div>
-              <h1 className="text-2xl font-semibold">Đăng nhập thành công</h1>
-              <p className="mt-1 text-sm text-gray-500">Xin chào {user.fullName}.</p>
+              <h1 className="text-2xl font-semibold text-gray-900 text-pretty dark:text-white/90">Đăng nhập thành công</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Xin chào {user.fullName}.</p>
             </div>
-            <button onClick={logout} disabled={busy} className="h-11 w-full rounded-lg border border-gray-300 px-4 font-medium hover:bg-gray-50 disabled:opacity-60">
+            <button onClick={logout} disabled={busy} className="h-11 w-full rounded-lg border border-gray-300 px-4 font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
               Đăng xuất
             </button>
           </div>

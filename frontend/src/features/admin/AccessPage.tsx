@@ -1,37 +1,52 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router";
 
+import { Pagination, paginate } from "../../components/common/Pagination";
 import {
   adminApi,
   type AdminClient,
   type AdminRole,
   type AdminUser,
 } from "../../lib/api";
+import {
+  CheckCircleIcon,
+  EyeIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashBinIcon,
+} from "../../icons";
+import { ErrorNotice } from "./components/ErrorNotice";
+import { PageHeader } from "./components/PageHeader";
 
-const permissionOptions = [
+export { AccessNavigation } from "./components/AccessNavigation";
+
+export const permissionOptions = [
   ["outbound.pick", "Soạn hàng"],
   ["outbound.check", "Kiểm hàng"],
   ["outbound.ship", "Xuất hàng"],
   ["outbound.resolveDiscrepancy", "Xử lý sai lệch"],
 ] as const;
 
-export function AccessNavigation({ permissions }: { permissions: string[] }) {
-  if (!permissions.includes("*") && !permissions.includes("admin.access.manage")) {
-    return null;
-  }
-  return <a href="/admin/access" className="rounded-lg px-3 py-2 hover:bg-gray-100">Người dùng &amp; role</a>;
-}
+const panelClass =
+  "rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]";
+const labelClass = "block text-sm font-medium text-gray-700 dark:text-gray-400";
+const inputClass =
+  "mt-1 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:disabled:bg-gray-800";
+const primaryButtonClass =
+  "inline-flex h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60";
+const secondaryButtonClass =
+  "inline-flex h-11 items-center gap-2 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5";
+const iconButtonClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5";
+const tableHeadClass =
+  "bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-white/[0.03] dark:text-gray-400";
+const tableCellClass = "px-4 py-3 text-sm text-gray-700 dark:text-gray-300";
 
-export default function AccessPage({ api = adminApi }: { api?: AdminClient }) {
+function useAdminData(api: AdminClient) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [temporaryPassword, setTemporaryPassword] = useState("");
-  const [userForm, setUserForm] = useState({ fullName: "", email: "" });
-  const [roleForm, setRoleForm] = useState({ code: "", name: "", permissions: [] as string[] });
-  const [assignment, setAssignment] = useState({ userId: "", roleIds: [] as string[] });
 
   useEffect(() => {
     Promise.all([api.listUsers(), api.listRoles()])
@@ -39,9 +54,117 @@ export default function AccessPage({ api = adminApi }: { api?: AdminClient }) {
         setUsers(nextUsers);
         setRoles(nextRoles);
       })
-      .catch(() => setError("Không thể tải dữ liệu phân quyền"))
+      .catch(() => setError("Không thể tải dữ liệu phân quyền. Hãy thử tải lại trang."))
       .finally(() => setLoading(false));
   }, [api]);
+
+  return { users, setUsers, roles, setRoles, loading, error, setError };
+}
+
+function normalizeRoleCode(value: string) {
+  return value
+    .trimStart()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9_-]/g, "");
+}
+
+export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
+  const { users, setUsers, loading, error, setError } = useAdminData(api);
+  const [busy, setBusy] = useState(false);
+  const [userPage, setUserPage] = useState(1);
+  const pagedUsers = paginate(users, userPage);
+
+  async function toggleUserStatus(item: AdminUser) {
+    setBusy(true);
+    setError("");
+    try {
+      const status = item.status === "active" ? "inactive" : "active";
+      const updated = await api.setUserStatus(item.id, status);
+      setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
+    } catch {
+      setError("Không thể cập nhật trạng thái người dùng.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải người dùng…</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Người dùng"
+        description="Tạo, vô hiệu hóa và gán vai trò cho người dùng trong kho hiện tại."
+        actions={(
+          <Link to="/admin/users/create" className={primaryButtonClass}>
+            <PlusIcon className="h-4 w-4" />
+            Thêm người dùng
+          </Link>
+        )}
+      />
+      <ErrorNotice message={error} />
+
+      <section className={panelClass}>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Người dùng hiện có</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
+            <thead className={tableHeadClass}>
+              <tr>
+                <th scope="col" className="px-4 py-3">Họ tên</th>
+                <th scope="col" className="px-4 py-3">Email</th>
+                <th scope="col" className="px-4 py-3">Trạng thái</th>
+                <th scope="col" className="px-4 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
+                    Chưa có người dùng.
+                  </td>
+                </tr>
+              ) : pagedUsers.map((item) => (
+                <tr key={item.id}>
+                  <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{item.fullName}</td>
+                  <td className={tableCellClass}>{item.email}</td>
+                  <td className={tableCellClass}>{item.status === "active" ? "Đang hoạt động" : "Đã vô hiệu hóa"}</td>
+                  <td className={`${tableCellClass} text-right`}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => toggleUserStatus(item)}
+                      aria-label={`${item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} ${item.fullName}`}
+                      title={item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                      className={iconButtonClass}
+                    >
+                      {item.status === "active" ? (
+                        <TrashBinIcon className="h-4 w-4" />
+                      ) : (
+                        <CheckCircleIcon className="h-4 w-4" />
+                      )}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={userPage} totalItems={users.length} onPageChange={setUserPage} />
+      </section>
+    </div>
+  );
+}
+
+export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
+  const { users, setUsers, roles, loading, error, setError } = useAdminData(api);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [userForm, setUserForm] = useState({ fullName: "", email: "" });
+  const [assignment, setAssignment] = useState({ userId: "", roleIds: [] as string[] });
 
   async function createUser(event: FormEvent) {
     event.preventDefault();
@@ -50,25 +173,11 @@ export default function AccessPage({ api = adminApi }: { api?: AdminClient }) {
     try {
       const result = await api.createUser(userForm);
       setUsers((current) => [result.user, ...current]);
+      setAssignment((current) => ({ ...current, userId: result.user.id }));
       setTemporaryPassword(result.temporaryPassword);
       setUserForm({ fullName: "", email: "" });
     } catch {
-      setError("Không thể tạo người dùng");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createRole(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const role = await api.createRole(roleForm);
-      setRoles((current) => [role, ...current]);
-      setRoleForm({ code: "", name: "", permissions: [] });
-    } catch {
-      setError("Không thể tạo role");
+      setError("Không thể tạo người dùng. Kiểm tra email đã tồn tại hay chưa.");
     } finally {
       setBusy(false);
     }
@@ -82,95 +191,327 @@ export default function AccessPage({ api = adminApi }: { api?: AdminClient }) {
     setNotice("");
     try {
       await api.setUserRoles(assignment.userId, assignment.roleIds);
-      setNotice("Đã gán role");
+      setNotice("Đã gán vai trò");
     } catch {
-      setError("Không thể gán role");
+      setError("Không thể gán vai trò. Hãy kiểm tra người dùng và quyền hiện tại.");
     } finally {
       setBusy(false);
     }
   }
 
-  if (loading) return <p role="status">Đang tải phân quyền…</p>;
+  if (loading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải form người dùng…</p>;
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Người dùng &amp; role</h1>
-        <p className="mt-1 text-sm text-gray-500">Quản lý quyền trong kho hiện tại.</p>
-      </div>
-      {error && <p role="alert" className="rounded-lg bg-error-50 p-3 text-error-700">{error}</p>}
-      {notice && <p role="status" className="rounded-lg bg-success-50 p-3 text-success-700">{notice}</p>}
+      <PageHeader
+        title="Thêm người dùng"
+        description="Nhập thông tin người dùng và gán vai trò sau khi tạo."
+        actions={<Link to="/admin/users" className={secondaryButtonClass}>Quay lại</Link>}
+      />
+      <ErrorNotice message={error} />
+      {notice && (
+        <p role="status" className="rounded-lg bg-success-50 p-3 text-sm text-success-700 dark:bg-success-500/15 dark:text-success-400">
+          {notice}
+        </p>
+      )}
       {temporaryPassword && (
-        <div role="status" className="rounded-lg border border-warning-300 bg-warning-50 p-4">
-          Mật khẩu tạm chỉ hiển thị lần này: <strong>{temporaryPassword}</strong>
+        <div role="status" className="rounded-lg border border-warning-300 bg-warning-50 p-4 text-sm text-warning-800 dark:border-warning-700 dark:bg-warning-500/15 dark:text-warning-300">
+          Mật khẩu tạm chỉ hiển thị lần này: <strong className="break-all">{temporaryPassword}</strong>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <form onSubmit={createUser} className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="text-lg font-semibold">Tạo người dùng</h2>
-          <label className="block text-sm font-medium">Họ tên
-            <input required value={userForm.fullName} onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3" />
+      <form onSubmit={createUser} className={`space-y-4 ${panelClass}`}>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Thông tin người dùng</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
+            Họ tên
+            <input
+              name="fullName"
+              required
+              autoComplete="name"
+              value={userForm.fullName}
+              onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })}
+              className={inputClass}
+            />
           </label>
-          <label className="block text-sm font-medium">Email người dùng
-            <input type="email" required value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3" />
+          <label className={labelClass}>
+            Email người dùng
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              spellCheck={false}
+              value={userForm.email}
+              onChange={(event) => setUserForm({ ...userForm, email: event.target.value })}
+              className={inputClass}
+            />
           </label>
-          <button disabled={busy} className="h-10 rounded-lg bg-brand-600 px-4 font-medium text-white disabled:opacity-60">Tạo người dùng</button>
-        </form>
+        </div>
+        <button type="submit" disabled={busy} className={primaryButtonClass}>
+          Tạo người dùng
+        </button>
+      </form>
 
-        <form onSubmit={createRole} className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="text-lg font-semibold">Tạo role</h2>
-          <label className="block text-sm font-medium">Mã role
-            <input required value={roleForm.code} onChange={(e) => setRoleForm({ ...roleForm, code: e.target.value })} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3" />
-          </label>
-          <label className="block text-sm font-medium">Tên role
-            <input required value={roleForm.name} onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3" />
-          </label>
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Quyền</legend>
-            {permissionOptions.map(([code, label]) => (
-              <label key={code} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={roleForm.permissions.includes(code)} onChange={(e) => setRoleForm({ ...roleForm, permissions: e.target.checked ? [...roleForm.permissions, code] : roleForm.permissions.filter((value) => value !== code) })} />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-          <button disabled={busy || roleForm.permissions.length === 0} className="h-10 rounded-lg bg-brand-600 px-4 font-medium text-white disabled:opacity-60">Tạo role</button>
-        </form>
-      </div>
-
-      <form onSubmit={assignRoles} className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-lg font-semibold">Gán role cho người dùng</h2>
-        <label className="block text-sm font-medium">Người dùng cần gán
-          <select value={assignment.userId} onChange={(event) => setAssignment({ ...assignment, userId: event.target.value })} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3">
+      <form onSubmit={assignRoles} className={`space-y-4 ${panelClass}`}>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Vai trò</h2>
+        <label className={labelClass}>
+          Người dùng cần gán
+          <select
+            name="assignedUser"
+            autoComplete="off"
+            value={assignment.userId}
+            onChange={(event) => setAssignment({ ...assignment, userId: event.target.value })}
+            className={inputClass}
+          >
             <option value="">Chọn người dùng</option>
-            {users.map((user) => <option key={user.id} value={user.id}>{user.fullName} — {user.email}</option>)}
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>{user.fullName} — {user.email}</option>
+            ))}
           </select>
         </label>
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Role được gán</legend>
-          {roles.length === 0 ? <p className="text-sm text-gray-500">Chưa có role.</p> : roles.map((role) => (
-            <label key={role.id} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={assignment.roleIds.includes(role.id)} onChange={(event) => setAssignment({ ...assignment, roleIds: event.target.checked ? [...assignment.roleIds, role.id] : assignment.roleIds.filter((id) => id !== role.id) })} />
+          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Vai trò được gán</legend>
+          {roles.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Chưa có vai trò.</p>
+          ) : roles.map((role) => (
+            <label key={role.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={assignment.roleIds.includes(role.id)}
+                onChange={(event) =>
+                  setAssignment({
+                    ...assignment,
+                    roleIds: event.target.checked
+                      ? [...assignment.roleIds, role.id]
+                      : assignment.roleIds.filter((id) => id !== role.id),
+                  })
+                }
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500"
+              />
               Gán {role.name}
             </label>
           ))}
         </fieldset>
-        <button disabled={busy || !assignment.userId || assignment.roleIds.length === 0} className="h-10 rounded-lg bg-brand-600 px-4 font-medium text-white disabled:opacity-60">Gán role</button>
+        <button type="submit" disabled={busy || !assignment.userId || assignment.roleIds.length === 0} className={primaryButtonClass}>
+          Gán vai trò
+        </button>
       </form>
+    </div>
+  );
+}
 
-      <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-lg font-semibold">Role hiện có</h2>
-        {roles.length === 0 ? <p className="mt-3 text-sm text-gray-500">Chưa có role.</p> : (
-          <ul className="mt-3 divide-y divide-gray-100">{roles.map((role) => <li key={role.id} className="py-3"><strong>{role.name}</strong><span className="ml-2 text-sm text-gray-500">{role.permissions.join(", ")}</span></li>)}</ul>
+export function RolesPage({ api = adminApi }: { api?: AdminClient }) {
+  const { roles, loading, error } = useAdminData(api);
+  const [rolePage, setRolePage] = useState(1);
+  const pagedRoles = paginate(roles, rolePage);
+
+  if (loading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải vai trò…</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Vai trò"
+        description="Tạo vai trò và chọn các quyền nghiệp vụ được phép dùng."
+        actions={(
+          <Link to="/admin/roles/create" className={primaryButtonClass}>
+            <PlusIcon className="h-4 w-4" />
+            Thêm vai trò
+          </Link>
         )}
-      </section>
-      <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-lg font-semibold">Người dùng</h2>
-        {users.length === 0 ? <p className="mt-3 text-sm text-gray-500">Chưa có người dùng.</p> : (
-          <ul className="mt-3 divide-y divide-gray-100">{users.map((item) => <li key={item.id} className="flex items-center justify-between gap-3 py-3"><span><strong>{item.fullName}</strong><span className="block text-sm text-gray-500">{item.email}</span></span><button onClick={async () => { const status = item.status === "active" ? "inactive" : "active"; const updated = await api.setUserStatus(item.id, status); setUsers((current) => current.map((user) => user.id === updated.id ? updated : user)); }} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">{item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}</button></li>)}</ul>
-        )}
+      />
+      <ErrorNotice message={error} />
+
+      <section className={panelClass}>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Vai trò hiện có</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
+            <thead className={tableHeadClass}>
+              <tr>
+                <th scope="col" className="px-4 py-3">Tên vai trò</th>
+                <th scope="col" className="px-4 py-3">Mã</th>
+                <th scope="col" className="px-4 py-3">Quyền</th>
+                <th scope="col" className="px-4 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {roles.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
+                    Chưa có vai trò.
+                  </td>
+                </tr>
+              ) : pagedRoles.map((role) => (
+                <tr key={role.id}>
+                  <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{role.name}</td>
+                  <td className={tableCellClass}>{role.code}</td>
+                  <td className={tableCellClass}>{role.permissions.join(", ")}</td>
+                  <td className={`${tableCellClass} text-right`}>
+                    <div className="inline-flex gap-2">
+                      <button type="button" disabled aria-label={`Sửa vai trò ${role.name}`} title="Chưa hỗ trợ sửa vai trò" className={iconButtonClass}>
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                      <button type="button" disabled aria-label={`Xóa vai trò ${role.name}`} title="Chưa hỗ trợ xóa vai trò" className={iconButtonClass}>
+                        <TrashBinIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={rolePage} totalItems={roles.length} onPageChange={setRolePage} />
       </section>
     </div>
   );
 }
+
+export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [roleForm, setRoleForm] = useState({ code: "", name: "", permissions: [] as string[] });
+
+  async function createRole(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api.createRole(roleForm);
+      setNotice("Đã tạo vai trò");
+      setRoleForm({ code: "", name: "", permissions: [] });
+    } catch {
+      setError("Không thể tạo vai trò. Kiểm tra mã vai trò đã tồn tại hay chưa.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Thêm vai trò"
+        description="Nhập mã, tên và quyền nghiệp vụ cho vai trò mới."
+        actions={<Link to="/admin/roles" className={secondaryButtonClass}>Quay lại</Link>}
+      />
+      <ErrorNotice message={error} />
+      {notice && (
+        <p role="status" className="rounded-lg bg-success-50 p-3 text-sm text-success-700 dark:bg-success-500/15 dark:text-success-400">
+          {notice}
+        </p>
+      )}
+
+      <form onSubmit={createRole} className={`space-y-4 ${panelClass}`}>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Thông tin vai trò</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
+            Mã vai trò
+            <input
+              name="roleCode"
+              required
+              autoComplete="off"
+              spellCheck={false}
+              pattern="[a-z][a-z0-9_-]*"
+              value={roleForm.code}
+              onChange={(event) => setRoleForm({ ...roleForm, code: normalizeRoleCode(event.target.value) })}
+              className={inputClass}
+            />
+          </label>
+          <label className={labelClass}>
+            Tên vai trò
+            <input
+              name="roleName"
+              required
+              autoComplete="off"
+              value={roleForm.name}
+              onChange={(event) => setRoleForm({ ...roleForm, name: event.target.value })}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Quyền</legend>
+          {permissionOptions.map(([code, label]) => (
+            <label key={code} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={roleForm.permissions.includes(code)}
+                onChange={(event) =>
+                  setRoleForm({
+                    ...roleForm,
+                    permissions: event.target.checked
+                      ? [...roleForm.permissions, code]
+                      : roleForm.permissions.filter((value) => value !== code),
+                  })
+                }
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500"
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+        <button type="submit" disabled={busy || roleForm.permissions.length === 0} className={primaryButtonClass}>
+          Tạo vai trò
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export function PermissionsPage() {
+  const permissions = useMemo(
+    () => permissionOptions.map(([code, label]) => ({ code, label })),
+    [],
+  );
+  const [permissionPage, setPermissionPage] = useState(1);
+  const pagedPermissions = paginate(permissions, permissionPage);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Permission"
+        description="Danh sách quyền nghiệp vụ dùng để gán cho vai trò."
+      />
+      <section className={panelClass}>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Quyền hiện có</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
+            <thead className={tableHeadClass}>
+              <tr>
+                <th scope="col" className="px-4 py-3">Tên quyền</th>
+                <th scope="col" className="px-4 py-3">Mã quyền</th>
+                <th scope="col" className="px-4 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {pagedPermissions.map((permission) => (
+                <tr key={permission.code}>
+                  <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{permission.label}</td>
+                  <td className={tableCellClass}>
+                    <code className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-white/[0.06] dark:text-gray-300">
+                      {permission.code}
+                    </code>
+                  </td>
+                  <td className={`${tableCellClass} text-right`}>
+                    <button type="button" disabled aria-label={`Xem quyền ${permission.label}`} title="Danh mục quyền cố định" className={iconButtonClass}>
+                      <EyeIcon className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={permissionPage} totalItems={permissions.length} onPageChange={setPermissionPage} />
+      </section>
+    </div>
+  );
+}
+
+export default UsersPage;

@@ -11,6 +11,9 @@
     "dev:backend": "npm run dev --prefix backend",
     "build": "npm run build --prefix backend && npm run build --prefix frontend",
     "test": "npm test --prefix backend && npm test --prefix frontend",
-    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend"
+    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
+    "docker:up": "docker compose up",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v"
   }
 }

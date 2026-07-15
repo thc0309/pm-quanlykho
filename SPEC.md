@@ -106,6 +106,8 @@ tasks/                   Plan, test plan, verification evidence
 
 Ponytail rule: chỉ tạo hai thư mục `frontend/` và `backend/`. Không tạo monorepo `apps/`/`packages/` cho tới khi có nhu cầu thật.
 
+Frontend component rule: component đặc thù của một feature đặt trong `frontend/src/features/<feature>/components/`; component dùng chung từ hai feature trở lên mới đặt trong `frontend/src/components/`.
+
 ## Production Scope
 
 ### Quản trị, tài khoản và phân quyền
@@ -242,11 +244,17 @@ if (lot.expiresAt < today && !canOverrideExpiredLot) {
 ## Frontend Requirements
 
 - Template phải được “rút gọn để dùng thật”: bỏ demo page/component không cần cho nghiệp vụ.
+- Component đặc thù của một feature đặt trong `frontend/src/features/<feature>/components/`; component dùng chung từ hai feature trở lên mới đặt trong `frontend/src/components/`.
 - Route chính: dashboard, catalog, products, partners, purchasing, sales, outbound picking, outbound checking, stock, locations, lots/serials, transfers, stock counts, returns, reports, users, roles, print settings.
 - Sidebar hiển thị theo permission.
 - Auth flow gồm login, đổi mật khẩu tạm, logout; không có sign-up public.
 - Form phải có validation, error display, loading state, disabled state.
 - Table phải có pagination, filter, empty state, error state.
+- Quy chuẩn list/form áp dụng cho toàn bộ tính năng đã làm và sẽ làm.
+- Mỗi screen dạng danh sách phải có toolbar action ở đầu màn hình như `Thêm`, `In`, `Export` theo quyền và nghiệp vụ.
+- Màn hình danh sách chỉ hiển thị danh sách, filter/pagination và toolbar action; form tạo/sửa nằm ở route riêng mở từ action như `Thêm`.
+- Với màn hình có tạo mới, nút `Thêm` trên list screen phải điều hướng sang route form riêng, không scroll tới form nhúng trong cùng trang.
+- Mỗi item trong danh sách phải có cột `Action` riêng; thao tác dòng dùng icon button như sửa, xóa, kích hoạt, xem chi tiết và phải có `aria-label`.
 - Icon-only button phải có `aria-label`.
 - Màu trạng thái không truyền nghĩa chỉ bằng màu; luôn có label/icon.
 

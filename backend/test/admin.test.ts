@@ -27,6 +27,7 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
   roles: AdminRole[] = [];
   userRoles = new Map<string, string[]>();
   audits: AuditEntry[] = [];
+  warehouseIds = ["warehouse-a"];
 
   async findUserByEmail(email: string) {
     return this.authUsers.find((user) => user.email === email) ?? null;
@@ -50,8 +51,11 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
   async insertAudit(entry: AuditEntry) {
     this.audits.push(entry);
   }
-  async listUsers(warehouseId: string) {
-    const data = this.users.filter((user) => user.warehouseId === warehouseId);
+  async defaultWarehouseId() {
+    return this.warehouseIds.length === 1 ? this.warehouseIds[0]! : null;
+  }
+  async listUsers(warehouseId: string | null) {
+    const data = warehouseId ? this.users.filter((user) => user.warehouseId === warehouseId) : this.users;
     return { data, total: data.length };
   }
   async createUser(input: Omit<AdminUser, "id" | "status"> & { passwordHash: string }) {
@@ -68,8 +72,8 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
     user.status = status;
     return user;
   }
-  async listRoles(warehouseId: string) {
-    const data = this.roles.filter((role) => role.warehouseId === warehouseId);
+  async listRoles(warehouseId: string | null) {
+    const data = warehouseId ? this.roles.filter((role) => role.warehouseId === warehouseId) : this.roles;
     return { data, total: data.length };
   }
   async createRole(input: Omit<AdminRole, "id">) {
@@ -89,6 +93,16 @@ async function setup() {
   const store = new MemoryAdminStore();
   const passwordHash = await hashPassword("secure-password");
   store.authUsers.push(
+    {
+      id: "master",
+      email: "master@example.test",
+      fullName: "Master Admin",
+      kind: "master_admin",
+      warehouseId: null,
+      passwordHash,
+      mustChangePassword: false,
+      status: "active",
+    },
     {
       id: "admin-a",
       email: "admin@example.test",
@@ -172,6 +186,23 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
   });
   assert.equal(assign.status, 204);
   assert.equal(store.audits.length, 4);
+});
+
+test("master can list admin data across warehouses", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "master@example.test");
+  store.users.push({
+    id: "inside-user",
+    email: "inside@example.test",
+    fullName: "Inside",
+    kind: "warehouse_user",
+    warehouseId: "warehouse-a",
+    status: "active",
+  });
+
+  const response = await app.request("/api/admin/users", { headers: { cookie } });
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).data.map((user: AdminUser) => user.id), ["outside-user", "inside-user"]);
 });
 
 test("denied user cannot administer access", async () => {

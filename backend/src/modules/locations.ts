@@ -18,7 +18,8 @@ export interface WarehouseLocation {
 }
 
 export interface LocationStore {
-  list(warehouseId: string): Promise<WarehouseLocation[]>;
+  defaultWarehouseId(): Promise<string | null>;
+  list(warehouseId: string | null): Promise<WarehouseLocation[]>;
   create(input: Omit<WarehouseLocation, "id" | "status">): Promise<WarehouseLocation>;
   findByBarcode(warehouseId: string, barcode: string): Promise<WarehouseLocation | null>;
 }
@@ -30,13 +31,30 @@ const locationSchema = z.object({
   type: z.enum(["storage", "staging", "shipping"]),
 }).strict();
 
-function warehouseFor(context: Context, actor: AccessActor) {
+async function warehouseFor(context: Context, actor: AccessActor, store: LocationStore) {
   if (actor.user.kind !== "master_admin") {
     if (!actor.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
     return actor.user.warehouseId;
   }
-  const result = z.string().uuid().safeParse(context.req.query("warehouseId"));
+  const requested = context.req.query("warehouseId");
+  if (!requested) {
+    const defaultWarehouseId = await store.defaultWarehouseId();
+    if (defaultWarehouseId) return defaultWarehouseId;
+  }
+  const result = z.string().uuid().safeParse(requested);
   if (!result.success) throw new HttpError(422, "VALIDATION_ERROR", "Master phải chọn warehouseId hợp lệ");
+  return result.data;
+}
+
+function warehouseScopeFor(context: Context, actor: AccessActor) {
+  if (actor.user.kind !== "master_admin") {
+    if (!actor.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
+    return actor.user.warehouseId;
+  }
+  const requested = context.req.query("warehouseId");
+  if (!requested) return null;
+  const result = z.string().uuid().safeParse(requested);
+  if (!result.success) throw new HttpError(422, "VALIDATION_ERROR", "warehouseId không hợp lệ");
   return result.data;
 }
 
@@ -45,12 +63,12 @@ export function registerLocationRoutes(app: Hono, authStore: AuthStore, accessSt
 
   app.get("/api/locations", async (c) => {
     const current = await actor(c, true);
-    return c.json({ data: await store.list(warehouseFor(c, current)) });
+    return c.json({ data: await store.list(warehouseScopeFor(c, current)) });
   });
 
   app.post("/api/locations", async (c) => {
     const current = await actor(c, true);
-    const warehouseId = warehouseFor(c, current);
+    const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, locationSchema);
     let location: WarehouseLocation;
     try {
@@ -65,7 +83,7 @@ export function registerLocationRoutes(app: Hono, authStore: AuthStore, accessSt
 
   app.get("/api/locations/lookup/:barcode", async (c) => {
     const current = await actor(c);
-    const warehouseId = warehouseFor(c, current);
+    const warehouseId = await warehouseFor(c, current, store);
     const barcode = z.string().trim().min(1).max(100).safeParse(c.req.param("barcode"));
     if (!barcode.success) throw new HttpError(422, "VALIDATION_ERROR", "Barcode không hợp lệ");
     const location = await store.findByBarcode(warehouseId, barcode.data);
@@ -77,8 +95,14 @@ export function registerLocationRoutes(app: Hono, authStore: AuthStore, accessSt
 export function createPostgresLocationStore(pool: Pool): LocationStore {
   const columns = `id, warehouse_id AS "warehouseId", code, barcode, name, type, status`;
   return {
+    async defaultWarehouseId() {
+      const result = await pool.query<{ id: string }>(
+        `SELECT id FROM warehouses ORDER BY code LIMIT 2`,
+      );
+      return result.rows.length === 1 ? result.rows[0]!.id : null;
+    },
     async list(warehouseId) {
-      return (await pool.query<WarehouseLocation>(`SELECT ${columns} FROM locations WHERE warehouse_id = $1 ORDER BY code`, [warehouseId])).rows;
+      return (await pool.query<WarehouseLocation>(`SELECT ${columns} FROM locations WHERE ($1::uuid IS NULL OR warehouse_id = $1) ORDER BY code`, [warehouseId])).rows;
     },
     async create(input) {
       const result = await pool.query<WarehouseLocation>(`INSERT INTO locations (warehouse_id, code, barcode, name, type) VALUES ($1, $2, $3, $4, $5) RETURNING ${columns}`, [input.warehouseId, input.code, input.barcode, input.name, input.type]);

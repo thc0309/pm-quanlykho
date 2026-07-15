@@ -52,13 +52,14 @@ export interface AdminRole {
 type Page<T> = { data: T[]; total: number };
 
 export interface AdminStore {
-  listUsers(warehouseId: string, limit: number, offset: number): Promise<Page<AdminUser>>;
+  defaultWarehouseId(): Promise<string | null>;
+  listUsers(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminUser>>;
   createUser(
     input: Omit<AdminUser, "id" | "status"> & { passwordHash: string },
   ): Promise<AdminUser>;
   findUserWarehouse(userId: string): Promise<string | null>;
   setUserStatus(userId: string, status: "active" | "inactive"): Promise<AdminUser | null>;
-  listRoles(warehouseId: string, limit: number, offset: number): Promise<Page<AdminRole>>;
+  listRoles(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminRole>>;
   createRole(input: Omit<AdminRole, "id">): Promise<AdminRole>;
   findRoleWarehouses(roleIds: string[]): Promise<string[]>;
   setUserRoles(userId: string, roleIds: string[]): Promise<void>;
@@ -76,14 +77,33 @@ const roleSchema = z.object({
 });
 const assignmentSchema = z.object({ roleIds: z.array(z.string().min(1)).max(20) });
 
-function warehouseFor(context: Context, actor: AccessActor) {
+async function warehouseFor(context: Context, actor: AccessActor, store: AdminStore) {
   if (actor.user.kind !== "master_admin") {
     if (!actor.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
     return actor.user.warehouseId;
   }
-  const result = z.string().uuid().safeParse(context.req.query("warehouseId"));
+  const requested = context.req.query("warehouseId");
+  if (!requested) {
+    const defaultWarehouseId = await store.defaultWarehouseId();
+    if (defaultWarehouseId) return defaultWarehouseId;
+  }
+  const result = z.string().uuid().safeParse(requested);
   if (!result.success) {
     throw new HttpError(422, "VALIDATION_ERROR", "Master phải chọn warehouseId hợp lệ");
+  }
+  return result.data;
+}
+
+function warehouseScopeFor(context: Context, actor: AccessActor) {
+  if (actor.user.kind !== "master_admin") {
+    if (!actor.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
+    return actor.user.warehouseId;
+  }
+  const requested = context.req.query("warehouseId");
+  if (!requested) return null;
+  const result = z.string().uuid().safeParse(requested);
+  if (!result.success) {
+    throw new HttpError(422, "VALIDATION_ERROR", "warehouseId không hợp lệ");
   }
   return result.data;
 }
@@ -116,7 +136,7 @@ export function registerAdminRoutes(
 
   app.get("/api/admin/users", async (c) => {
     const current = await actor(c);
-    const warehouseId = warehouseFor(c, current);
+    const warehouseId = warehouseScopeFor(c, current);
     const pagination = parsePagination(c.req.query());
     const result = await adminStore.listUsers(
       warehouseId,
@@ -136,7 +156,7 @@ export function registerAdminRoutes(
 
   app.post("/api/admin/users", async (c) => {
     const current = await actor(c);
-    const warehouseId = warehouseFor(c, current);
+    const warehouseId = await warehouseFor(c, current, adminStore);
     const input = await parseJson(c, userSchema);
     const temporaryPassword = randomBytes(12).toString("base64url");
     let user: AdminUser;
@@ -185,7 +205,7 @@ export function registerAdminRoutes(
 
   app.get("/api/admin/roles", async (c) => {
     const current = await actor(c);
-    const warehouseId = warehouseFor(c, current);
+    const warehouseId = warehouseScopeFor(c, current);
     const pagination = parsePagination(c.req.query());
     const result = await adminStore.listRoles(
       warehouseId,
@@ -205,7 +225,7 @@ export function registerAdminRoutes(
 
   app.post("/api/admin/roles", async (c) => {
     const current = await actor(c);
-    const warehouseId = warehouseFor(c, current);
+    const warehouseId = await warehouseFor(c, current, adminStore);
     const input = await parseJson(c, roleSchema);
     let role: AdminRole;
     try {
@@ -248,15 +268,22 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
   const userColumns = `id, email, full_name AS "fullName", kind,
     warehouse_id AS "warehouseId", status`;
   return {
+    async defaultWarehouseId() {
+      const result = await pool.query<{ id: string }>(
+        `SELECT id FROM warehouses ORDER BY code LIMIT 2`,
+      );
+      return result.rows.length === 1 ? result.rows[0]!.id : null;
+    },
     async listUsers(warehouseId, limit, offset) {
       const [rows, count] = await Promise.all([
         pool.query<AdminUser>(
-          `SELECT ${userColumns} FROM users WHERE warehouse_id = $1
+          `SELECT ${userColumns} FROM users
+           WHERE warehouse_id IS NOT NULL AND ($1::uuid IS NULL OR warehouse_id = $1)
            ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
           [warehouseId, limit, offset],
         ),
         pool.query<{ count: string }>(
-          `SELECT count(*) FROM users WHERE warehouse_id = $1`,
+          `SELECT count(*) FROM users WHERE warehouse_id IS NOT NULL AND ($1::uuid IS NULL OR warehouse_id = $1)`,
           [warehouseId],
         ),
       ]);
@@ -295,12 +322,12 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
           `SELECT r.id, r.warehouse_id AS "warehouseId", r.code, r.name,
              COALESCE(array_agg(rpc.permission_code) FILTER (WHERE rpc.permission_code IS NOT NULL), '{}') AS permissions
            FROM roles r LEFT JOIN role_permission_codes rpc ON rpc.role_id = r.id
-           WHERE r.warehouse_id = $1 GROUP BY r.id
+           WHERE ($1::uuid IS NULL OR r.warehouse_id = $1) GROUP BY r.id
            ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`,
           [warehouseId, limit, offset],
         ),
         pool.query<{ count: string }>(
-          `SELECT count(*) FROM roles WHERE warehouse_id = $1`,
+          `SELECT count(*) FROM roles WHERE ($1::uuid IS NULL OR warehouse_id = $1)`,
           [warehouseId],
         ),
       ]);

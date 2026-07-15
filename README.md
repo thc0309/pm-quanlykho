@@ -10,21 +10,62 @@ Hệ thống quản lý kho đa ngành, ưu tiên web/PWA. Repo hiện có nền
 
 ## Yêu cầu
 
-- Node.js 20+ và npm.
-- PostgreSQL có extension `pgcrypto`.
-- Hai cổng local mặc định còn trống: API `4000`, web `5173`.
+- Docker Desktop hoặc Docker Engine có Docker Compose.
+- Hai cổng local mặc định còn trống: database `5433`, API `4000`, web `5173`.
+- Nếu không dùng Docker: Node.js 20+ và PostgreSQL có extension `pgcrypto`.
 
 ## Khởi động nhanh
 
-```powershell
+Chạy toàn bộ stack bằng Docker:
+
+```bash
 git clone https://github.com/thc0309/pm-quanlykho.git
 cd pm-quanlykho
-npm install --prefix backend
-npm install --prefix frontend
-Copy-Item backend/.env.example backend/.env
+docker compose up
 ```
 
-Sửa `backend/.env` theo PostgreSQL local. Không dùng các giá trị mẫu cho production:
+Hoặc dùng script npm tại thư mục gốc:
+
+```bash
+npm run docker:up
+```
+
+Lần chạy đầu Docker sẽ tải image, cài dependency, chờ PostgreSQL sẵn sàng, chạy migration, seed dữ liệu dev rồi khởi động backend/frontend.
+
+- Web: <http://127.0.0.1:5173>
+- API health: <http://127.0.0.1:4000/health>
+- PostgreSQL local: `localhost:5433`, database `warehouse_suite`, user `postgres`, password `postgres`.
+
+Tài khoản dev được seed sẵn:
+
+| Loại | Email | Mật khẩu tạm |
+|---|---|---|
+| Master admin | `master@example.com` | `master-password-123` |
+| Warehouse admin | `admin@example.com` | `admin-password-123` |
+
+Dừng stack:
+
+```bash
+docker compose down
+```
+
+Xóa cả dữ liệu database Docker để seed lại từ đầu:
+
+```bash
+npm run docker:reset
+```
+
+Các giá trị trong `docker-compose.yml` chỉ dùng cho development. Không dùng mật khẩu hoặc `SESSION_SECRET` mẫu cho production.
+
+## Chạy thủ công không dùng Docker
+
+```bash
+npm install --prefix backend
+npm install --prefix frontend --legacy-peer-deps
+cp backend/.env.example backend/.env
+```
+
+Sửa `backend/.env` theo PostgreSQL local:
 
 ```env
 NODE_ENV=development
@@ -39,7 +80,7 @@ WAREHOUSE_ADMIN_PASSWORD=<mat-khau-tam-toi-thieu-12-ky-tu>
 
 Tạo database nếu chưa có, sau đó chạy migration và seed:
 
-```powershell
+```bash
 psql -h localhost -p 5433 -U postgres -d postgres -f backend/db/create-database.sql
 npm run db:migrate --prefix backend
 npm run db:seed --prefix backend
@@ -49,7 +90,7 @@ Seed tạo kho `MAIN`, master admin và—khi khai báo đủ hai biến tương
 
 Chạy hai tiến trình phát triển:
 
-```powershell
+```bash
 # Terminal 1
 npm run dev:backend
 
@@ -60,7 +101,7 @@ npm run dev:frontend
 - Web: <http://127.0.0.1:5173>
 - API health: <http://127.0.0.1:4000/health>
 
-Vite proxy `/api` sang API local tại cổng `4000`, nên frontend không cần `VITE_API_URL` trong cấu hình mặc định.
+Vite proxy `/api` sang API local tại cổng `4000` theo mặc định. Khi chạy trong Docker, Compose đặt `VITE_API_PROXY_TARGET=http://backend:4000` để proxy sang backend container.
 
 ## Lệnh thường dùng
 
@@ -68,6 +109,9 @@ Vite proxy `/api` sang API local tại cổng `4000`, nên frontend không cần
 |---|---|
 | `npm run dev:backend` | Chạy Hono API với reload |
 | `npm run dev:frontend` | Chạy Vite dev server |
+| `npm run docker:up` | Chạy Postgres, backend và frontend bằng Docker Compose |
+| `npm run docker:down` | Dừng Docker Compose, giữ volume database |
+| `npm run docker:reset` | Dừng Docker Compose và xóa volume database |
 | `npm test` | Refresh bộ nhớ công việc rồi chạy toàn bộ backend/frontend test |
 | `npm run lint` | Type-check backend và lint frontend |
 | `npm run build` | Kiểm tra TypeScript và build frontend production |
@@ -76,7 +120,7 @@ Vite proxy `/api` sang API local tại cổng `4000`, nên frontend không cần
 
 Lệnh database:
 
-```powershell
+```bash
 npm run db:migrate --prefix backend
 npm run db:seed --prefix backend
 ```
@@ -97,7 +141,8 @@ frontend/
 
 tasks/
 ├── todo.md              # Checklist nguồn sự thật
-├── plan.md              # Acceptance, dependency và evidence
+├── plan.md              # Phase/checkpoint và link task chi tiết
+├── task-detail/         # Acceptance, dependency, verification và evidence từng task
 └── memory/              # Tóm tắt tự sinh để tiếp tục giữa các phiên
 ```
 

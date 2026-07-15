@@ -19,6 +19,7 @@ class MemoryLocationStore implements AuthStore, AccessStore, LocationStore {
   permissions = new Map<string, string[]>();
   audits: AuditEntry[] = [];
   locations: WarehouseLocation[] = [];
+  warehouseIds = ["warehouse-a"];
 
   async findUserByEmail(email: string) { return this.users.find((user) => user.email === email) ?? null; }
   async findUserById(id: string) { return this.users.find((user) => user.id === id) ?? null; }
@@ -28,7 +29,8 @@ class MemoryLocationStore implements AuthStore, AccessStore, LocationStore {
   async updatePassword() {}
   async listPermissions(userId: string) { return this.permissions.get(userId) ?? []; }
   async insertAudit(entry: AuditEntry) { this.audits.push(entry); }
-  async list(warehouseId: string) { return this.locations.filter((item) => item.warehouseId === warehouseId); }
+  async defaultWarehouseId() { return this.warehouseIds.length === 1 ? this.warehouseIds[0]! : null; }
+  async list(warehouseId: string | null) { return warehouseId ? this.locations.filter((item) => item.warehouseId === warehouseId) : this.locations; }
   async create(input: Omit<WarehouseLocation, "id" | "status">) {
     if (this.locations.some((item) => item.warehouseId === input.warehouseId && (item.code === input.code || item.barcode === input.barcode))) throw Object.assign(new Error("duplicate"), { code: "23505" });
     const location: WarehouseLocation = { ...input, id: `location-${this.locations.length + 1}`, status: "active" };
@@ -46,6 +48,10 @@ async function setup() {
     id: "admin-a", email: "admin@example.test", fullName: "Warehouse Admin",
     kind: "warehouse_admin", warehouseId: "warehouse-a",
     passwordHash: await hashPassword("secure-password"), mustChangePassword: false, status: "active",
+  }, {
+    id: "master", email: "master@example.test", fullName: "Master Admin",
+    kind: "master_admin", warehouseId: null,
+    passwordHash: await hashPassword("secure-password"), mustChangePassword: false, status: "active",
   });
   store.permissions.set("admin-a", ["admin.access.manage"]);
   store.locations.push({ id: "foreign", warehouseId: "warehouse-b", code: "B-01", barcode: "FOREIGN-SCAN", name: "Kho B", type: "storage", status: "active" });
@@ -57,6 +63,14 @@ async function setup() {
     body: JSON.stringify({ email: "admin@example.test", password: "secure-password" }),
   });
   return { app, store, cookie: (response.headers.get("set-cookie") ?? "").split(";")[0] };
+}
+
+async function login(app: ReturnType<typeof createApp>, email: string) {
+  const response = await app.request("/api/auth/login", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password: "secure-password" }),
+  });
+  return (response.headers.get("set-cookie") ?? "").split(";")[0];
 }
 
 test("admin creates all location types and duplicate or invalid input is rejected", async () => {
@@ -85,4 +99,14 @@ test("barcode lookup cannot cross warehouse", async () => {
   const found = await app.request("/api/locations/lookup/OWN-SCAN", { headers: { cookie } });
   assert.equal(found.status, 200);
   assert.equal((await found.json()).location.warehouseId, "warehouse-a");
+});
+
+test("master can list locations across warehouses", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "master@example.test");
+  store.locations.push({ id: "own", warehouseId: "warehouse-a", code: "A-01", barcode: "OWN-SCAN", name: "Kho A", type: "storage", status: "active" });
+
+  const response = await app.request("/api/locations", { headers: { cookie } });
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).data.map((item: WarehouseLocation) => item.id), ["foreign", "own"]);
 });

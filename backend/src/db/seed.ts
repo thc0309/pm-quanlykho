@@ -57,8 +57,8 @@ async function seed() {
       if (!roleId) throw new Error("Warehouse admin role is missing");
       await client.query(
         `INSERT INTO role_permission_codes (role_id, permission_code)
-         VALUES ($1, 'admin.access.manage') ON CONFLICT DO NOTHING`,
-        [roleId],
+         SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING`,
+        [roleId, ["admin.access.manage", "locations.manage", "catalog.manage"]],
       );
       const admin = await client.query<{ id: string }>(
         `INSERT INTO users

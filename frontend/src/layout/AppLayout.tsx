@@ -3,14 +3,21 @@ import { Outlet } from "react-router";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
+import type { AccessInfo, SessionUser } from "../lib/api";
 
-const LayoutContent: React.FC = () => {
+type AppLayoutProps = {
+  access: AccessInfo;
+  user: SessionUser;
+  onLogout: () => void;
+};
+
+const LayoutContent: React.FC<AppLayoutProps> = ({ access, user, onLogout }) => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   return (
     <div className="min-h-screen xl:flex">
       <div>
-        <AppSidebar />
+        <AppSidebar permissions={access.permissions} />
         <Backdrop />
       </div>
       <div
@@ -18,7 +25,7 @@ const LayoutContent: React.FC = () => {
           isExpanded || isHovered ? "lg:ml-[290px]" : "lg:ml-[90px]"
         } ${isMobileOpen ? "ml-0" : ""}`}
       >
-        <AppHeader />
+        <AppHeader user={user} onLogout={onLogout} />
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
           <Outlet />
         </div>
@@ -27,10 +34,10 @@ const LayoutContent: React.FC = () => {
   );
 };
 
-const AppLayout: React.FC = () => {
+const AppLayout: React.FC<AppLayoutProps> = (props) => {
   return (
     <SidebarProvider>
-      <LayoutContent />
+      <LayoutContent {...props} />
     </SidebarProvider>
   );
 };

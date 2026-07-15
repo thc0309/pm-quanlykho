@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
-import AccessPage, { AccessNavigation } from "./features/admin/AccessPage";
+import UsersPage, { PermissionsPage, RoleCreatePage, RolesPage, UserCreatePage } from "./features/admin/AccessPage";
 import AuthPage from "./features/auth/AuthPage";
-import LocationsPage, { LocationsNavigation } from "./features/locations/LocationsPage";
+import { CategoriesPage, CategoryCreatePage, UnitCreatePage, UnitsPage } from "./features/catalog/CatalogPage";
+import LocationsPage, { LocationCreatePage } from "./features/locations/LocationsPage";
+import { ScrollToTop } from "./components/common/ScrollToTop";
+import AppLayout from "./layout/AppLayout";
 import {
   accessApi,
   authApi,
@@ -27,30 +30,38 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
   if (error) return <p role="alert">{error}</p>;
   if (!access) return <p role="status">Đang tải ứng dụng…</p>;
   const canManage = access.permissions.includes("*") || access.permissions.includes("admin.access.manage");
+  const canCatalog = canManage || access.permissions.includes("catalog.manage");
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="border-b border-gray-200 bg-white px-4 py-3 sm:px-6">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <a href="/" className="font-semibold text-brand-700">Warehouse Suite</a>
-          <div className="flex items-center gap-3 text-sm"><span>{user.fullName}</span><button onClick={logout} className="rounded-lg border border-gray-300 px-3 py-2">Đăng xuất</button></div>
-        </div>
-      </header>
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:grid-cols-[220px_1fr] sm:px-6">
-        <nav aria-label="Điều hướng chính" className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white p-3">
-          <a href="/" className="rounded-lg px-3 py-2 hover:bg-gray-100">Tổng quan</a>
-          <AccessNavigation permissions={access.permissions} />
-          <LocationsNavigation permissions={access.permissions} />
-        </nav>
-        <main>
-          <Routes>
-            <Route path="/" element={<div><h1 className="text-2xl font-semibold">Tổng quan kho</h1><p className="mt-2 text-gray-500">Chọn chức năng từ menu để bắt đầu.</p></div>} />
-            <Route path="/admin/access" element={canManage ? <AccessPage /> : <Navigate to="/" replace />} />
-            <Route path="/locations" element={canManage ? <LocationsPage /> : <Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
+    <Routes>
+      <Route element={<AppLayout access={access} user={user} onLogout={logout} />}>
+        <Route index element={<Dashboard />} />
+        <Route path="admin/access" element={<Navigate to="/admin/users" replace />} />
+        <Route path="admin/users" element={canManage ? <UsersPage /> : <Navigate to="/" replace />} />
+        <Route path="admin/users/create" element={canManage ? <UserCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="admin/roles" element={canManage ? <RolesPage /> : <Navigate to="/" replace />} />
+        <Route path="admin/roles/create" element={canManage ? <RoleCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="admin/permissions" element={canManage ? <PermissionsPage /> : <Navigate to="/" replace />} />
+        <Route path="locations" element={canManage ? <LocationsPage /> : <Navigate to="/" replace />} />
+        <Route path="locations/create" element={canManage ? <LocationCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="catalog" element={<Navigate to="/catalog/categories" replace />} />
+        <Route path="catalog/categories" element={canCatalog ? <CategoriesPage /> : <Navigate to="/" replace />} />
+        <Route path="catalog/categories/create" element={canCatalog ? <CategoryCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="catalog/units" element={canCatalog ? <UnitsPage /> : <Navigate to="/" replace />} />
+        <Route path="catalog/units/create" element={canCatalog ? <UnitCreatePage /> : <Navigate to="/" replace />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function Dashboard() {
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white/90">Tổng quan kho</h1>
+      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+        Chọn chức năng từ menu bên trái để bắt đầu.
+      </p>
     </div>
   );
 }
@@ -62,5 +73,10 @@ function Root() {
 }
 
 export default function App() {
-  return <BrowserRouter><Root /></BrowserRouter>;
+  return (
+    <BrowserRouter>
+      <ScrollToTop />
+      <Root />
+    </BrowserRouter>
+  );
 }

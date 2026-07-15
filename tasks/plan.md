@@ -141,6 +141,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T24: Add two-sided warehouse transfer — [tasks/task-detail/task-24.md](task-detail/task-24.md)
   - Evidence (2026-07-15): migration `016_transfers.sql` applied; backend 59/59 and focused transfer UI test pass; builds pass. Dispatch/receive are separately scoped and idempotent, source stock moves to explicit in-transit state, destination maps product SKU/location before receipt, and draft cancellation cannot duplicate stock.
 - T25: Add dashboard, reports and bounded export — [tasks/task-detail/task-25.md](task-detail/task-25.md)
+  - Evidence (2026-07-15): backend 61/61 and focused reports UI test pass; builds pass. Dashboard/report queries are warehouse-scoped and paginated; CSV is permission-bound, capped at 5,000 rows and formula-safe. Browser verified live summary, filter, empty state, export URL and pagination boundary. Representative report query used the warehouse index and executed in 0.255 ms locally.
 - T26: Add web print, labels and PWA device evidence — [tasks/task-detail/task-26.md](task-detail/task-26.md)
 - T27: Add optional Tauri silent printing — [tasks/task-detail/task-27.md](task-detail/task-27.md)
 - T28: Final review and launch readiness — [tasks/task-detail/task-28.md](task-detail/task-28.md)

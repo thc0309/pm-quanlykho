@@ -15,6 +15,7 @@ import SalesPage,{SalesCreatePage}from"./features/sales/SalesPage";
 import ReturnsPage,{ReturnCreatePage}from"./features/returns/ReturnsPage";
 import StockCountsPage,{StockCountCreatePage}from"./features/stock-counts/StockCountsPage";
 import TransfersPage,{TransferCreatePage}from"./features/transfers/TransfersPage";
+import ReportsPage,{DashboardPage}from"./features/reports/ReportsPage";
 import ProductsPage, { ProductCreatePage } from "./features/products/ProductsPage";
 import PartnersPage, { PartnerCreatePage } from "./features/partners/PartnersPage";
 import ReceiptPage, { ReceiptCreatePage } from "./features/receipts/ReceiptPage";
@@ -51,7 +52,7 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
   return (
     <Routes>
       <Route element={<AppLayout access={access} user={user} onLogout={logout} />}>
-        <Route index element={<Dashboard />} />
+        <Route index element={<DashboardPage />} />
         <Route path="admin/access" element={<Navigate to="/admin/users" replace />} />
         <Route path="admin/users" element={canManage ? <UsersPage /> : <Navigate to="/" replace />} />
         <Route path="admin/users/create" element={canManage ? <UserCreatePage /> : <Navigate to="/" replace />} />
@@ -87,20 +88,10 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="stock-counts/create" element={canStock ? <StockCountCreatePage /> : <Navigate to="/" replace />} />
         <Route path="transfers" element={canStock ? <TransfersPage /> : <Navigate to="/" replace />} />
         <Route path="transfers/create" element={canStock ? <TransferCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="reports" element={canStock ? <ReportsPage /> : <Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-  );
-}
-
-function Dashboard() {
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white/90">Tổng quan kho</h1>
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-        Chọn chức năng từ menu bên trái để bắt đầu.
-      </p>
-    </div>
   );
 }
 

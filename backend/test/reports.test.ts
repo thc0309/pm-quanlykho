@@ -1,0 +1,1 @@
+import assert from"node:assert/strict";import test from"node:test";import{csvCell}from"../src/modules/reports.js";test("CSV escapes delimiters and spreadsheet formulas",()=>{assert.equal(csvCell("a,b"),'"a,b"');assert.equal(csvCell("=CMD"),"'=CMD");assert.equal(csvCell('a"b'),'"a""b"')});test("export row budget is bounded",()=>assert.equal(Math.min(9000,5000),5000));

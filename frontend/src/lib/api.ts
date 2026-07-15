@@ -86,6 +86,22 @@ export interface AdminClient {
   setUserRoles(userId: string, roleIds: string[]): Promise<void>;
 }
 
+export interface WarehouseLocation {
+  id: string;
+  warehouseId: string;
+  code: string;
+  barcode: string;
+  name: string;
+  type: "storage" | "staging" | "shipping";
+  status: "active" | "inactive";
+}
+
+export interface LocationClient {
+  listLocations(): Promise<WarehouseLocation[]>;
+  createLocation(input: Pick<WarehouseLocation, "code" | "barcode" | "name" | "type">): Promise<WarehouseLocation>;
+  findLocationByBarcode(barcode: string): Promise<WarehouseLocation>;
+}
+
 export const authApi: AuthClient = {
   async session() {
     return (await request<{ user: SessionUser }>("/api/auth/session")).user;
@@ -149,5 +165,17 @@ export const adminApi: AdminClient = {
       method: "PUT",
       body: JSON.stringify({ roleIds }),
     });
+  },
+};
+
+export const locationApi: LocationClient = {
+  async listLocations() {
+    return (await request<{ data: WarehouseLocation[] }>("/api/locations")).data;
+  },
+  async createLocation(input) {
+    return (await request<{ location: WarehouseLocation }>("/api/locations", { method: "POST", body: JSON.stringify(input) })).location;
+  },
+  async findLocationByBarcode(barcode) {
+    return (await request<{ location: WarehouseLocation }>(`/api/locations/lookup/${encodeURIComponent(barcode)}`)).location;
   },
 };

@@ -15,7 +15,7 @@ Status: đang triển khai toàn bộ plan v2
 
 ## Phase 2 — Master data and stock
 
-- [ ] T08 Warehouse locations.
+- [x] T08 Warehouse locations.
 - [ ] T09 Minimum catalog and units.
 - [ ] T10 Products and barcode lookup.
 - [ ] T11 Partners.

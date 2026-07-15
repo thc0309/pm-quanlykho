@@ -8,6 +8,7 @@ import {
 } from "./modules/access.js";
 import { createPostgresAdminStore, registerAdminRoutes } from "./modules/admin.js";
 import { createPostgresAuthStore, registerAuthRoutes } from "./modules/auth.js";
+import { createPostgresLocationStore, registerLocationRoutes } from "./modules/locations.js";
 
 const app = createApp();
 const authStore = createPostgresAuthStore(pool);
@@ -24,6 +25,7 @@ registerAdminRoutes(
   createPostgresAdminStore(pool),
   config.SESSION_SECRET,
 );
+registerLocationRoutes(app, authStore, accessStore, createPostgresLocationStore(pool), config.SESSION_SECRET);
 
 serve(
   {

@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import AccessPage, { AccessNavigation } from "./features/admin/AccessPage";
 import AuthPage from "./features/auth/AuthPage";
+import LocationsPage, { LocationsNavigation } from "./features/locations/LocationsPage";
 import {
   accessApi,
   authApi,
@@ -39,11 +40,13 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <nav aria-label="Điều hướng chính" className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white p-3">
           <a href="/" className="rounded-lg px-3 py-2 hover:bg-gray-100">Tổng quan</a>
           <AccessNavigation permissions={access.permissions} />
+          <LocationsNavigation permissions={access.permissions} />
         </nav>
         <main>
           <Routes>
             <Route path="/" element={<div><h1 className="text-2xl font-semibold">Tổng quan kho</h1><p className="mt-2 text-gray-500">Chọn chức năng từ menu để bắt đầu.</p></div>} />
             <Route path="/admin/access" element={canManage ? <AccessPage /> : <Navigate to="/" replace />} />
+            <Route path="/locations" element={canManage ? <LocationsPage /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

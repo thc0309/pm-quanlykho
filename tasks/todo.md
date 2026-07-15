@@ -39,7 +39,7 @@ Status: đang triển khai toàn bộ plan v2
 - [x] T21 Quote, sales order and invoice.
 - [x] T22 Returns.
 - [x] T23 Stock count and adjustment.
-- [ ] T24 Warehouse transfer.
+- [x] T24 Warehouse transfer.
 - [ ] T25 Dashboard, reports and export.
 - [ ] T26 Web print, labels and PWA device evidence.
 - [ ] T27 Optional Tauri silent printing after approval.

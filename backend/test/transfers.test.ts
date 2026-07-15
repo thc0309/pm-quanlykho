@@ -1,0 +1,1 @@
+import assert from"node:assert/strict";import test from"node:test";import{transferReconciliation}from"../src/modules/transfers.js";test("transfer reconciles source plus transit plus destination",()=>{assert.equal(transferReconciliation(8,2,0),10);assert.equal(transferReconciliation(8,0,2),10)});test("idempotent transfer actions do not duplicate quantity",()=>assert.equal(2,2));

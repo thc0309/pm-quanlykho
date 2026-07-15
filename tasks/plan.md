@@ -131,6 +131,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 ### Phase 4 — Extended warehouse modules
 
 - T20: Add purchase orders — [tasks/task-detail/task-20.md](task-detail/task-20.md)
+  - Evidence (2026-07-15): migration `012_purchasing.sql` applied; backend 51/51 and focused purchasing UI test pass; both builds pass. Supplier/product/location scope, outstanding locks, over-receipt prevention and receipt document idempotency are enforced; PO approval alone never posts stock.
 - T21: Add quote, sales order and commercial invoice — [tasks/task-detail/task-21.md](task-detail/task-21.md)
 - T22: Add customer and supplier returns — [tasks/task-detail/task-22.md](task-detail/task-22.md)
 - T23: Add stock count and approved adjustment — [tasks/task-detail/task-23.md](task-detail/task-23.md)

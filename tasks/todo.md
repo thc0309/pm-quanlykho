@@ -35,7 +35,7 @@ Status: đang triển khai toàn bộ plan v2
 
 ## Phase 4 — Extended scope
 
-- [ ] T20 Purchase orders.
+- [x] T20 Purchase orders.
 - [ ] T21 Quote, sales order and invoice.
 - [ ] T22 Returns.
 - [ ] T23 Stock count and adjustment.

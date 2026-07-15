@@ -1,0 +1,1 @@
+import assert from"node:assert/strict";import test from"node:test";import{lineTotal}from"../src/modules/sales.js";test("sales totals include tax deterministically",()=>assert.equal(lineTotal(2,100,10),220));test("invoice snapshots are copied values",()=>{const source={status:"shipped",total:220},snapshot=structuredClone(source);source.total=0;assert.equal(snapshot.total,220);});

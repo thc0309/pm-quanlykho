@@ -14,6 +14,7 @@ import { createPostgresInventoryStore, registerInventoryRoutes } from "./modules
 import { createPostgresOutboundStore, registerOutboundRoutes } from "./modules/outbound.js";
 import { registerPickingRoutes } from "./modules/picking.js";
 import { registerCheckingRoutes } from "./modules/checking.js";
+import { registerOutboundExceptionRoutes } from "./modules/outbound-exceptions.js";
 import { createPostgresPartnerStore, registerPartnerRoutes } from "./modules/partners.js";
 import { createPostgresProductStore, registerProductRoutes } from "./modules/products.js";
 import { createPostgresReceiptStore, registerReceiptRoutes } from "./modules/receipts.js";
@@ -40,6 +41,7 @@ registerInventoryRoutes(app, authStore, accessStore, createPostgresInventoryStor
 registerOutboundRoutes(app, authStore, accessStore, createPostgresOutboundStore(pool), config.SESSION_SECRET);
 registerPickingRoutes(app, authStore, accessStore, pool, config.SESSION_SECRET);
 registerCheckingRoutes(app, authStore, accessStore, pool, config.SESSION_SECRET);
+registerOutboundExceptionRoutes(app, authStore, accessStore, pool, config.SESSION_SECRET);
 registerPartnerRoutes(app, authStore, accessStore, createPostgresPartnerStore(pool), config.SESSION_SECRET);
 registerProductRoutes(app, authStore, accessStore, createPostgresProductStore(pool), config.SESSION_SECRET);
 registerStockRoutes(app, authStore, accessStore, createPostgresStockStore(pool), config.SESSION_SECRET);

@@ -116,6 +116,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T17: Deliver independent checking and shipping — [tasks/task-detail/task-17.md](task-detail/task-17.md)
   - Evidence (2026-07-15): migration `011_checking.sql` applied; backend 48/48 tests and focused UI test pass; backend/frontend builds pass. Backend enforces independent checker, staging validation, version checks, idempotency and row locks. A second browser user checked two scans and shipped `E2E-OUT-T15`; inventory reconciled from `5/2/3` to `on_hand=3`, `committed=0`, `available=3` exactly once.
 - T18: Deliver discrepancy, re-pick, cancellation and reassignment — [tasks/task-detail/task-18.md](task-detail/task-18.md)
+  - Evidence (2026-07-15): backend 49/49 tests and focused exception UI test pass; backend/frontend builds pass. Explicit action APIs cover mismatch→`needs_repick`, reasoned short-ship approval, reservation release on unpicked cancellation, validated return-cancel for picked goods, and audited warehouse-scoped reassignment; invalid direct transitions are domain-tested. Browser created then cancelled `E2E-OUT-T18-CANCEL` from the exception list.
 - T19: Prove and harden the critical flow — [tasks/task-detail/task-19.md](task-detail/task-19.md)
 
 ### Checkpoint C — Outbound MVP

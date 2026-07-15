@@ -308,6 +308,8 @@ export interface PickingClient {
 }
 export interface CheckingItem { id:string;documentNo:string;status:"picked"|"checking";checkerUserId:string|null;version:number }
 export interface CheckingClient {list():Promise<CheckingItem[]>;claim(id:string):Promise<{resumed:boolean;version:number}>;scan(id:string,input:{locationBarcode:string;itemBarcode:string}):Promise<{checked:number;required:number}>;ship(id:string,input:{idempotencyKey:string;version:number}):Promise<{alreadyShipped:boolean}>}
+export interface OutboundExceptionItem{id:string;documentNo:string;status:Outbound["status"];pickerUserId:string|null;checkerUserId:string|null;version:number}
+export interface OutboundExceptionClient{list():Promise<OutboundExceptionItem[]>;mismatch(id:string):Promise<void>;approveShort(id:string,reason:string):Promise<void>;cancel(id:string,reason:string):Promise<void>;reassign(id:string,input:{pickerUserId?:string;checkerUserId?:string;reason:string}):Promise<void>}
 
 export const authApi: AuthClient = {
   async session() {
@@ -480,3 +482,4 @@ export const pickingApi: PickingClient = {
   async confirm(id) { await request(`/api/picking/${id}/confirm`, { method: "POST" }); },
 };
 export const checkingApi:CheckingClient={async list(){return(await request<{data:CheckingItem[]}>("/api/checking?pageSize=50")).data;},async claim(id){return(await request<{result:{resumed:boolean;version:number}}>(`/api/checking/${id}/claim`,{method:"POST"})).result;},async scan(id,input){return(await request<{progress:{checked:number;required:number}}>(`/api/checking/${id}/scan`,{method:"POST",body:JSON.stringify(input)})).progress;},async ship(id,input){return(await request<{result:{alreadyShipped:boolean}}>(`/api/checking/${id}/ship`,{method:"POST",body:JSON.stringify(input)})).result;}};
+export const outboundExceptionApi:OutboundExceptionClient={async list(){return(await request<{data:OutboundExceptionItem[]}>("/api/outbound-exceptions?pageSize=50")).data;},async mismatch(id){await request(`/api/outbound-exceptions/${id}/mismatch`,{method:"POST"});},async approveShort(id,reason){await request(`/api/outbound-exceptions/${id}/approve-short`,{method:"POST",body:JSON.stringify({reason})});},async cancel(id,reason){await request(`/api/outbound-exceptions/${id}/cancel`,{method:"POST",body:JSON.stringify({reason})});},async reassign(id,input){await request(`/api/outbound-exceptions/${id}/reassign`,{method:"POST",body:JSON.stringify(input)});}};

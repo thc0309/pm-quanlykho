@@ -52,6 +52,7 @@ function buildNavItems(permissions: string[]): NavItem[] {
     ...(hasPermission(permissions, "stock.manage") ? [{ name: "Phiếu xuất", path: "/outbounds" }] : []),
     ...(hasPermission(permissions, "outbound.pick") ? [{ name: "Soạn hàng", path: "/picking" }] : []),
     ...(hasPermission(permissions, "outbound.check") ? [{ name: "Kiểm và xuất", path: "/checking" }] : []),
+    ...(hasPermission(permissions, "outbound.resolveDiscrepancy") ? [{ name: "Ngoại lệ xuất", path: "/outbound-exceptions" }] : []),
     ...(hasPermission(permissions, "stock.manage") ? [{ name: "Tồn kho", path: "/inventory" }] : []),
   ];
 

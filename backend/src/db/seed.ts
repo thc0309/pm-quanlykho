@@ -58,7 +58,7 @@ async function seed() {
       await client.query(
         `INSERT INTO role_permission_codes (role_id, permission_code)
          SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING`,
-        [roleId, ["admin.access.manage", "locations.manage", "catalog.manage", "products.manage", "partners.manage"]],
+        [roleId, ["admin.access.manage", "locations.manage", "catalog.manage", "products.manage", "partners.manage", "stock.manage"]],
       );
       const admin = await client.query<{ id: string }>(
         `INSERT INTO users

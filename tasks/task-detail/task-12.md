@@ -8,6 +8,10 @@ One transaction posts immutable movements and maintains/query balances by wareho
 
 Domain/integration tests cover receipt/issue math, rollback, lot/serial uniqueness and concurrent conflicting writes.
 
+Evidence:
+
+- 2026-07-15: stock API tests passed for receipt/issue balance math across none/lot/serial keys, rollback on negative-stock line, duplicate serial rejection, concurrent conflicting issue rejection and permission enforcement. Backend TypeScript build passed. Docker migration applied `007_stock_core.sql` and seed granted `stock.manage`.
+
 ## Dependencies
 
 T08, T10.

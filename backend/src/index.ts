@@ -12,6 +12,7 @@ import { createPostgresCatalogStore, registerCatalogRoutes } from "./modules/cat
 import { createPostgresLocationStore, registerLocationRoutes } from "./modules/locations.js";
 import { createPostgresPartnerStore, registerPartnerRoutes } from "./modules/partners.js";
 import { createPostgresProductStore, registerProductRoutes } from "./modules/products.js";
+import { createPostgresStockStore, registerStockRoutes } from "./modules/stock.js";
 
 const app = createApp();
 const authStore = createPostgresAuthStore(pool);
@@ -32,6 +33,7 @@ registerCatalogRoutes(app, authStore, accessStore, createPostgresCatalogStore(po
 registerLocationRoutes(app, authStore, accessStore, createPostgresLocationStore(pool), config.SESSION_SECRET);
 registerPartnerRoutes(app, authStore, accessStore, createPostgresPartnerStore(pool), config.SESSION_SECRET);
 registerProductRoutes(app, authStore, accessStore, createPostgresProductStore(pool), config.SESSION_SECRET);
+registerStockRoutes(app, authStore, accessStore, createPostgresStockStore(pool), config.SESSION_SECRET);
 
 serve(
   {

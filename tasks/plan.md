@@ -147,6 +147,8 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T27: Add optional Tauri silent printing — [tasks/task-detail/task-27.md](task-detail/task-27.md)
   - Decision (2026-07-15): SKIPPED. The mandatory explicit printer approval and target Windows printer are absent, so no Tauri/Rust surface or silent-print permission was introduced. T26 web system-print remains the supported path; E2E-014 stays blocked until a future approved device-specific task.
 - T28: Final review and launch readiness — [tasks/task-detail/task-28.md](task-detail/task-28.md)
+  - Evidence (2026-07-15): review fixed four integrity/quality gaps before release: out-of-scope sales lines can no longer disappear silently, transfer requests aggregate duplicate source balances and destination receive requires every line exactly once, draft returns reserve the original movement quantity under a row lock, and purchase receipt replay must belong to the same PO. Migration `017_launch_hardening.sql` enforces one invoice per order. Security response headers, reproducible frontend lockfile, high-severity dependency audits, PWA asset caching and GitHub CI gates were added. Fresh locked dependencies pass backend 65/65 and frontend 39/39 tests, lint with zero errors (four template fast-refresh warnings), both production builds, migration 017 and 0 high/critical audit findings. `LAUNCH.md` documents secrets, logs, migration recovery, encrypted backup/restore, monitoring, staged rollout and rollback.
+  - Ship decision (2026-07-15): GO for the controlled internal pilot; NO-GO for external production. Blockers are physical Android E2E-012, printer E2E-013, production TLS/static-hosting policy, monitoring/alerts and a completed restore drill. No review subagents were spawned because the user did not request them.
 
 ## Phase Checkpoints
 
@@ -155,6 +157,9 @@ T27 Tauri is optional and starts only after T26 device evidence.
 3. **Checkpoint C after T19:** critical outbound MVP works; internal-release decision/context reset.
 4. **Checkpoint D after T26:** extended web/PWA/device scope; decide whether Tauri is needed.
 5. **Checkpoint E after T28:** GO/NO-GO and rollback readiness.
+
+- Checkpoint D decision (2026-07-15): web print and keyboard scanner are sufficient for the approved scope; Tauri is not authorized or needed. Physical Android/printer evidence remains a release gate.
+- Checkpoint E decision (2026-07-15): internal pilot GO, external production NO-GO. Follow [launch readiness and rollback](../LAUNCH.md) and close RESULT-002/003/005 before expanding release.
 
 Do not start the next checkpoint's tasks in the same build session unless the human explicitly asks.
 

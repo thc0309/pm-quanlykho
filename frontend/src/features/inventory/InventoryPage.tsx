@@ -61,8 +61,12 @@ export default function InventoryPage({ api = inventoryApi }: { api?: InventoryC
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError("");
+    void Promise.resolve().then(() => {
+      if (active) {
+        setLoading(true);
+        setError("");
+      }
+    });
     const params = { page, q: query };
     const request = view === "balances" ? api.listBalances(params)
       : view === "lots" ? api.listLots(params)

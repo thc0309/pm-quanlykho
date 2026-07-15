@@ -1,5 +1,7 @@
 # Warehouse Suite
 
+> Launch gates, operations, backup/restore and rollback: [LAUNCH.md](LAUNCH.md). Current decision: internal pilot GO; external production NO-GO until device and infrastructure blockers close.
+
 Hệ thống quản lý kho đa ngành, ưu tiên web/PWA. Repo hiện có nền tảng xác thực phiên, đổi mật khẩu tạm, phân quyền theo kho, quản lý người dùng/role và audit; các lát cắt tồn kho, nhập/xuất và truy xuất đang được triển khai theo [kế hoạch](tasks/plan.md).
 
 ## Stack

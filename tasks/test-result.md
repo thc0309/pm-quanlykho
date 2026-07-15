@@ -59,3 +59,14 @@ Use this file for `vibe-e2e` failures or blockers only. Passing evidence can sta
 - Expected: signed desktop build prints approved document types only to the configured printer and recovers from printer errors without stock calls.
 - Actual: task intentionally skipped at its authorization gate; no silent-print capability was added.
 - Recommended fix: open a new T27 task only after naming and approving the printer, document allowlist and deployment target.
+
+### RESULT-005: External production infrastructure not provisioned
+
+- Status: BLOCKED
+- Case ID: Checkpoint E
+- Date: 2026-07-15
+- Environment: local development stack and reproducible CI definition
+- Evidence: locked dependency suites, lint, builds, migrations and high-severity audits pass; `LAUNCH.md` defines the required production controls and rollback.
+- Expected: production TLS/static headers, monitoring and alerts, encrypted backup schedule, successful isolated restore drill, and agreed RPO/RTO.
+- Actual: these platform controls cannot be proven from the local repository and no production target is attached.
+- Recommended fix: provision the target environment, execute the launch runbook and record the restore/device evidence before external release.

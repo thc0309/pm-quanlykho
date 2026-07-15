@@ -5,7 +5,10 @@
 .codex-log/
 .codex/tmp/
 .codex/*.local.toml
-.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/ci.yml
 .env
 .env.local
 .env.*.local

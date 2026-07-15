@@ -132,6 +132,35 @@ export interface CatalogClient {
   }): Promise<CatalogUnit>;
 }
 
+export interface Product {
+  id: string;
+  warehouseId: string;
+  categoryId: string | null;
+  baseUnitId: string | null;
+  sku: string;
+  name: string;
+  productType: "stock" | "non_stock" | "service";
+  trackingMode: "none" | "lot" | "serial";
+  expiryManaged: boolean;
+  fefoEnabled: boolean;
+  status: "active" | "inactive";
+  barcodes: string[];
+}
+
+export interface ProductClient {
+  listProducts(): Promise<Product[]>;
+  createProduct(input: {
+    sku: string;
+    name: string;
+    productType: Product["productType"];
+    trackingMode: Product["trackingMode"];
+    expiryManaged: boolean;
+    fefoEnabled: boolean;
+    barcodes: string[];
+  }): Promise<Product>;
+  findProductByBarcode(barcode: string): Promise<Product>;
+}
+
 export const authApi: AuthClient = {
   async session() {
     return (await request<{ user: SessionUser }>("/api/auth/session")).user;
@@ -222,5 +251,17 @@ export const catalogApi: CatalogClient = {
   },
   async createUnit(input) {
     return (await request<{ unit: CatalogUnit }>("/api/catalog/units", { method: "POST", body: JSON.stringify(input) })).unit;
+  },
+};
+
+export const productApi: ProductClient = {
+  async listProducts() {
+    return (await request<{ data: Product[] }>("/api/products")).data;
+  },
+  async createProduct(input) {
+    return (await request<{ product: Product }>("/api/products", { method: "POST", body: JSON.stringify(input) })).product;
+  },
+  async findProductByBarcode(barcode) {
+    return (await request<{ product: Product }>(`/api/products/lookup/${encodeURIComponent(barcode)}`)).product;
   },
 };

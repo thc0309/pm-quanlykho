@@ -10,6 +10,7 @@ import { createPostgresAdminStore, registerAdminRoutes } from "./modules/admin.j
 import { createPostgresAuthStore, registerAuthRoutes } from "./modules/auth.js";
 import { createPostgresCatalogStore, registerCatalogRoutes } from "./modules/catalog.js";
 import { createPostgresLocationStore, registerLocationRoutes } from "./modules/locations.js";
+import { createPostgresProductStore, registerProductRoutes } from "./modules/products.js";
 
 const app = createApp();
 const authStore = createPostgresAuthStore(pool);
@@ -28,6 +29,7 @@ registerAdminRoutes(
 );
 registerCatalogRoutes(app, authStore, accessStore, createPostgresCatalogStore(pool), config.SESSION_SECRET);
 registerLocationRoutes(app, authStore, accessStore, createPostgresLocationStore(pool), config.SESSION_SECRET);
+registerProductRoutes(app, authStore, accessStore, createPostgresProductStore(pool), config.SESSION_SECRET);
 
 serve(
   {

@@ -161,6 +161,26 @@ export interface ProductClient {
   findProductByBarcode(barcode: string): Promise<Product>;
 }
 
+export interface Partner {
+  id: string;
+  warehouseId: string;
+  code: string;
+  name: string;
+  kind: "customer" | "supplier";
+  taxCode: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  status: "active" | "inactive";
+}
+
+export interface PartnerClient {
+  listPartners(): Promise<Partner[]>;
+  createPartner(input: Omit<Partner, "id" | "warehouseId" | "status">): Promise<Partner>;
+  updatePartner(id: string, input: Partial<Pick<Partner, "name" | "taxCode" | "phone" | "email" | "address">>): Promise<Partner>;
+  setPartnerStatus(id: string, status: Partner["status"]): Promise<Partner>;
+}
+
 export const authApi: AuthClient = {
   async session() {
     return (await request<{ user: SessionUser }>("/api/auth/session")).user;
@@ -263,5 +283,20 @@ export const productApi: ProductClient = {
   },
   async findProductByBarcode(barcode) {
     return (await request<{ product: Product }>(`/api/products/lookup/${encodeURIComponent(barcode)}`)).product;
+  },
+};
+
+export const partnerApi: PartnerClient = {
+  async listPartners() {
+    return (await request<{ data: Partner[] }>("/api/partners")).data;
+  },
+  async createPartner(input) {
+    return (await request<{ partner: Partner }>("/api/partners", { method: "POST", body: JSON.stringify(input) })).partner;
+  },
+  async updatePartner(id, input) {
+    return (await request<{ partner: Partner }>(`/api/partners/${id}`, { method: "PATCH", body: JSON.stringify(input) })).partner;
+  },
+  async setPartnerStatus(id, status) {
+    return (await request<{ partner: Partner }>(`/api/partners/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).partner;
   },
 };

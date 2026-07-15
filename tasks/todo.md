@@ -18,7 +18,7 @@ Status: đang triển khai toàn bộ plan v2
 - [x] T08 Warehouse locations.
 - [x] T09 Minimum catalog and units.
 - [x] T10 Products and barcode lookup.
-- [ ] T11 Partners.
+- [x] T11 Partners.
 - [ ] T12 Stock ledger and balance core.
 - [ ] T13 Receiving with lot/serial.
 - [ ] T14 Inventory and traceability views.

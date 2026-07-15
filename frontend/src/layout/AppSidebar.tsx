@@ -47,6 +47,7 @@ function buildNavItems(permissions: string[]): NavItem[] {
       { name: "Đơn vị", path: "/catalog/units" },
     ] : []),
     ...(hasPermission(permissions, "products.manage") ? [{ name: "Sản phẩm", path: "/products" }] : []),
+    ...(hasPermission(permissions, "partners.manage") ? [{ name: "Đối tác", path: "/partners" }] : []),
   ];
 
   if (warehouseSubItems.length > 0) {

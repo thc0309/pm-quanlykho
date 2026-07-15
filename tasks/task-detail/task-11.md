@@ -8,6 +8,10 @@ Admin manages scoped customer/supplier records with unique codes and validated c
 
 API/component tests cover create/update/disable, duplicate code and warehouse isolation.
 
+## Evidence
+
+2026-07-15: partner API tests passed for scoped create, update, disable, duplicate code conflict and cross-warehouse denial/list isolation. Partner component tests passed for list-only screen and dedicated create form. Full backend suite passed 30/30, frontend suite passed 20/20 and both production builds passed.
+
 ## Dependencies
 
 T07.

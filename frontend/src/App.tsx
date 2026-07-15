@@ -6,6 +6,7 @@ import AuthPage from "./features/auth/AuthPage";
 import { CategoriesPage, CategoryCreatePage, UnitCreatePage, UnitsPage } from "./features/catalog/CatalogPage";
 import LocationsPage, { LocationCreatePage } from "./features/locations/LocationsPage";
 import ProductsPage, { ProductCreatePage } from "./features/products/ProductsPage";
+import PartnersPage, { PartnerCreatePage } from "./features/partners/PartnersPage";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import AppLayout from "./layout/AppLayout";
 import {
@@ -33,6 +34,7 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
   const canManage = access.permissions.includes("*") || access.permissions.includes("admin.access.manage");
   const canCatalog = canManage || access.permissions.includes("catalog.manage");
   const canProducts = canManage || access.permissions.includes("products.manage");
+  const canPartners = canManage || access.permissions.includes("partners.manage");
 
   return (
     <Routes>
@@ -53,6 +55,8 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="catalog/units/create" element={canCatalog ? <UnitCreatePage /> : <Navigate to="/" replace />} />
         <Route path="products" element={canProducts ? <ProductsPage /> : <Navigate to="/" replace />} />
         <Route path="products/create" element={canProducts ? <ProductCreatePage /> : <Navigate to="/" replace />} />
+        <Route path="partners" element={canPartners ? <PartnersPage /> : <Navigate to="/" replace />} />
+        <Route path="partners/create" element={canPartners ? <PartnerCreatePage /> : <Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

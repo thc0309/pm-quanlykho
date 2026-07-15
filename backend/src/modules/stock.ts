@@ -16,8 +16,8 @@ export interface StockMovementLineInput {
   quantityDelta: number;
   lotCode: string | null;
   serialCode: string | null;
-  manufacturedAt: string | null;
-  expiresAt: string | null;
+  manufacturedAt?: string | null;
+  expiresAt?: string | null;
 }
 
 export interface StockMovementInput {
@@ -47,8 +47,8 @@ async function resolveLot(client: PoolClient, input: {
   warehouseId: string;
   productId: string;
   lotCode: string;
-  manufacturedAt: string | null;
-  expiresAt: string | null;
+  manufacturedAt?: string | null;
+  expiresAt?: string | null;
 }) {
   const result = await client.query<{ id: string }>(
     `INSERT INTO lots (warehouse_id, product_id, lot_code, manufactured_at, expires_at)

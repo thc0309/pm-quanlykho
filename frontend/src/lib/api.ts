@@ -306,6 +306,8 @@ export interface PickingClient {
   scan(id: string, input: { locationBarcode: string; itemBarcode: string }): Promise<{ picked: number; required: number }>;
   confirm(id: string): Promise<void>;
 }
+export interface CheckingItem { id:string;documentNo:string;status:"picked"|"checking";checkerUserId:string|null;version:number }
+export interface CheckingClient {list():Promise<CheckingItem[]>;claim(id:string):Promise<{resumed:boolean;version:number}>;scan(id:string,input:{locationBarcode:string;itemBarcode:string}):Promise<{checked:number;required:number}>;ship(id:string,input:{idempotencyKey:string;version:number}):Promise<{alreadyShipped:boolean}>}
 
 export const authApi: AuthClient = {
   async session() {
@@ -477,3 +479,4 @@ export const pickingApi: PickingClient = {
   async scan(id,input) { return (await request<{ progress: { picked: number; required: number } }>(`/api/picking/${id}/scan`, { method: "POST", body: JSON.stringify(input) })).progress; },
   async confirm(id) { await request(`/api/picking/${id}/confirm`, { method: "POST" }); },
 };
+export const checkingApi:CheckingClient={async list(){return(await request<{data:CheckingItem[]}>("/api/checking?pageSize=50")).data;},async claim(id){return(await request<{result:{resumed:boolean;version:number}}>(`/api/checking/${id}/claim`,{method:"POST"})).result;},async scan(id,input){return(await request<{progress:{checked:number;required:number}}>(`/api/checking/${id}/scan`,{method:"POST",body:JSON.stringify(input)})).progress;},async ship(id,input){return(await request<{result:{alreadyShipped:boolean}}>(`/api/checking/${id}/ship`,{method:"POST",body:JSON.stringify(input)})).result;}};

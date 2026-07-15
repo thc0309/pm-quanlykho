@@ -28,7 +28,7 @@ Status: đang triển khai toàn bộ plan v2
 
 - [x] T15 Outbound draft and reservation release.
 - [x] T16 Picker workflow.
-- [ ] T17 Independent checking and shipping.
+- [x] T17 Independent checking and shipping.
 - [ ] T18 Discrepancy, re-pick, cancellation and reassignment.
 - [ ] T19 Critical E2E and hardening.
 - [ ] Checkpoint C reviewed; internal-release decision recorded.

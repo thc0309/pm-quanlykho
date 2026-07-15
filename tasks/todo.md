@@ -42,6 +42,6 @@ Status: đang triển khai toàn bộ plan v2
 - [x] T24 Warehouse transfer.
 - [x] T25 Dashboard, reports and export.
 - [x] T26 Web print, labels and PWA device evidence.
-- [ ] T27 Optional Tauri silent printing after approval.
+- [x] T27 Optional Tauri silent printing after approval — skipped; approval prerequisite absent.
 - [ ] T28 Final review and launch readiness.
 - [ ] Checkpoints D/E reviewed.

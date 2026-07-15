@@ -145,6 +145,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T26: Add web print, labels and PWA device evidence — [tasks/task-detail/task-26.md](task-detail/task-26.md)
   - Evidence (2026-07-15): backend 63/63 and frontend 39/39 tests pass; both builds pass. Confirmed documents plus product/lot/serial labels have warehouse-scoped read-only print routes, system-print layouts and a reprint regression proving no stock mutation. Browser verified keyboard burst `E2E-T26` produced one acknowledgement, unsupported camera falls back visibly, print opened the native system dialog, the confirmed receipt rendered without horizontal overflow at 320/1440 px, and the console was clean. Manifest/service worker provide an installable shell while API and mutation requests are never cached or queued. Physical Android camera, offline device and printer output remain BLOCKED in RESULT-002/003 and gate external launch.
 - T27: Add optional Tauri silent printing — [tasks/task-detail/task-27.md](task-detail/task-27.md)
+  - Decision (2026-07-15): SKIPPED. The mandatory explicit printer approval and target Windows printer are absent, so no Tauri/Rust surface or silent-print permission was introduced. T26 web system-print remains the supported path; E2E-014 stays blocked until a future approved device-specific task.
 - T28: Final review and launch readiness — [tasks/task-detail/task-28.md](task-detail/task-28.md)
 
 ## Phase Checkpoints

@@ -48,3 +48,14 @@ Use this file for `vibe-e2e` failures or blockers only. Passing evidence can sta
 - Expected: inspect paper/PDF output for confirmed documents and product/lot/serial labels, then retry on the target printer.
 - Actual: the browser automation cannot inspect native print output and no target printer is available.
 - Recommended fix: execute print/reprint evidence on the approved printer before external release.
+
+### RESULT-004: Optional Tauri printer approval absent
+
+- Status: BLOCKED
+- Case ID: E2E-014
+- Date: 2026-07-15
+- Environment: no approved Windows printer or signed desktop target
+- Evidence: T27 requires explicit human printer approval before any Tauri implementation; none was provided.
+- Expected: signed desktop build prints approved document types only to the configured printer and recovers from printer errors without stock calls.
+- Actual: task intentionally skipped at its authorization gate; no silent-print capability was added.
+- Recommended fix: open a new T27 task only after naming and approving the printer, document allowlist and deployment target.

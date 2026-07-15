@@ -217,6 +217,73 @@ export interface ReceiptClient {
   }>>;
 }
 
+export interface PaginationInfo {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface InventoryBalance {
+  warehouseId: string;
+  locationId: string;
+  locationCode: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  lotCode: string | null;
+  serialCode: string | null;
+  onHand: number;
+  committed: number;
+  available: number;
+}
+
+export interface InventoryLot {
+  id: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  lotCode: string;
+  manufacturedAt: string | null;
+  expiresAt: string | null;
+  onHand: number;
+}
+
+export interface InventorySerial {
+  id: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  serialCode: string;
+  status: "in_stock" | "issued" | "returned" | "scrapped";
+  locationCode: string | null;
+  onHand: number;
+}
+
+export interface InventoryMovement {
+  id: string;
+  documentNo: string;
+  documentType: string;
+  locationCode: string | null;
+  productId: string;
+  sku: string;
+  productName: string;
+  lotCode: string | null;
+  serialCode: string | null;
+  quantityDelta: number;
+  createdAt: string;
+}
+
+type InventoryPage<T> = { data: T[]; pagination: PaginationInfo };
+type InventoryParams = { page: number; q: string };
+
+export interface InventoryClient {
+  listBalances(params: InventoryParams): Promise<InventoryPage<InventoryBalance>>;
+  listLots(params: InventoryParams): Promise<InventoryPage<InventoryLot>>;
+  listSerials(params: InventoryParams): Promise<InventoryPage<InventorySerial>>;
+  listMovements(params: InventoryParams): Promise<InventoryPage<InventoryMovement>>;
+}
+
 export const authApi: AuthClient = {
   async session() {
     return (await request<{ user: SessionUser }>("/api/auth/session")).user;
@@ -356,4 +423,17 @@ export const receiptApi: ReceiptClient = {
   async listProducts() {
     return (await request<{ data: Product[] }>("/api/products")).data;
   },
+};
+
+function inventoryPath(resource: string, params: InventoryParams) {
+  const query = new URLSearchParams({ page: String(params.page), pageSize: "20" });
+  if (params.q) query.set("q", params.q);
+  return `/api/inventory/${resource}?${query}`;
+}
+
+export const inventoryApi: InventoryClient = {
+  listBalances(params) { return request(inventoryPath("balances", params)); },
+  listLots(params) { return request(inventoryPath("lots", params)); },
+  listSerials(params) { return request(inventoryPath("serials", params)); },
+  listMovements(params) { return request(inventoryPath("movements", params)); },
 };

@@ -21,8 +21,8 @@ Status: đang triển khai toàn bộ plan v2
 - [x] T11 Partners.
 - [x] T12 Stock ledger and balance core.
 - [x] T13 Receiving with lot/serial.
-- [ ] T14 Inventory and traceability views.
-- [ ] Checkpoint B reviewed.
+- [x] T14 Inventory and traceability views.
+- [x] Checkpoint B reviewed.
 
 ## Phase 3 — Critical outbound MVP
 

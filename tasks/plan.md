@@ -98,6 +98,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 - T13: Deliver receiving with lot/serial — [tasks/task-detail/task-13.md](task-detail/task-13.md)
   - Evidence (2026-07-15): backend 37/37 tests; frontend 22/22 tests; backend/frontend builds pass; migration `008_receipts.sql` applied. Browser created and confirmed `E2E-RCV-T13`; PostgreSQL verified `on_hand=5`, one movement, expiry `2027-12-31`, and idempotent retry. Responsive widths 320/768/1024/1440 had no document overflow; browser console had no warnings/errors.
 - T14: Deliver inventory and traceability views — [tasks/task-detail/task-14.md](task-detail/task-14.md)
+  - Evidence (2026-07-15): backend 40/40 tests and frontend 24/24 tests pass; backend/frontend production builds pass; lint has no errors (four pre-existing Fast Refresh warnings). Browser verified real on-hand/available data, loading, empty and bounded-validation error states, server filter, traceability history, and disabled pagination at the boundary. Checkpoint B review confirmed warehouse-scoped queries, immutable movement history, bounded page/filter inputs, and a schema path for reservation totals in T15.
 
 ### Checkpoint B — Stock foundation
 

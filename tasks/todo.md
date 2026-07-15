@@ -26,7 +26,7 @@ Status: đang triển khai toàn bộ plan v2
 
 ## Phase 3 — Critical outbound MVP
 
-- [ ] T15 Outbound draft and reservation release.
+- [x] T15 Outbound draft and reservation release.
 - [ ] T16 Picker workflow.
 - [ ] T17 Independent checking and shipping.
 - [ ] T18 Discrepancy, re-pick, cancellation and reassignment.

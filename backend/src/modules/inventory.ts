@@ -152,13 +152,17 @@ export function createPostgresInventoryStore(pool: Pool): InventoryStore {
         pool.query<InventoryBalance & { onHand: string; committed: string; available: string }>(
           `SELECT sb.warehouse_id AS "warehouseId", sb.location_id AS "locationId", loc.code AS "locationCode",
                   sb.product_id AS "productId", p.sku, p.name AS "productName", lot.lot_code AS "lotCode",
-                  serial.serial_code AS "serialCode", sb.on_hand AS "onHand", 0::numeric AS committed,
-                  sb.on_hand AS available
+                  serial.serial_code AS "serialCode", sb.on_hand AS "onHand", coalesce(r.committed, 0) AS committed,
+                  sb.on_hand - coalesce(r.committed, 0) AS available
            FROM stock_balances sb
            JOIN products p ON p.id = sb.product_id
            JOIN locations loc ON loc.id = sb.location_id
            LEFT JOIN lots lot ON lot.id = sb.lot_id
            LEFT JOIN serials serial ON serial.id = sb.serial_id
+           LEFT JOIN LATERAL (
+             SELECT sum(quantity) AS committed FROM stock_reservations
+             WHERE stock_balance_id = sb.id AND (status = 'picked' OR (status = 'reserved' AND expires_at > now()))
+           ) r ON true
            WHERE ${where}
            ORDER BY p.sku, loc.code, lot.expires_at NULLS LAST, serial.serial_code
            LIMIT $7 OFFSET $8`,

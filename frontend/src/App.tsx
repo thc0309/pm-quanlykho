@@ -6,6 +6,7 @@ import AuthPage from "./features/auth/AuthPage";
 import { CategoriesPage, CategoryCreatePage, UnitCreatePage, UnitsPage } from "./features/catalog/CatalogPage";
 import LocationsPage, { LocationCreatePage } from "./features/locations/LocationsPage";
 import InventoryPage from "./features/inventory/InventoryPage";
+import OutboundPage, { OutboundCreatePage } from "./features/outbound/OutboundPage";
 import ProductsPage, { ProductCreatePage } from "./features/products/ProductsPage";
 import PartnersPage, { PartnerCreatePage } from "./features/partners/PartnersPage";
 import ReceiptPage, { ReceiptCreatePage } from "./features/receipts/ReceiptPage";
@@ -63,6 +64,8 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="receipts" element={canStock ? <ReceiptPage /> : <Navigate to="/" replace />} />
         <Route path="receipts/create" element={canStock ? <ReceiptCreatePage /> : <Navigate to="/" replace />} />
         <Route path="inventory" element={canStock ? <InventoryPage /> : <Navigate to="/" replace />} />
+        <Route path="outbounds" element={canStock ? <OutboundPage /> : <Navigate to="/" replace />} />
+        <Route path="outbounds/create" element={canStock ? <OutboundCreatePage /> : <Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

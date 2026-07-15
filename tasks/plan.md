@@ -110,6 +110,7 @@ T27 Tauri is optional and starts only after T26 device evidence.
 ### Phase 3 — Critical outbound MVP
 
 - T15: Deliver outbound draft and reservation release — [tasks/task-detail/task-15.md](task-detail/task-15.md)
+  - Evidence (2026-07-15): migration `009_outbound_reservations.sql` applied; backend 43/43 and frontend 26/26 tests pass; backend/frontend builds pass; lint has no errors. Tests cover insufficient stock, concurrent/idempotent release and 30-minute expiry. Browser created/released `E2E-OUT-T15`; inventory reconciled `on_hand=5`, `committed=2`, `available=3` without a stock movement.
 - T16: Deliver the picker workflow — [tasks/task-detail/task-16.md](task-detail/task-16.md)
 - T17: Deliver independent checking and shipping — [tasks/task-detail/task-17.md](task-detail/task-17.md)
 - T18: Deliver discrepancy, re-pick, cancellation and reassignment — [tasks/task-detail/task-18.md](task-detail/task-18.md)

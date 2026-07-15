@@ -284,6 +284,22 @@ export interface InventoryClient {
   listMovements(params: InventoryParams): Promise<InventoryPage<InventoryMovement>>;
 }
 
+export interface Outbound {
+  id: string;
+  documentNo: string;
+  status: "draft" | "ready_to_pick" | "picking" | "picked" | "checking" | "needs_repick" | "shipped" | "cancelled";
+  lineCount: number;
+  reservedUntil: string | null;
+  createdAt: string;
+}
+
+export interface OutboundClient {
+  listOutbounds(): Promise<Outbound[]>;
+  createOutbound(input: { documentNo: string; lines: Array<{ productId: string; quantity: number }> }): Promise<{ id: string }>;
+  releaseOutbound(id: string): Promise<{ alreadyReleased: boolean; reservedUntil: string }>;
+  listProducts(): Promise<Array<{ id: string; sku: string; name: string }>>;
+}
+
 export const authApi: AuthClient = {
   async session() {
     return (await request<{ user: SessionUser }>("/api/auth/session")).user;
@@ -436,4 +452,15 @@ export const inventoryApi: InventoryClient = {
   listLots(params) { return request(inventoryPath("lots", params)); },
   listSerials(params) { return request(inventoryPath("serials", params)); },
   listMovements(params) { return request(inventoryPath("movements", params)); },
+};
+
+export const outboundApi: OutboundClient = {
+  async listOutbounds() { return (await request<{ data: Outbound[] }>("/api/outbounds?pageSize=50")).data; },
+  async createOutbound(input) {
+    return (await request<{ outbound: { id: string } }>("/api/outbounds", { method: "POST", body: JSON.stringify(input) })).outbound;
+  },
+  async releaseOutbound(id) {
+    return (await request<{ result: { alreadyReleased: boolean; reservedUntil: string } }>(`/api/outbounds/${id}/release`, { method: "POST" })).result;
+  },
+  async listProducts() { return (await request<{ data: Product[] }>("/api/products?pageSize=100")).data; },
 };

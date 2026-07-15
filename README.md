@@ -1,168 +1,123 @@
 # Warehouse Suite
 
-Phan mem quan ly kho dang SaaS cho web truoc, co nen tang de mo rong sang desktop/mobile sau. Du an hien co React + Tailwind cho giao dien, Strapi cho API, PostgreSQL 18 local cho du lieu, va cac module dang xay dung theo task trong `tasks/todo.md`.
+Hệ thống quản lý kho đa ngành, ưu tiên web/PWA. Repo hiện có nền tảng xác thực phiên, đổi mật khẩu tạm, phân quyền theo kho, quản lý người dùng/role và audit; các lát cắt tồn kho, nhập/xuất và truy xuất đang được triển khai theo [kế hoạch](tasks/plan.md).
 
-## Yeu Cau May
+## Stack
 
-- Node.js 20+ va npm.
-- PostgreSQL 18 da cai tai `C:\Program Files\PostgreSQL\18`.
-- Windows PowerShell.
-- Codex/RTK neu tiep tuc phat trien bang workflow trong repo.
+- Backend: Node.js, TypeScript strict, Hono, Zod, PostgreSQL và SQL migration cộng dồn.
+- Frontend: React 19, Vite 6, Tailwind CSS 4, React Router và Vitest/Testing Library.
+- Bảo mật: mật khẩu `scrypt`, session cookie `httpOnly`/`sameSite`, RBAC theo permission code và warehouse scope.
 
-## Cai Dat Lan Dau
+## Yêu cầu
 
-Tai thu muc goc du an:
+- Node.js 20+ và npm.
+- PostgreSQL có extension `pgcrypto`.
+- Hai cổng local mặc định còn trống: API `4000`, web `5173`.
 
-```powershell
-npm install
-cd server
-npm install
-cd ..
-```
-
-Tao file moi truong cho API:
+## Khởi động nhanh
 
 ```powershell
-Copy-Item .env.example server/.env
+git clone https://github.com/thc0309/pm-quanlykho.git
+cd pm-quanlykho
+npm install --prefix backend
+npm install --prefix frontend
+Copy-Item backend/.env.example backend/.env
 ```
 
-Voi may local hien tai, `server/.env` nen dung PostgreSQL 18 local:
+Sửa `backend/.env` theo PostgreSQL local. Không dùng các giá trị mẫu cho production:
 
 ```env
-DATABASE_CLIENT=postgres
-DATABASE_HOST=127.0.0.1
-DATABASE_PORT=15433
-DATABASE_NAME=warehouse
-DATABASE_USERNAME=warehouse
-DATABASE_PASSWORD=<mat-khau-local>
-DATABASE_SSL=false
+NODE_ENV=development
+PORT=4000
+DATABASE_URL=postgres://postgres:<password>@localhost:5433/warehouse_suite
+SESSION_SECRET=<chuoi-ngau-nhien-toi-thieu-32-ky-tu>
+MASTER_EMAIL=master@example.com
+MASTER_PASSWORD=<mat-khau-tam-toi-thieu-12-ky-tu>
+WAREHOUSE_ADMIN_EMAIL=admin@example.com
+WAREHOUSE_ADMIN_PASSWORD=<mat-khau-tam-toi-thieu-12-ky-tu>
 ```
 
-Khong commit `server/.env` vi file nay chua mat khau va secret.
-
-## Chay PostgreSQL 18 Local
-
-Database local cua du an nam trong `.local/postgres18-data` va chay cong `15433` de khong dung voi service PostgreSQL mac dinh.
-
-Bat database:
+Tạo database nếu chưa có, sau đó chạy migration và seed:
 
 ```powershell
-& 'C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe' -D '.\.local\postgres18-data' -l '.\.local\postgres18.log' -o '-p 15433' start
+psql -h localhost -p 5433 -U postgres -d postgres -f backend/db/create-database.sql
+npm run db:migrate --prefix backend
+npm run db:seed --prefix backend
 ```
 
-Dung database khi can:
+Seed tạo kho `MAIN`, master admin và—khi khai báo đủ hai biến tương ứng—warehouse admin. Mật khẩu tạm chỉ lấy từ biến môi trường, được lưu dạng hash và phải đổi sau lần đăng nhập đầu tiên.
+
+Chạy hai tiến trình phát triển:
 
 ```powershell
-& 'C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe' -D '.\.local\postgres18-data' stop
+# Terminal 1
+npm run dev:backend
+
+# Terminal 2
+npm run dev:frontend
 ```
 
-Kiem tra database:
+- Web: <http://127.0.0.1:5173>
+- API health: <http://127.0.0.1:4000/health>
+
+Vite proxy `/api` sang API local tại cổng `4000`, nên frontend không cần `VITE_API_URL` trong cấu hình mặc định.
+
+## Lệnh thường dùng
+
+| Lệnh tại thư mục gốc | Mục đích |
+|---|---|
+| `npm run dev:backend` | Chạy Hono API với reload |
+| `npm run dev:frontend` | Chạy Vite dev server |
+| `npm test` | Refresh bộ nhớ công việc rồi chạy toàn bộ backend/frontend test |
+| `npm run lint` | Type-check backend và lint frontend |
+| `npm run build` | Kiểm tra TypeScript và build frontend production |
+| `npm run memory:update` | Đồng bộ bộ nhớ ngắn hạn/dài hạn từ task evidence |
+| `npm run memory:check` | Báo lỗi nếu bộ nhớ công việc đã cũ |
+
+Lệnh database:
 
 ```powershell
-& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' -h 127.0.0.1 -p 15433 -U warehouse -d warehouse -c 'select version();'
+npm run db:migrate --prefix backend
+npm run db:seed --prefix backend
 ```
 
-## Chay API Strapi
-
-Mo mot terminal rieng:
-
-```powershell
-cd server
-npm run develop
-```
-
-API mac dinh chay tai:
+## Kiến trúc
 
 ```text
-http://127.0.0.1:1337
+backend/
+├── db/migrations/       # SQL migration bất biến, chạy theo thứ tự tên file
+├── src/http/            # Error envelope, validation, pagination, request ID
+├── src/modules/         # Auth, access control và business routes
+└── test/                # Node test cho contract/API/security
+
+frontend/
+├── src/features/        # UI theo lát cắt nghiệp vụ và component test
+├── src/lib/api.ts       # Client HTTP có kiểu
+└── src/App.tsx          # Session bootstrap, navigation và route guards
+
+tasks/
+├── todo.md              # Checklist nguồn sự thật
+├── plan.md              # Acceptance, dependency và evidence
+└── memory/              # Tóm tắt tự sinh để tiếp tục giữa các phiên
 ```
 
-Kiem tra API:
+API là lớp bảo mật có thẩm quyền; việc ẩn menu trên UI chỉ hỗ trợ trải nghiệm. Người dùng kho không được truy cập dữ liệu kho khác. Master admin phải chọn warehouse hợp lệ cho thao tác có scope.
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:1337/api/health
-```
+## Trạng thái
 
-## Chay Web
+Đã hoàn tất và kiểm thử:
 
-Mo terminal thu hai tai thu muc goc:
+- HTTP contract ổn định, validation và pagination có giới hạn.
+- Login/logout, session revoke/expiry, rate limit và đổi mật khẩu tạm.
+- Permission theo kho, audit thay đổi và chống truy cập xuyên kho.
+- Quản lý người dùng, role, permission và gán role qua API/UI.
+- Test hiện tại: 18 backend + 7 frontend; build production và lint không có lỗi.
 
-```powershell
-npm run dev
-```
+Task đang làm và hàng đợi kế tiếp luôn nằm trong [short-term memory](tasks/memory/short-term.md); bằng chứng đã xác minh nằm trong [long-term memory](tasks/memory/long-term.md). Phạm vi đầy đủ và quy tắc tồn kho xem tại [SPEC.md](SPEC.md).
 
-Web mac dinh chay tai:
+## Quy tắc an toàn
 
-```text
-http://127.0.0.1:5173
-```
-
-Neu API khong chay cong mac dinh, tao file `.env` o thu muc goc:
-
-```env
-VITE_API_URL=http://127.0.0.1:1337
-```
-
-## Tai Khoan Va Dang Nhap
-
-Hien tai khong mo dang ky cong khai. Tai khoan duoc tao boi master admin hoac admin kho theo phan quyen.
-
-Gia tri master admin nam trong `server/.env`:
-
-```env
-MASTER_ADMIN_EMAIL=master@example.com
-MASTER_ADMIN_PASSWORD=<mat-khau-tam>
-```
-
-Sau khi dang nhap bang mat khau tam, nguoi dung nen doi mat khau theo luong trong app.
-
-## Lenh Thuong Dung
-
-| Thu muc | Lenh | Muc dich |
-|---|---|---|
-| `.` | `npm run dev` | Chay web Vite |
-| `.` | `npm run build` | Build web production |
-| `.` | `npm run lint` | Kiem tra TypeScript web |
-| `.` | `npm run test` | Chay test frontend |
-| `server` | `npm run develop` | Chay Strapi dev |
-| `server` | `npm run build` | Build Strapi admin/API |
-| `server` | `npm run test` | Chay test backend |
-
-## Kiem Tra Truoc Khi Lam Tiep
-
-Chay nhanh cac lenh nay sau khi sua code:
-
-```powershell
-npm run test
-npm run build
-cd server
-npm run test
-npm run build
-```
-
-## In An Va Silent Print
-
-Web/PWA se dung luong in qua trinh duyet cho cac phieu thong thuong.
-
-Silent print tren Windows/macOS se duoc xu ly bang Tauri trong task T14. Hien repo chua co `src-tauri`, nen chua co lenh desktop build. Khi T14 hoan thanh, README nay can bo sung:
-
-- cach cai Rust va Tauri CLI;
-- cach cau hinh may in mac dinh;
-- quyen silent print theo tung may tram;
-- lenh build app Windows/macOS.
-
-## Cau Truc Chinh
-
-```text
-.
-|-- src/                 # React web app
-|-- server/              # Strapi API
-|-- tasks/               # Plan, todo, test plan
-|-- SPEC.md              # Yeu cau san pham
-|-- .env.example         # Mau env cho API
-`-- README.md            # Huong dan chay du an
-```
-
-## Trang Thai Hien Tai
-
-Da hoan thanh cac phan nen tang den engine ton kho, lo/serial, FEFO va truy xuat. Cac module mua hang, ban hang, tra hang, bao cao, barcode, in an va Tauri van dang nam trong checklist `tasks/todo.md`.
+- Không commit `.env`, token, mật khẩu thật hoặc database dump.
+- Production phải dùng `NODE_ENV=production`, HTTPS và `SESSION_SECRET` ngẫu nhiên riêng.
+- Chạy `npm test`, `npm run lint` và `npm run build` trước khi đẩy thay đổi.
+- Không sửa migration đã áp dụng; thêm migration mới theo số thứ tự.

@@ -63,8 +63,8 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="admin/access" element={allow("admin.users.view", <Navigate to="/admin/users" replace />)} />
         <Route path="admin/users" element={allow("admin.users.view", <UsersPage />)} />
         <Route path="admin/users/create" element={allow("admin.users.view", <UserCreatePage />)} />
-        <Route path="admin/roles" element={allow("admin.roles.view", <RolesPage />)} />
-        <Route path="admin/roles/create" element={allow("admin.roles.view", <RoleCreatePage />)} />
+        <Route path="admin/roles" element={allow("admin.roles.view", <RolesPage permissions={access.permissions} />)} />
+        <Route path="admin/roles/create" element={allow("admin.roles.create", <RoleCreatePage />)} />
         <Route path="admin/permissions" element={allow("admin.roles.view", <PermissionsPage />)} />
         <Route path="locations" element={allow("locations.view", <LocationsPage permissions={access.permissions} />)} />
         <Route path="locations/create" element={allow("locations.create", <LocationCreatePage />)} />
@@ -75,8 +75,8 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="catalog/units/create" element={allow("catalog.units.create", <UnitCreatePage />)} />
         <Route path="products" element={allow("products.view", <ProductsPage permissions={access.permissions} />)} />
         <Route path="products/create" element={allow("products.create", <ProductCreatePage />)} />
-        <Route path="partners" element={allow("partners.view", <PartnersPage />)} />
-        <Route path="partners/create" element={allow("partners.view", <PartnerCreatePage />)} />
+        <Route path="partners" element={allow("partners.view", <PartnersPage permissions={access.permissions} />)} />
+        <Route path="partners/create" element={allow("partners.create", <PartnerCreatePage />)} />
         <Route path="receipts" element={allow("receipts.view", <ReceiptPage />)} />
         <Route path="receipts/create" element={allow("receipts.view", <ReceiptCreatePage />)} />
         <Route path="inventory" element={allow("inventory.view", <InventoryPage />)} />

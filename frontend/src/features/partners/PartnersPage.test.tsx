@@ -8,7 +8,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PartnerClient } from "../../lib/api";
 import PartnersPage, { PartnerCreatePage } from "./PartnersPage";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function renderWithRouter(element: ReactElement) {
   return render(<MemoryRouter>{element}</MemoryRouter>);
@@ -37,6 +40,52 @@ describe("PartnersPage", () => {
     expect(await screen.findByText("Nhà cung cấp 1")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Thêm đối tác" })).toHaveAttribute("href", "/partners/create");
     expect(screen.queryByLabelText("Mã đối tác (*)")).not.toBeInTheDocument();
+  });
+
+  it("updates and deactivates a partner without reloading", async () => {
+    const partner = { id: "partner-1", warehouseId: "warehouse-a", code: "SUP-1", name: "Nhà cung cấp 1", kind: "supplier" as const, taxCode: null, phone: "0900000000", email: null, address: null, status: "active" as const };
+    const api = createApi({
+      listPartners: vi.fn().mockResolvedValue([partner]),
+      updatePartner: vi.fn().mockResolvedValue({ ...partner, name: "Nhà cung cấp mới", phone: "0911111111" }),
+      setPartnerStatus: vi.fn().mockResolvedValue({ ...partner, name: "Nhà cung cấp mới", phone: "0911111111", status: "inactive" }),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    renderWithRouter(<PartnersPage api={api} permissions={["partners.view", "partners.update", "partners.delete"]} />);
+
+    await user.click(await screen.findByRole("button", { name: "Sửa đối tác Nhà cung cấp 1" }));
+    const name = screen.getByRole("textbox", { name: "Tên đối tác Nhà cung cấp 1" });
+    expect(name).toHaveFocus();
+    await user.clear(name);
+    await user.type(name, "Nhà cung cấp mới");
+    await user.clear(screen.getByRole("textbox", { name: "Điện thoại đối tác Nhà cung cấp 1" }));
+    await user.type(screen.getByRole("textbox", { name: "Điện thoại đối tác Nhà cung cấp 1" }), "0911111111");
+    await user.click(screen.getByRole("button", { name: "Lưu đối tác Nhà cung cấp 1" }));
+    expect(api.updatePartner).toHaveBeenCalledWith("partner-1", { name: "Nhà cung cấp mới", taxCode: null, phone: "0911111111", email: null, address: null });
+    expect(await screen.findByText("Nhà cung cấp mới")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Vô hiệu hóa đối tác Nhà cung cấp mới" }));
+    expect(api.setPartnerStatus).toHaveBeenCalledWith("partner-1", "inactive");
+    expect(await screen.findByText("Tạm ngưng")).toBeTruthy();
+  });
+
+  it("hides unauthorized partner actions and preserves state on error", async () => {
+    const partner = { id: "partner-1", warehouseId: "warehouse-a", code: "SUP-1", name: "Nhà cung cấp 1", kind: "supplier" as const, taxCode: null, phone: null, email: null, address: null, status: "active" as const };
+    const viewApi = createApi({ listPartners: vi.fn().mockResolvedValue([partner]) });
+    const { unmount } = renderWithRouter(<PartnersPage api={viewApi} permissions={["partners.view"]} />);
+    expect(await screen.findByText("Nhà cung cấp 1")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Sửa đối tác/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Vô hiệu hóa đối tác/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Thêm đối tác" })).not.toBeInTheDocument();
+    unmount();
+
+    const errorApi = createApi({ listPartners: vi.fn().mockResolvedValue([partner]), updatePartner: vi.fn().mockRejectedValue(new Error("Không thể cập nhật đối tác đang tham chiếu")) });
+    const user = userEvent.setup();
+    renderWithRouter(<PartnersPage api={errorApi} permissions={["partners.view", "partners.update"]} />);
+    await user.click(await screen.findByRole("button", { name: "Sửa đối tác Nhà cung cấp 1" }));
+    await user.click(screen.getByRole("button", { name: "Lưu đối tác Nhà cung cấp 1" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không thể cập nhật đối tác đang tham chiếu");
+    expect(screen.getByText("Nhà cung cấp 1", { selector: "td" })).toBeInTheDocument();
   });
 
   it("creates a supplier from a dedicated form screen", async () => {

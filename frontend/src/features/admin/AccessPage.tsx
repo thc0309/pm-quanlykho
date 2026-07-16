@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
@@ -17,6 +17,7 @@ import {
   PlusIcon,
   TrashBinIcon,
 } from "../../icons";
+import { hasPermission } from "../../lib/permissions";
 import { ErrorNotice } from "./components/ErrorNotice";
 import { PageHeader } from "./components/PageHeader";
 
@@ -103,6 +104,103 @@ function MatrixCheckbox({
       onChange={(event) => onChange(event.target.checked)}
       className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500 dark:border-gray-700"
     />
+  );
+}
+
+function PermissionMatrix({
+  catalog,
+  loading,
+  permissions,
+  onChange,
+}: {
+  catalog: PermissionFeature[];
+  loading: boolean;
+  permissions: string[];
+  onChange: (permissions: string[]) => void;
+}) {
+  const actions = useMemo(
+    () => [...new Map(catalog.flatMap((feature) => feature.actions.map((action) => [action.action, action.label]))).entries()],
+    [catalog],
+  );
+  const permissionCodes = useMemo(
+    () => catalog.flatMap((feature) => feature.actions.map((action) => action.code)),
+    [catalog],
+  );
+
+  function selectPermissions(codes: Iterable<string>) {
+    const selected = new Set(codes);
+    onChange(permissionCodes.filter((code) => selected.has(code)));
+  }
+
+  function togglePermissions(codes: string[], checked: boolean) {
+    const selected = new Set(permissions);
+    for (const code of codes) checked ? selected.add(code) : selected.delete(code);
+    selectPermissions(selected);
+  }
+
+  return (
+    <fieldset aria-required="true" className="space-y-3">
+      <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Quyền (*)</legend>
+      {loading ? (
+        <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải quyền…</p>
+      ) : (
+        <>
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <MatrixCheckbox
+              label="Chọn tất cả quyền"
+              checked={permissionCodes.length > 0 && permissions.length === permissionCodes.length}
+              indeterminate={permissions.length > 0 && permissions.length < permissionCodes.length}
+              onChange={(checked) => selectPermissions(checked ? permissionCodes : [])}
+            />
+            Chọn tất cả quyền
+          </label>
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
+            <table aria-label="Ma trận quyền" className="min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
+              <thead className={tableHeadClass}>
+                <tr>
+                  <th scope="col" className="px-3 py-3">Tính năng</th>
+                  {actions.map(([action, label]) => <th key={action} scope="col" className="px-3 py-3 text-center">{label}</th>)}
+                  <th scope="col" className="px-3 py-3 text-center">Chọn tất cả</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {catalog.map((feature) => {
+                  const codes = feature.actions.map((action) => action.code);
+                  const selected = codes.filter((code) => permissions.includes(code)).length;
+                  return (
+                    <tr key={feature.featureCode}>
+                      <th scope="row" className="px-3 py-3 text-left text-sm font-medium text-gray-800 dark:text-white/90">{feature.featureLabel}</th>
+                      {actions.map(([action]) => {
+                        const permission = feature.actions.find((item) => item.action === action);
+                        return (
+                          <td key={action} className="px-3 py-3 text-center">
+                            {permission ? (
+                              <MatrixCheckbox
+                                label={`${feature.featureLabel} — ${permission.label}`}
+                                checked={permissions.includes(permission.code)}
+                                onChange={(checked) => togglePermissions([permission.code], checked)}
+                              />
+                            ) : <span aria-label={`${feature.featureLabel} — Không áp dụng`} className="text-gray-300 dark:text-gray-700">—</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-3 text-center">
+                        <MatrixCheckbox
+                          label={`Chọn tất cả ${feature.featureLabel}`}
+                          checked={selected === codes.length}
+                          indeterminate={selected > 0 && selected < codes.length}
+                          onChange={(checked) => togglePermissions(codes, checked)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </fieldset>
   );
 }
 
@@ -528,10 +626,56 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
   );
 }
 
-export function RolesPage({ api = adminApi }: { api?: AdminClient }) {
-  const { roles, loading, error } = useAdminData(api);
+export function RolesPage({ api = adminApi, permissions = ["*"] }: { api?: AdminClient; permissions?: readonly string[] }) {
+  const { roles, setRoles, loading, error, setError } = useAdminData(api);
+  const { catalog, loading: catalogLoading, error: catalogError } = usePermissionCatalog(api);
   const [rolePage, setRolePage] = useState(1);
+  const [editing, setEditing] = useState<AdminRole | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const pagedRoles = paginate(roles, rolePage);
+  const canCreate = hasPermission(permissions, "admin.roles.create");
+  const canUpdate = hasPermission(permissions, "admin.roles.update");
+  const canDelete = hasPermission(permissions, "admin.roles.delete");
+
+  function startEditing(role: AdminRole) {
+    setEditing(role);
+    setEditName(role.name);
+    setEditPermissions(role.permissions);
+    setError("");
+  }
+
+  async function saveRole(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editing || editPermissions.length === 0) return;
+    setBusyId(editing.id);
+    setError("");
+    try {
+      const updated = await api.updateRole(editing.id, { name: editName.trim(), permissions: editPermissions });
+      setRoles((current) => current.map((role) => role.id === updated.id ? updated : role));
+      setEditing(null);
+    } catch (cause) {
+      setError(apiMessage(cause, "Không thể cập nhật vai trò."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deleteRole(role: AdminRole) {
+    if (!window.confirm(`Bạn có chắc muốn xóa vai trò ${role.name}?`)) return;
+    setBusyId(role.id);
+    setError("");
+    try {
+      await api.deleteRole(role.id);
+      setRoles((current) => current.filter((item) => item.id !== role.id));
+      if (editing?.id === role.id) setEditing(null);
+    } catch (cause) {
+      setError(apiMessage(cause, "Không thể xóa vai trò."));
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   if (loading) {
     return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải vai trò…</p>;
@@ -542,14 +686,14 @@ export function RolesPage({ api = adminApi }: { api?: AdminClient }) {
       <PageHeader
         title="Vai trò"
         description="Tạo vai trò và chọn các quyền nghiệp vụ được phép dùng."
-        actions={(
+        actions={canCreate ? (
           <Link to="/admin/roles/create" className={primaryButtonClass}>
             <PlusIcon className="h-4 w-4" />
             Thêm vai trò
           </Link>
-        )}
+        ) : null}
       />
-      <ErrorNotice message={error} />
+      <ErrorNotice message={error || catalogError} />
 
       <section className={panelClass}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Vai trò hiện có</h2>
@@ -571,21 +715,43 @@ export function RolesPage({ api = adminApi }: { api?: AdminClient }) {
                   </td>
                 </tr>
               ) : pagedRoles.map((role) => (
-                <tr key={role.id}>
+                <Fragment key={role.id}>
+                <tr>
                   <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{role.name}</td>
                   <td className={tableCellClass}>{role.code}</td>
                   <td className={tableCellClass}>{role.permissions.join(", ")}</td>
                   <td className={`${tableCellClass} text-right`}>
                     <div className="inline-flex gap-2">
-                      <button type="button" disabled aria-label={`Sửa vai trò ${role.name}`} title="Chưa hỗ trợ sửa vai trò" className={iconButtonClass}>
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button type="button" disabled aria-label={`Xóa vai trò ${role.name}`} title="Chưa hỗ trợ xóa vai trò" className={iconButtonClass}>
-                        <TrashBinIcon className="h-4 w-4" />
-                      </button>
+                      {canUpdate && editing?.id !== role.id && (
+                        <button type="button" disabled={busyId === role.id} aria-label={`Sửa vai trò ${role.name}`} title="Sửa vai trò" className={iconButtonClass} onClick={() => startEditing(role)}>
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button type="button" disabled={busyId === role.id} aria-label={`Xóa vai trò ${role.name}`} title="Xóa vai trò" className={iconButtonClass} onClick={() => deleteRole(role)}>
+                          <TrashBinIcon className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
+                {editing?.id === role.id && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-4">
+                      <form className={`space-y-4 ${panelClass}`} onSubmit={saveRole}>
+                        <label className={labelClass}>Tên vai trò (*)
+                          <input autoFocus required aria-label={`Tên vai trò ${role.name}`} className={inputClass} value={editName} onChange={(event) => setEditName(event.target.value)} />
+                        </label>
+                        <PermissionMatrix catalog={catalog} loading={catalogLoading} permissions={editPermissions} onChange={setEditPermissions} />
+                        <div className="flex flex-wrap gap-2">
+                          <button type="submit" disabled={busyId === role.id || catalogLoading || editPermissions.length === 0} className={primaryButtonClass} aria-label={`Lưu vai trò ${role.name}`}>{busyId === role.id ? "Đang lưu…" : "Lưu thay đổi"}</button>
+                          <button type="button" disabled={busyId === role.id} className={secondaryButtonClass} onClick={() => setEditing(null)}>Hủy</button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -613,10 +779,7 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
 
   function selectPermissions(codes: Iterable<string>) {
     const selected = new Set(codes);
-    setRoleForm((current) => ({
-      ...current,
-      permissions: permissionCodes.filter((code) => selected.has(code)),
-    }));
+    setRoleForm((current) => ({ ...current, permissions: permissionCodes.filter((code) => selected.has(code)) }));
   }
 
   function togglePermissions(codes: string[], checked: boolean) {

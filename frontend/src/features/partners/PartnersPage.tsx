@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
-import { PencilIcon, PlusIcon, TrashBinIcon } from "../../icons";
+import { PencilIcon, PlusIcon } from "../../icons";
 import { partnerApi, type Partner, type PartnerClient } from "../../lib/api";
+import { hasPermission } from "../../lib/permissions";
 
 const kindLabels: Record<Partner["kind"], string> = {
   customer: "Khách hàng",
@@ -24,12 +25,68 @@ const iconButtonClass =
 const tableHeadClass =
   "bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-white/[0.03] dark:text-gray-400";
 const tableCellClass = "px-4 py-3 text-sm text-gray-700 dark:text-gray-300";
+const rowActionClass =
+  "inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5";
 
-export default function PartnersPage({ api = partnerApi }: { api?: PartnerClient }) {
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export default function PartnersPage({ api = partnerApi, permissions = ["*"] }: { api?: PartnerClient; permissions?: readonly string[] }) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ name: "", taxCode: "", phone: "", email: "", address: "" });
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+  const canCreate = hasPermission(permissions, "partners.create");
+  const canUpdate = hasPermission(permissions, "partners.update");
+  const canChangeStatus = hasPermission(permissions, "partners.delete");
+
+  function startEdit(partner: Partner) {
+    setEditingId(partner.id);
+    setDraft({ name: partner.name, taxCode: partner.taxCode ?? "", phone: partner.phone ?? "", email: partner.email ?? "", address: partner.address ?? "" });
+    setRowError(null);
+  }
+
+  async function savePartner(event: FormEvent<HTMLFormElement>, partner: Partner) {
+    event.preventDefault();
+    setBusyId(partner.id);
+    setRowError(null);
+    try {
+      const updated = await api.updatePartner(partner.id, {
+        name: draft.name.trim(),
+        taxCode: draft.taxCode.trim() || null,
+        phone: draft.phone.trim() || null,
+        email: draft.email.trim() || null,
+        address: draft.address.trim() || null,
+      });
+      setPartners((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingId(null);
+    } catch (caught) {
+      setRowError({ id: partner.id, message: errorMessage(caught, "Không thể cập nhật đối tác") });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeStatus(partner: Partner) {
+    const nextStatus = partner.status === "active" ? "inactive" : "active";
+    const action = nextStatus === "inactive" ? "vô hiệu hóa" : "kích hoạt";
+    if (!window.confirm(`Bạn có chắc muốn ${action} đối tác ${partner.name}?`)) return;
+    setBusyId(partner.id);
+    setRowError(null);
+    try {
+      const updated = await api.setPartnerStatus(partner.id, nextStatus);
+      setPartners((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (caught) {
+      setRowError({ id: partner.id, message: errorMessage(caught, `Không thể ${action} đối tác`) });
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   useEffect(() => {
     api.listPartners()
@@ -51,10 +108,12 @@ export default function PartnersPage({ api = partnerApi }: { api?: PartnerClient
             Quản lý khách hàng và nhà cung cấp theo kho.
           </p>
         </div>
-        <Link to="/partners/create" className={primaryButtonClass}>
-          <PlusIcon className="h-4 w-4" />
-          Thêm đối tác
-        </Link>
+        {canCreate && (
+          <Link to="/partners/create" className={primaryButtonClass}>
+            <PlusIcon className="h-4 w-4" />
+            Thêm đối tác
+          </Link>
+        )}
       </div>
 
       {error && (
@@ -73,33 +132,61 @@ export default function PartnersPage({ api = partnerApi }: { api?: PartnerClient
                 <th scope="col" className="px-4 py-3">Mã</th>
                 <th scope="col" className="px-4 py-3">Loại</th>
                 <th scope="col" className="px-4 py-3">Liên hệ</th>
+                <th scope="col" className="px-4 py-3">Trạng thái</th>
                 <th scope="col" className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {partners.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
+                  <td colSpan={6} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
                     Chưa có đối tác.
                   </td>
                 </tr>
               ) : paginate(partners, page).map((partner) => (
-                <tr key={partner.id}>
+                <Fragment key={partner.id}>
+                <tr>
                   <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{partner.name}</td>
                   <td className={tableCellClass}>{partner.code}</td>
                   <td className={tableCellClass}>{kindLabels[partner.kind]}</td>
                   <td className={tableCellClass}>{partner.phone || partner.email || "-"}</td>
+                  <td className={tableCellClass}>{partner.status === "active" ? "Đang dùng" : "Tạm ngưng"}</td>
                   <td className={`${tableCellClass} text-right`}>
-                    <div className="inline-flex gap-2">
-                      <button type="button" disabled aria-label={`Sửa đối tác ${partner.name}`} title="Chưa hỗ trợ sửa đối tác" className={iconButtonClass}>
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button type="button" disabled aria-label={`Xóa đối tác ${partner.name}`} title="Chưa hỗ trợ xóa đối tác" className={iconButtonClass}>
-                        <TrashBinIcon className="h-4 w-4" />
-                      </button>
+                    <div className="inline-flex items-center gap-2">
+                      {canUpdate && editingId !== partner.id && (
+                        <button type="button" disabled={busyId === partner.id} aria-label={`Sửa đối tác ${partner.name}`} title="Sửa đối tác" className={iconButtonClass} onClick={() => startEdit(partner)}>
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canChangeStatus && (
+                        <button type="button" disabled={busyId === partner.id} aria-label={`${partner.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} đối tác ${partner.name}`} className={rowActionClass} onClick={() => changeStatus(partner)}>
+                          {busyId === partner.id ? "Đang xử lý…" : partner.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
+                {(editingId === partner.id || rowError?.id === partner.id) && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-4">
+                      {editingId === partner.id && (
+                        <form className="grid gap-3 rounded-xl bg-gray-50 p-3 sm:grid-cols-2 lg:grid-cols-3 dark:bg-white/[0.03]" onSubmit={(event) => savePartner(event, partner)}>
+                          <label className={labelClass}>Tên đối tác<input autoFocus required aria-label={`Tên đối tác ${partner.name}`} className={inputClass} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
+                          <label className={labelClass}>Mã số thuế<input aria-label={`Mã số thuế đối tác ${partner.name}`} className={inputClass} value={draft.taxCode} onChange={(event) => setDraft((current) => ({ ...current, taxCode: event.target.value }))} /></label>
+                          <label className={labelClass}>Điện thoại<input aria-label={`Điện thoại đối tác ${partner.name}`} className={inputClass} value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
+                          <label className={labelClass}>Email<input type="email" aria-label={`Email đối tác ${partner.name}`} className={inputClass} value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} /></label>
+                          <label className={labelClass}>Địa chỉ<input aria-label={`Địa chỉ đối tác ${partner.name}`} className={inputClass} value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} /></label>
+                          <div className="flex items-end gap-2">
+                            <button type="submit" disabled={busyId === partner.id} className={primaryButtonClass} aria-label={`Lưu đối tác ${partner.name}`}>{busyId === partner.id ? "Đang lưu…" : "Lưu"}</button>
+                            <button type="button" disabled={busyId === partner.id} className={secondaryButtonClass} onClick={() => setEditingId(null)}>Hủy</button>
+                          </div>
+                        </form>
+                      )}
+                      {rowError?.id === partner.id && <p role="alert" className="mt-2 text-sm text-error-600">{rowError.message}</p>}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

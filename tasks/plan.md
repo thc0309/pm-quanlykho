@@ -476,11 +476,13 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Nối sửa/vô hiệu hóa partner và sửa/xóa role.
 
 **Acceptance criteria:**
-- [ ] Partner update/status dùng API hiện có và permission chi tiết.
-- [ ] Role update/delete dùng API mới.
-- [ ] Delete role đang gán user hiển thị lỗi rõ ràng.
+- [x] Partner update/status dùng API hiện có và permission chi tiết.
+- [x] Role update/delete dùng API mới.
+- [x] Delete role đang gán user hiển thị lỗi rõ ràng.
 
-**Verification:** `npm test --prefix frontend -- --run PartnersPage AccessPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run PartnersPage AccessPage` — 18/18 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T37, T38, T42
 
@@ -490,8 +492,8 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 ### Checkpoint E — Metadata UX
 
-- [ ] T43-T45 pass.
-- [ ] Không còn nút metadata disabled vì chưa hỗ trợ.
+- [x] T43-T45 pass.
+- [x] Không còn nút metadata disabled vì chưa hỗ trợ.
 - [ ] Browser smoke cho category, product, partner, role.
 
 ### Phase 6 — Multi-line document forms

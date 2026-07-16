@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AdminClient } from "../../lib/api";
+import { ApiError, type AdminClient } from "../../lib/api";
 import UsersPage, { AccessNavigation, PermissionsPage, RoleCreatePage, RolesPage, UserCreatePage } from "./AccessPage";
 
 Object.defineProperties(URL, {
@@ -15,7 +15,7 @@ Object.defineProperties(URL, {
 
 afterEach(() => {
   cleanup();
-  vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 function renderWithRouter(element: ReactElement) {
@@ -329,6 +329,58 @@ describe("AccessPage", () => {
     expect(await screen.findByText("Nhân viên soạn")).toBeVisible();
     expect(screen.getByRole("link", { name: "Thêm vai trò" })).toHaveAttribute("href", "/admin/roles/create");
     expect(screen.queryByLabelText("Mã vai trò (*)")).not.toBeInTheDocument();
+  });
+
+  it("prefills and updates the role permission matrix", async () => {
+    const api = client();
+    const role = { id: "role-1", warehouseId: "warehouse-a", code: "picker", name: "Nhân viên soạn", permissions: ["picking.view"] };
+    api.listRoles = vi.fn().mockResolvedValue([role]);
+    api.updateRole = vi.fn().mockResolvedValue({ ...role, name: "Nhân viên soạn mới", permissions: ["picking.view", "picking.update"] });
+    const user = userEvent.setup();
+    renderWithRouter(<RolesPage api={api} permissions={["admin.roles.view", "admin.roles.update"]} />);
+
+    await user.click(await screen.findByRole("button", { name: "Sửa vai trò Nhân viên soạn" }));
+    expect(screen.getByRole("checkbox", { name: "Soạn hàng — Xem" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Soạn hàng — Sửa" })).not.toBeChecked();
+    const name = screen.getByRole("textbox", { name: "Tên vai trò Nhân viên soạn" });
+    expect(name).toHaveFocus();
+    await user.click(screen.getByRole("checkbox", { name: "Soạn hàng — Sửa" }));
+    await user.clear(name);
+    await user.type(name, "Nhân viên soạn mới");
+    await user.click(screen.getByRole("button", { name: "Lưu vai trò Nhân viên soạn" }));
+    expect(api.updateRole).toHaveBeenCalledWith("role-1", { name: "Nhân viên soạn mới", permissions: ["picking.view", "picking.update"] });
+    expect(await screen.findByText("Nhân viên soạn mới")).toBeVisible();
+  });
+
+  it("deletes an unused role and keeps an assigned role on conflict", async () => {
+    const api = client();
+    const unused = { id: "role-unused", warehouseId: "warehouse-a", code: "unused", name: "Vai trò chưa dùng", permissions: ["reports.view"] };
+    const assigned = { id: "role-assigned", warehouseId: "warehouse-a", code: "assigned", name: "Vai trò đã gán", permissions: ["picking.view"] };
+    api.listRoles = vi.fn().mockResolvedValue([unused, assigned]);
+    api.deleteRole = vi.fn().mockImplementation(async (id) => {
+      if (id === assigned.id) throw new ApiError(409, "ROLE_ASSIGNED", "Vai trò đã được gán cho người dùng nên không thể xóa");
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    renderWithRouter(<RolesPage api={api} permissions={["admin.roles.view", "admin.roles.delete"]} />);
+
+    await user.click(await screen.findByRole("button", { name: "Xóa vai trò Vai trò chưa dùng" }));
+    expect(api.deleteRole).toHaveBeenCalledWith("role-unused");
+    expect(screen.queryByText("Vai trò chưa dùng")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Xóa vai trò Vai trò đã gán" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Vai trò đã được gán cho người dùng nên không thể xóa");
+    expect(screen.getByText("Vai trò đã gán")).toBeVisible();
+  });
+
+  it("hides unauthorized role actions", async () => {
+    const api = client();
+    api.listRoles = vi.fn().mockResolvedValue([{ id: "role-1", warehouseId: "warehouse-a", code: "picker", name: "Nhân viên soạn", permissions: ["picking.view"] }]);
+    renderWithRouter(<RolesPage api={api} permissions={["admin.roles.view"]} />);
+    expect(await screen.findByText("Nhân viên soạn")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Sửa vai trò/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Xóa vai trò/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Thêm vai trò" })).not.toBeInTheDocument();
   });
 
   it("shows the permission catalog", async () => {

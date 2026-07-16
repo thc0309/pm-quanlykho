@@ -36,7 +36,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 
 - [x] [T43 UI danh mục và đơn vị](task-detail/task-43.md).
 - [x] [T44 UI vị trí và sản phẩm](task-detail/task-44.md).
-- [ ] [T45 UI đối tác và role](task-detail/task-45.md).
+- [x] [T45 UI đối tác và role](task-detail/task-45.md).
 - [ ] Checkpoint E reviewed.
 
 ## Phase 6 — Multi-line document forms

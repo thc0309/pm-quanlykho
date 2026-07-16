@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 import { postStockLines } from "./stock.js";
 
 export function returnDelta(kind: "customer" | "supplier", quantity: number) {
@@ -37,8 +38,8 @@ function mapReturnError(error: unknown): never {
   throw error;
 }
 
-function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string) {
-  return requireAccess(c, auth, access, secret, { permission: "stock.manage" });
+function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string, permission: PermissionCode) {
+  return requireAccess(c, auth, access, secret, { permission });
 }
 
 export function registerReturnRoutes(
@@ -49,7 +50,7 @@ export function registerReturnRoutes(
   secret: string,
 ) {
   app.get("/api/returns", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["GET /api/returns"]);
     const page = parsePagination(c.req.query());
     const result = await pool.query(
       `SELECT r.id,r.return_no AS "returnNo",r.kind,r.status,
@@ -65,7 +66,7 @@ export function registerReturnRoutes(
   });
 
   app.post("/api/returns", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/returns"]);
     const input = await parseJson(c, createSchema);
     const db = await pool.connect();
     try {
@@ -119,7 +120,7 @@ export function registerReturnRoutes(
   });
 
   app.post("/api/returns/:id/confirm", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/returns/:id/confirm"]);
     const db = await pool.connect();
     try {
       await db.query("BEGIN");

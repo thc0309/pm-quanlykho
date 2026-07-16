@@ -60,7 +60,7 @@ async function setup() {
   const store = new MemoryInventoryStore();
   const passwordHash = await hashPassword("secure-password");
   store.users.push({ id: "admin-a", email: "admin@example.test", fullName: "Admin", kind: "warehouse_admin", warehouseId: "warehouse-a", passwordHash, mustChangePassword: false, status: "active" });
-  store.permissions.set("admin-a", ["stock.manage"]);
+  store.permissions.set("admin-a", ["inventory.view"]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerInventoryRoutes(app, store, store, store, secret);

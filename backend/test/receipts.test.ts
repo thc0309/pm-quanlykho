@@ -78,7 +78,7 @@ async function setup() {
     mustChangePassword: false,
     status: "active",
   });
-  store.permissions.set("admin-a", ["stock.manage"]);
+  store.permissions.set("admin-a", ["receipts.view", "receipts.create", "receipts.approve"]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerReceiptRoutes(app, store, store, store, secret);
@@ -144,7 +144,7 @@ test("receipt list never treats a warehouse user without scope as master", async
     mustChangePassword: false,
     status: "active",
   });
-  store.permissions.set("unscoped-a", ["stock.manage"]);
+  store.permissions.set("unscoped-a", ["receipts.view"]);
   const login = await app.request("/api/auth/login", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -154,4 +154,28 @@ test("receipt list never treats a warehouse user without scope as master", async
 
   const response = await app.request("/api/receipts", { headers: { cookie } });
   assert.equal(response.status, 403);
+});
+
+test("receipt view permission cannot create or confirm a receipt", async () => {
+  const { app, store, cookie } = await setup();
+  const receipt = await store.createReceipt({
+    warehouseId: "warehouse-a",
+    documentNo: "VIEW-ONLY",
+    lines: [{ locationId, productId, quantity: 1 }],
+  });
+  store.permissions.set("admin-a", ["receipts.view"]);
+
+  assert.equal((await app.request("/api/receipts", { headers: { cookie } })).status, 200);
+  assert.equal((await app.request("/api/receipts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ documentNo: "BLOCKED", lines: [{ locationId, productId, quantity: 1 }] }),
+  })).status, 403);
+  assert.equal((await app.request(`/api/receipts/${receipt.id}/confirm`, {
+    method: "POST",
+    headers: { cookie },
+  })).status, 403);
+  assert.equal(store.receipts.length, 1);
+  assert.equal(store.confirmWrites, 0);
+  assert.equal(store.audits.length, 0);
 });

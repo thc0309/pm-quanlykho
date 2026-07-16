@@ -61,7 +61,7 @@ class MemoryOutboundStore implements AuthStore, AccessStore, OutboundStore {
 async function setup() {
   const store = new MemoryOutboundStore();
   store.users.push({ id: "admin-a", email: "admin@example.test", fullName: "Admin", kind: "warehouse_admin", warehouseId, passwordHash: await hashPassword("secure-password"), mustChangePassword: false, status: "active" });
-  store.permissions.set("admin-a", ["stock.manage", "outbound.release"]);
+  store.permissions.set("admin-a", ["outbounds.view", "outbounds.create", "outbounds.approve"]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerOutboundRoutes(app, store, store, store, secret);

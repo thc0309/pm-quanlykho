@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 type Page<T> = { data: T[]; total: number };
 export type OutboundStatus = "draft" | "ready_to_pick" | "picking" | "picked" | "checking" | "needs_repick" | "shipped" | "cancelled";
@@ -72,15 +73,15 @@ function outboundError(error: unknown): never {
 }
 
 export function registerOutboundRoutes(app: Hono, authStore: AuthStore, accessStore: AccessStore, store: OutboundStore, sessionSecret: string) {
-  const actor = (context: Context, permission: string) => requireAccess(context, authStore, accessStore, sessionSecret, { permission });
+  const actor = (context: Context, permission: PermissionCode) => requireAccess(context, authStore, accessStore, sessionSecret, { permission });
   app.get("/api/outbounds", async (c) => {
-    const current = await actor(c, "stock.manage");
+    const current = await actor(c, routePermissionCatalog["GET /api/outbounds"]);
     const pagination = parsePagination(c.req.query());
     const result = await store.listOutbounds(warehouseScopeFor(c, current), pagination.pageSize, pagination.offset);
     return c.json({ data: result.data, pagination: { page: pagination.page, pageSize: pagination.pageSize, totalItems: result.total, totalPages: Math.ceil(result.total / pagination.pageSize) } });
   });
   app.post("/api/outbounds", async (c) => {
-    const current = await actor(c, "stock.manage");
+    const current = await actor(c, routePermissionCatalog["POST /api/outbounds"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, outboundSchema);
     try {
@@ -90,7 +91,7 @@ export function registerOutboundRoutes(app: Hono, authStore: AuthStore, accessSt
     } catch (error) { outboundError(error); }
   });
   app.post("/api/outbounds/:id/release", async (c) => {
-    const current = await actor(c, "outbound.release");
+    const current = await actor(c, routePermissionCatalog["POST /api/outbounds/:id/release"]);
     const warehouseId = await warehouseFor(c, current, store);
     const id = z.string().uuid().safeParse(c.req.param("id"));
     if (!id.success) throw new HttpError(422, "VALIDATION_ERROR", "ID phiếu không hợp lệ");

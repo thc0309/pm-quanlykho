@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parsePagination } from "../http/validation.js";
 import { requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog } from "./permissions.js";
 
 type Page<T> = { data: T[]; total: number };
 
@@ -123,7 +124,9 @@ export function registerInventoryRoutes(
   store: InventoryStore,
   sessionSecret: string,
 ) {
-  const actor = (context: Context) => requireAccess(context, authStore, accessStore, sessionSecret, { permission: "stock.manage" });
+  const actor = (context: Context) => requireAccess(context, authStore, accessStore, sessionSecret, {
+    permission: routePermissionCatalog["GET /api/inventory/balances"],
+  });
   const route = <T>(path: string, load: InventoryStore[keyof InventoryStore]) => {
     app.get(path, async (c) => {
       const current = await actor(c);

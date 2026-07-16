@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 export function lineTotal(quantity: number, unitPrice: number, taxRate: number) {
   return Math.round(quantity * unitPrice * (1 + taxRate / 100) * 100) / 100;
@@ -27,8 +28,8 @@ const salesSchema = z.object({
   })).min(1).max(200),
 }).strict();
 
-function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string) {
-  return requireAccess(c, auth, access, secret, { permission: "stock.manage" });
+function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string, permission: PermissionCode) {
+  return requireAccess(c, auth, access, secret, { permission });
 }
 
 function mapSalesError(error: unknown): never {
@@ -49,7 +50,7 @@ export function registerSalesRoutes(
   secret: string,
 ) {
   app.get("/api/sales", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["GET /api/sales"]);
     const page = parsePagination(c.req.query());
     const result = await pool.query(
       `SELECT d.id,d.document_no AS "documentNo",d.kind,d.status,
@@ -67,7 +68,7 @@ export function registerSalesRoutes(
   });
 
   app.post("/api/sales", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/sales"]);
     const input = await parseJson(c, salesSchema);
     const db = await pool.connect();
     try {
@@ -110,7 +111,7 @@ export function registerSalesRoutes(
   });
 
   app.post("/api/sales/:id/approve", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/sales/:id/approve"]);
     const db = await pool.connect();
     try {
       await db.query("BEGIN");
@@ -160,7 +161,7 @@ export function registerSalesRoutes(
   });
 
   app.post("/api/sales/:id/invoice", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/sales/:id/invoice"]);
     const input = await parseJson(c, z.object({ documentNo: z.string().trim().min(1).max(80) }).strict());
     try {
       const result = await pool.query<{ id: string }>(

@@ -73,7 +73,7 @@ async function setup() {
       status: "active",
     },
   );
-  store.permissions.set("picker", ["outbound.pick"]);
+  store.permissions.set("picker", ["picking.update"]);
 
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
@@ -86,11 +86,11 @@ async function setup() {
   });
   app.post("/__change/:warehouseId", async (c) => {
     const actor = await requireAccess(c, store, store, secret, {
-      permission: "outbound.pick",
+      permission: "picking.update",
       warehouseId: c.req.param("warehouseId"),
     });
     await auditChange(store, actor, {
-      action: "outbound.pick",
+      action: "picking.scan",
       entityType: "outbound",
       entityId: "11111111-1111-4111-8111-111111111111",
     });
@@ -110,22 +110,22 @@ async function login(app: ReturnType<typeof createApp>, email: string) {
 
 test("access requires authentication", async () => {
   const { app } = await setup();
-  assert.equal((await app.request("/__access/warehouse-a/outbound.pick")).status, 401);
+  assert.equal((await app.request("/__access/warehouse-a/picking.update")).status, 401);
 });
 
 test("warehouse user is isolated and permission checked", async () => {
   const { app } = await setup();
   const cookie = await login(app, "picker@example.test");
   assert.equal(
-    (await app.request("/__access/warehouse-a/outbound.pick", { headers: { cookie } })).status,
+    (await app.request("/__access/warehouse-a/picking.update", { headers: { cookie } })).status,
     200,
   );
   assert.equal(
-    (await app.request("/__access/warehouse-b/outbound.pick", { headers: { cookie } })).status,
+    (await app.request("/__access/warehouse-b/picking.update", { headers: { cookie } })).status,
     403,
   );
   assert.equal(
-    (await app.request("/__access/warehouse-a/outbound.ship", { headers: { cookie } })).status,
+    (await app.request("/__access/warehouse-a/checking.approve", { headers: { cookie } })).status,
     403,
   );
 });
@@ -134,7 +134,7 @@ test("master scope crosses warehouses", async () => {
   const { app } = await setup();
   const cookie = await login(app, "master@example.test");
   assert.equal(
-    (await app.request("/__access/warehouse-b/outbound.ship", { headers: { cookie } })).status,
+    (await app.request("/__access/warehouse-b/checking.approve", { headers: { cookie } })).status,
     200,
   );
 });
@@ -149,7 +149,7 @@ test("protected change records actor, action and target", async () => {
   assert.deepEqual(store.audits[0], {
     warehouseId: "warehouse-a",
     actorUserId: "picker",
-    action: "outbound.pick",
+    action: "picking.scan",
     entityType: "outbound",
     entityId: "11111111-1111-4111-8111-111111111111",
     reason: null,

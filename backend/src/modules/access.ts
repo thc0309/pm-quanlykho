@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 
 import { HttpError } from "../http/errors.js";
 import { resolveSession, type AuthStore, type AuthUser } from "./auth.js";
+import type { PermissionCode } from "./permissions.js";
 
 export interface AuditEntry {
   warehouseId: string | null;
@@ -29,7 +30,7 @@ export async function requireAccess(
   authStore: AuthStore,
   accessStore: AccessStore,
   sessionSecret: string,
-  required: { permission?: string; warehouseId?: string } = {},
+  required: { permission?: PermissionCode; warehouseId?: string } = {},
 ): Promise<AccessActor> {
   const { user } = await resolveSession(context, authStore, sessionSecret);
   if (user.mustChangePassword) {

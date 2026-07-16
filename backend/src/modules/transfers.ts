@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 import { postStockLines } from "./stock.js";
 
 export function transferReconciliation(source: number, inTransit: number, destination: number) {
@@ -58,8 +59,8 @@ function mapTransferError(error: unknown): never {
   throw error;
 }
 
-function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string) {
-  return requireAccess(c, auth, access, secret, { permission: "stock.manage" });
+function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string, permission: PermissionCode) {
+  return requireAccess(c, auth, access, secret, { permission });
 }
 
 export function registerTransferRoutes(
@@ -70,7 +71,7 @@ export function registerTransferRoutes(
   secret: string,
 ) {
   app.get("/api/transfers", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["GET /api/transfers"]);
     const page = parsePagination(c.req.query());
     const result = await pool.query(
       `SELECT t.id,t.transfer_no AS "transferNo",t.status,
@@ -89,7 +90,7 @@ export function registerTransferRoutes(
   });
 
   app.post("/api/transfers", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/transfers"]);
     const input = await parseJson(c, createSchema);
     const db = await pool.connect();
     try {
@@ -166,7 +167,7 @@ export function registerTransferRoutes(
   });
 
   app.post("/api/transfers/:id/dispatch", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/transfers/:id/dispatch"]);
     const db = await pool.connect();
     try {
       await db.query("BEGIN");
@@ -227,7 +228,7 @@ export function registerTransferRoutes(
   });
 
   app.post("/api/transfers/:id/receive", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/transfers/:id/receive"]);
     const input = await parseJson(c, receiveSchema);
     const db = await pool.connect();
     try {
@@ -331,7 +332,7 @@ export function registerTransferRoutes(
   });
 
   app.post("/api/transfers/:id/cancel", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/transfers/:id/cancel"]);
     const result = await pool.query(
       `UPDATE warehouse_transfers SET status='cancelled'
        WHERE id=$1 AND source_warehouse_id=$2 AND status='draft' RETURNING id`,

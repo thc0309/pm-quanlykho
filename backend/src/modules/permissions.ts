@@ -16,7 +16,7 @@ export const permissionCatalog = {
   returns: ["view", "create", "approve"],
   stockCounts: ["view", "create", "update", "approve"],
   transfers: ["view", "create", "update", "approve"],
-  inventory: ["view", "update"],
+  inventory: ["view", "create"],
   reports: ["view", "export"],
   print: ["print"],
 } as const;
@@ -54,7 +54,7 @@ export const routePermissionCatalog = {
   "GET /api/inventory/serials": "inventory.view",
   "GET /api/inventory/movements": "inventory.view",
   "GET /api/stock/balances": "inventory.view",
-  "POST /api/stock/movements": "inventory.update",
+  "POST /api/stock/movements": "inventory.create",
   "GET /api/receipts": "receipts.view",
   "POST /api/receipts": "receipts.create",
   "POST /api/receipts/:id/confirm": "receipts.approve",

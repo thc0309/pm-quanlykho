@@ -27,7 +27,7 @@ CROSS JOIN unnest(ARRAY[
   'returns.view', 'returns.create', 'returns.approve',
   'stockCounts.view', 'stockCounts.create', 'stockCounts.update', 'stockCounts.approve',
   'transfers.view', 'transfers.create', 'transfers.update', 'transfers.approve',
-  'inventory.view', 'inventory.update',
+  'inventory.view', 'inventory.create',
   'reports.view', 'reports.export',
   'print.print'
 ]) AS permission_code

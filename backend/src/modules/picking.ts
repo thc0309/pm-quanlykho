@@ -5,6 +5,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 const scanSchema = z.object({ locationBarcode: z.string().trim().min(1).max(100), itemBarcode: z.string().trim().min(1).max(120) }).strict();
 
@@ -38,9 +39,9 @@ async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<
 }
 
 export function registerPickingRoutes(app: Hono, authStore: AuthStore, accessStore: AccessStore, pool: Pool, sessionSecret: string) {
-  const actor = (c: Context) => requireAccess(c, authStore, accessStore, sessionSecret, { permission: "outbound.pick" });
+  const actor = (c: Context, permission: PermissionCode) => requireAccess(c, authStore, accessStore, sessionSecret, { permission });
   app.get("/api/picking", async c => {
-    const current = await actor(c); const pagination = parsePagination(c.req.query());
+    const current = await actor(c, routePermissionCatalog["GET /api/picking"]); const pagination = parsePagination(c.req.query());
     const result = await pool.query(
       `SELECT id, document_no AS "documentNo", status, picker_user_id AS "pickerUserId", version
        FROM stock_documents WHERE warehouse_id = $1 AND document_type = 'issue' AND status IN ('ready_to_pick','picking','needs_repick')
@@ -48,7 +49,7 @@ export function registerPickingRoutes(app: Hono, authStore: AuthStore, accessSto
     return c.json({ data: result.rows, pagination: { page: pagination.page, pageSize: pagination.pageSize } });
   });
   app.post("/api/picking/:id/claim", async c => {
-    const current = await actor(c); if (!current.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
+    const current = await actor(c, routePermissionCatalog["POST /api/picking/:id/claim"]); if (!current.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
     try {
       const result = await transaction(pool, async client => {
         const doc = await client.query<{ status: string; pickerUserId: string | null }>(`SELECT status, picker_user_id AS "pickerUserId" FROM stock_documents WHERE id=$1 AND warehouse_id=$2 AND document_type='issue' FOR UPDATE`, [c.req.param("id"), current.user.warehouseId]);
@@ -69,7 +70,7 @@ export function registerPickingRoutes(app: Hono, authStore: AuthStore, accessSto
     } catch (error) { mapError(error); }
   });
   app.post("/api/picking/:id/scan", async c => {
-    const current = await actor(c); const input = await parseJson(c, scanSchema); if (!current.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
+    const current = await actor(c, routePermissionCatalog["POST /api/picking/:id/scan"]); const input = await parseJson(c, scanSchema); if (!current.user.warehouseId) throw new HttpError(403, "FORBIDDEN", "Không có kho");
     try {
       const progress = await transaction(pool, async client => {
         const doc = await client.query<{ pickerUserId: string }>(`SELECT picker_user_id AS "pickerUserId" FROM stock_documents WHERE id=$1 AND warehouse_id=$2 AND status='picking' FOR UPDATE`, [c.req.param("id"), current.user.warehouseId]);
@@ -92,7 +93,7 @@ export function registerPickingRoutes(app: Hono, authStore: AuthStore, accessSto
     } catch (error) { mapError(error); }
   });
   app.post("/api/picking/:id/confirm", async c => {
-    const current = await actor(c); if (!current.user.warehouseId) throw new HttpError(403,"FORBIDDEN","Không có kho");
+    const current = await actor(c, routePermissionCatalog["POST /api/picking/:id/confirm"]); if (!current.user.warehouseId) throw new HttpError(403,"FORBIDDEN","Không có kho");
     try {
       await transaction(pool, async client => {
         const doc = await client.query<{ pickerUserId: string }>(`SELECT picker_user_id AS "pickerUserId" FROM stock_documents WHERE id=$1 AND warehouse_id=$2 AND status='picking' FOR UPDATE`, [c.req.param("id"),current.user.warehouseId]);

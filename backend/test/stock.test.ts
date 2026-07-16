@@ -95,7 +95,7 @@ async function setup() {
       status: "active",
     },
   );
-  store.permissions.set("admin-a", ["stock.manage"]);
+  store.permissions.set("admin-a", ["inventory.view", "inventory.create"]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerStockRoutes(app, store, store, store, secret);
@@ -225,9 +225,22 @@ test("stock rejects duplicate serial receipts and concurrent negative writes", a
   assert.deepEqual(results.map((response) => response.status).sort(), [201, 409]);
 });
 
-test("stock management requires permission", async () => {
-  const { app } = await setup();
+test("inventory view permission cannot post a stock movement", async () => {
+  const { app, store } = await setup();
+  store.permissions.set("denied-a", ["inventory.view"]);
   const cookie = await login(app, "denied@example.test");
-  const response = await app.request("/api/stock/balances", { headers: { cookie } });
+  assert.equal((await app.request("/api/stock/balances", { headers: { cookie } })).status, 200);
+  const response = await app.request("/api/stock/movements", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      documentNo: "DENIED-1",
+      documentType: "adjustment",
+      lines: [{ locationId: "loc-a", productId: "prod-a", quantityDelta: 1 }],
+    }),
+  });
   assert.equal(response.status, 403);
+  assert.equal(store.movements.length, 0);
+  assert.equal(store.balances.size, 0);
+  assert.equal(store.audits.length, 0);
 });

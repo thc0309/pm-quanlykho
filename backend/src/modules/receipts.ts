@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 import { postStockLines } from "./stock.js";
 
 type Page<T> = { data: T[]; total: number };
@@ -141,18 +142,18 @@ export function registerReceiptRoutes(
   store: ReceiptStore,
   sessionSecret: string,
 ) {
-  const actor = (context: Context) =>
-    requireAccess(context, authStore, accessStore, sessionSecret, { permission: "stock.manage" });
+  const actor = (context: Context, permission: PermissionCode) =>
+    requireAccess(context, authStore, accessStore, sessionSecret, { permission });
 
   app.get("/api/receipts", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/receipts"]);
     const pagination = parsePagination(c.req.query());
     const result = await store.listReceipts(warehouseScopeFor(c, current), pagination.pageSize, pagination.offset);
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
   app.post("/api/receipts", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/receipts"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, receiptSchema);
     let receipt: Receipt;
@@ -171,7 +172,7 @@ export function registerReceiptRoutes(
   });
 
   app.post("/api/receipts/:id/confirm", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/receipts/:id/confirm"]);
     const warehouseId = await warehouseFor(c, current, store);
     const receiptId = z.string().uuid().parse(c.req.param("id"));
     let result: Awaited<ReturnType<ReceiptStore["confirmReceipt"]>>;

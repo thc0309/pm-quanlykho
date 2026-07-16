@@ -263,13 +263,13 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Áp dụng permission action cho receipt/outbound/purchase/sales/returns/stock-count/transfer/report/print.
 
 **Acceptance criteria:**
-- [ ] View/create/approve/print/export tách đúng endpoint.
-- [ ] Inventory và stock routes dùng `inventory.view/create` phù hợp; không còn `stock.manage`.
-- [ ] Pick/check/ship và exception dùng catalog `<feature>.<action>` mới, không giữ tên quyền cũ.
+- [x] View/create/approve/print/export tách đúng endpoint.
+- [x] Inventory và stock routes dùng `inventory.view/create` phù hợp; không còn `stock.manage`.
+- [x] Pick/check/ship và exception dùng catalog `<feature>.<action>` mới, không giữ tên quyền cũ.
 
 **Verification:**
-- [ ] `npm test --prefix backend`
-- [ ] `npm run build --prefix backend`
+- [x] `npm test --prefix backend` — 77/77 test pass.
+- [x] `npm run build --prefix backend`
 
 **Dependencies:** T34
 

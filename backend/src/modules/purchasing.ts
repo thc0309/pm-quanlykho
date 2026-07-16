@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 import { validateReceiptLine } from "./receipts.js";
 import { postStockLines } from "./stock.js";
 
@@ -48,8 +49,8 @@ function mapPurchasingError(error: unknown): never {
   throw error;
 }
 
-function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string) {
-  return requireAccess(c, auth, access, secret, { permission: "stock.manage" });
+function actorFor(c: Context, auth: AuthStore, access: AccessStore, secret: string, permission: PermissionCode) {
+  return requireAccess(c, auth, access, secret, { permission });
 }
 
 export function registerPurchasingRoutes(
@@ -60,7 +61,7 @@ export function registerPurchasingRoutes(
   secret: string,
 ) {
   app.get("/api/purchase-orders", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["GET /api/purchase-orders"]);
     const page = parsePagination(c.req.query());
     const result = await pool.query(
       `SELECT po.id,po.order_no AS "orderNo",po.status,partner.name AS "supplierName",
@@ -77,7 +78,7 @@ export function registerPurchasingRoutes(
   });
 
   app.post("/api/purchase-orders", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/purchase-orders"]);
     const input = await parseJson(c, createSchema);
     const db = await pool.connect();
     try {
@@ -122,7 +123,7 @@ export function registerPurchasingRoutes(
   });
 
   app.post("/api/purchase-orders/:id/approve", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/purchase-orders/:id/approve"]);
     const result = await pool.query(
       `UPDATE purchase_orders SET status='approved',approved_at=now(),updated_at=now()
        WHERE id=$1 AND warehouse_id=$2 AND status='draft' RETURNING id`,
@@ -141,7 +142,7 @@ export function registerPurchasingRoutes(
   });
 
   app.post("/api/purchase-orders/:id/receive", async (c) => {
-    const actor = await actorFor(c, auth, access, secret);
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/purchase-orders/:id/receive"]);
     const input = await parseJson(c, receiveSchema);
     const db = await pool.connect();
     try {

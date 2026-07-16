@@ -559,9 +559,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 **Description:** Outbound create form nhiều dòng product/quantity.
 
-**Acceptance criteria:** thêm/xóa dòng, submit nhiều `lines[]`, reset về một dòng trống sau khi tạo.
+**Acceptance criteria:**
+- [x] Thêm/xóa dòng, không xóa dòng cuối và validate theo dòng.
+- [x] Submit đầy đủ nhiều `lines[]`, giữ form khi API lỗi.
+- [x] Reset số phiếu và một dòng sạch sau khi tạo thành công.
 
-**Verification:** `npm test --prefix frontend -- --run OutboundPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run OutboundPage` — 3/3 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T30, T38
 

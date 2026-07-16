@@ -172,9 +172,9 @@ describe("AccessPage", () => {
   });
 
   it("omits access administration navigation when permission is denied", () => {
-    const { rerender } = render(<AccessNavigation permissions={["outbound.pick"]} />);
+    const { rerender } = render(<AccessNavigation permissions={["picking.view"]} />);
     expect(screen.queryByText("Người dùng")).not.toBeInTheDocument();
-    rerender(<AccessNavigation permissions={["admin.access.manage"]} />);
+    rerender(<AccessNavigation permissions={["admin.users.view"]} />);
     expect(screen.getByText("Người dùng")).toBeVisible();
   });
 
@@ -202,7 +202,7 @@ describe("AccessPage", () => {
         warehouseId: "warehouse-a",
         code: "picker",
         name: "Nhân viên soạn",
-        permissions: ["outbound.pick"],
+        permissions: ["picking.view"],
       },
     ]);
     const user = userEvent.setup();
@@ -318,7 +318,7 @@ describe("AccessPage", () => {
         warehouseId: "warehouse-a",
         code: "picker",
         name: "Nhân viên soạn",
-        permissions: ["outbound.pick"],
+        permissions: ["picking.view"],
       },
     ]);
 

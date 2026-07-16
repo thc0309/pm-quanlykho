@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import UsersPage, { PermissionsPage, RoleCreatePage, RolesPage, UserCreatePage } from "./features/admin/AccessPage";
@@ -29,6 +29,11 @@ import {
   type AccessInfo,
   type SessionUser,
 } from "./lib/api";
+import { hasPermission } from "./lib/permissions";
+
+function ForbiddenPage() {
+  return <p role="alert" className="p-6 text-sm text-error-600">Bạn không có quyền truy cập trang này.</p>;
+}
 
 function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   const [access, setAccess] = useState<AccessInfo | null>(null);
@@ -45,55 +50,55 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
 
   if (error) return <p role="alert">{error}</p>;
   if (!access) return <p role="status">Đang tải ứng dụng…</p>;
-  const canManage = access.permissions.includes("*") || access.permissions.includes("admin.access.manage");
-  const canCatalog = canManage || access.permissions.includes("catalog.manage");
-  const canProducts = canManage || access.permissions.includes("products.manage");
-  const canPartners = canManage || access.permissions.includes("partners.manage");
-  const canStock = canManage || access.permissions.includes("stock.manage");
+  const allow = (permission: string, page: ReactNode) =>
+    hasPermission(access.permissions, permission) ? page : <ForbiddenPage />;
+  const catalogHome = hasPermission(access.permissions, "catalog.categories.view")
+    ? <Navigate to="/catalog/categories" replace />
+    : allow("catalog.units.view", <Navigate to="/catalog/units" replace />);
 
   return (
     <Routes>
       <Route element={<AppLayout access={access} user={user} onLogout={logout} />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="admin/access" element={<Navigate to="/admin/users" replace />} />
-        <Route path="admin/users" element={canManage ? <UsersPage /> : <Navigate to="/" replace />} />
-        <Route path="admin/users/create" element={canManage ? <UserCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="admin/roles" element={canManage ? <RolesPage /> : <Navigate to="/" replace />} />
-        <Route path="admin/roles/create" element={canManage ? <RoleCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="admin/permissions" element={canManage ? <PermissionsPage /> : <Navigate to="/" replace />} />
-        <Route path="locations" element={canManage ? <LocationsPage /> : <Navigate to="/" replace />} />
-        <Route path="locations/create" element={canManage ? <LocationCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="catalog" element={<Navigate to="/catalog/categories" replace />} />
-        <Route path="catalog/categories" element={canCatalog ? <CategoriesPage /> : <Navigate to="/" replace />} />
-        <Route path="catalog/categories/create" element={canCatalog ? <CategoryCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="catalog/units" element={canCatalog ? <UnitsPage /> : <Navigate to="/" replace />} />
-        <Route path="catalog/units/create" element={canCatalog ? <UnitCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="products" element={canProducts ? <ProductsPage /> : <Navigate to="/" replace />} />
-        <Route path="products/create" element={canProducts ? <ProductCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="partners" element={canPartners ? <PartnersPage /> : <Navigate to="/" replace />} />
-        <Route path="partners/create" element={canPartners ? <PartnerCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="receipts" element={canStock ? <ReceiptPage /> : <Navigate to="/" replace />} />
-        <Route path="receipts/create" element={canStock ? <ReceiptCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="inventory" element={canStock ? <InventoryPage /> : <Navigate to="/" replace />} />
-        <Route path="outbounds" element={canStock ? <OutboundPage /> : <Navigate to="/" replace />} />
-        <Route path="outbounds/create" element={canStock ? <OutboundCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="picking" element={canStock ? <PickingPage /> : <Navigate to="/" replace />} />
-        <Route path="checking" element={canStock ? <CheckingPage /> : <Navigate to="/" replace />} />
-        <Route path="outbound-exceptions" element={canStock ? <OutboundExceptions /> : <Navigate to="/" replace />} />
-        <Route path="purchasing" element={canStock ? <PurchasingPage /> : <Navigate to="/" replace />} />
-        <Route path="purchasing/create" element={canStock ? <PurchaseCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="sales" element={canStock ? <SalesPage /> : <Navigate to="/" replace />} />
-        <Route path="sales/create" element={canStock ? <SalesCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="returns" element={canStock ? <ReturnsPage /> : <Navigate to="/" replace />} />
-        <Route path="returns/create" element={canStock ? <ReturnCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="stock-counts" element={canStock ? <StockCountsPage /> : <Navigate to="/" replace />} />
-        <Route path="stock-counts/create" element={canStock ? <StockCountCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="transfers" element={canStock ? <TransfersPage /> : <Navigate to="/" replace />} />
-        <Route path="transfers/create" element={canStock ? <TransferCreatePage /> : <Navigate to="/" replace />} />
-        <Route path="reports" element={canStock ? <ReportsPage /> : <Navigate to="/" replace />} />
-        <Route path="print/documents/:id" element={canStock ? <PrintPage /> : <Navigate to="/" replace />} />
-        <Route path="print/labels/:kind/:id" element={canStock ? <LabelPrintPage /> : <Navigate to="/" replace />} />
-        <Route path="scanner" element={canStock ? <ScannerPage /> : <Navigate to="/" replace />} />
+        <Route index element={allow("reports.view", <DashboardPage />)} />
+        <Route path="admin/access" element={allow("admin.users.view", <Navigate to="/admin/users" replace />)} />
+        <Route path="admin/users" element={allow("admin.users.view", <UsersPage />)} />
+        <Route path="admin/users/create" element={allow("admin.users.view", <UserCreatePage />)} />
+        <Route path="admin/roles" element={allow("admin.roles.view", <RolesPage />)} />
+        <Route path="admin/roles/create" element={allow("admin.roles.view", <RoleCreatePage />)} />
+        <Route path="admin/permissions" element={allow("admin.roles.view", <PermissionsPage />)} />
+        <Route path="locations" element={allow("locations.view", <LocationsPage />)} />
+        <Route path="locations/create" element={allow("locations.view", <LocationCreatePage />)} />
+        <Route path="catalog" element={catalogHome} />
+        <Route path="catalog/categories" element={allow("catalog.categories.view", <CategoriesPage />)} />
+        <Route path="catalog/categories/create" element={allow("catalog.categories.view", <CategoryCreatePage />)} />
+        <Route path="catalog/units" element={allow("catalog.units.view", <UnitsPage />)} />
+        <Route path="catalog/units/create" element={allow("catalog.units.view", <UnitCreatePage />)} />
+        <Route path="products" element={allow("products.view", <ProductsPage />)} />
+        <Route path="products/create" element={allow("products.view", <ProductCreatePage />)} />
+        <Route path="partners" element={allow("partners.view", <PartnersPage />)} />
+        <Route path="partners/create" element={allow("partners.view", <PartnerCreatePage />)} />
+        <Route path="receipts" element={allow("receipts.view", <ReceiptPage />)} />
+        <Route path="receipts/create" element={allow("receipts.view", <ReceiptCreatePage />)} />
+        <Route path="inventory" element={allow("inventory.view", <InventoryPage />)} />
+        <Route path="outbounds" element={allow("outbounds.view", <OutboundPage />)} />
+        <Route path="outbounds/create" element={allow("outbounds.view", <OutboundCreatePage />)} />
+        <Route path="picking" element={allow("picking.view", <PickingPage />)} />
+        <Route path="checking" element={allow("checking.view", <CheckingPage />)} />
+        <Route path="outbound-exceptions" element={allow("outbound.exceptions.view", <OutboundExceptions />)} />
+        <Route path="purchasing" element={allow("purchasing.view", <PurchasingPage />)} />
+        <Route path="purchasing/create" element={allow("purchasing.view", <PurchaseCreatePage />)} />
+        <Route path="sales" element={allow("sales.view", <SalesPage />)} />
+        <Route path="sales/create" element={allow("sales.view", <SalesCreatePage />)} />
+        <Route path="returns" element={allow("returns.view", <ReturnsPage />)} />
+        <Route path="returns/create" element={allow("returns.view", <ReturnCreatePage />)} />
+        <Route path="stock-counts" element={allow("stockCounts.view", <StockCountsPage />)} />
+        <Route path="stock-counts/create" element={allow("stockCounts.view", <StockCountCreatePage />)} />
+        <Route path="transfers" element={allow("transfers.view", <TransfersPage />)} />
+        <Route path="transfers/create" element={allow("transfers.view", <TransferCreatePage />)} />
+        <Route path="reports" element={allow("reports.view", <ReportsPage />)} />
+        <Route path="print/documents/:id" element={allow("print.print", <PrintPage />)} />
+        <Route path="print/labels/:kind/:id" element={allow("print.print", <LabelPrintPage />)} />
+        <Route path="scanner" element={allow("inventory.view", <ScannerPage />)} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

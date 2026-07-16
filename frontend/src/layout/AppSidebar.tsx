@@ -3,64 +3,56 @@ import { Link, useLocation } from "react-router";
 
 import { ChevronDownIcon, GridIcon, HorizontaLDots, TableIcon, UserCircleIcon } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
+import { hasPermission } from "../lib/permissions";
 
-type NavItem = {
+export type NavItem = {
   name: string;
   icon: ReactNode;
   path?: string;
   subItems?: { name: string; path: string }[];
 };
 
-function canManage(permissions: string[]) {
-  return permissions.includes("*") || permissions.includes("admin.access.manage");
-}
+export function buildNavItems(permissions: string[]): NavItem[] {
+  const items: NavItem[] = hasPermission(permissions, "reports.view") ? [{
+    icon: <GridIcon />,
+    name: "Tổng quan",
+    path: "/",
+  }] : [];
 
-function hasPermission(permissions: string[], permission: string) {
-  return canManage(permissions) || permissions.includes(permission);
-}
-
-function buildNavItems(permissions: string[]): NavItem[] {
-  const items: NavItem[] = [
-    {
-      icon: <GridIcon />,
-      name: "Tổng quan",
-      path: "/",
-    },
+  const adminSubItems = [
+    ...(hasPermission(permissions, "admin.users.view") ? [{ name: "Người dùng", path: "/admin/users" }] : []),
+    ...(hasPermission(permissions, "admin.roles.view") ? [
+      { name: "Vai trò", path: "/admin/roles" },
+      { name: "Quyền hạn", path: "/admin/permissions" },
+    ] : []),
   ];
-
-  if (canManage(permissions)) {
+  if (adminSubItems.length > 0) {
     items.push({
-        icon: <UserCircleIcon />,
-        name: "Quản trị",
-        subItems: [
-          { name: "Người dùng", path: "/admin/users" },
-          { name: "Vai trò", path: "/admin/roles" },
-          { name: "Permission", path: "/admin/permissions" },
-        ],
-      });
+      icon: <UserCircleIcon />,
+      name: "Quản trị",
+      subItems: adminSubItems,
+    });
   }
 
   const warehouseSubItems = [
-    ...(hasPermission(permissions, "locations.manage") ? [{ name: "Vị trí kho", path: "/locations" }] : []),
-    ...(hasPermission(permissions, "catalog.manage") ? [
-      { name: "Danh mục", path: "/catalog/categories" },
-      { name: "Đơn vị", path: "/catalog/units" },
-    ] : []),
-    ...(hasPermission(permissions, "products.manage") ? [{ name: "Sản phẩm", path: "/products" }] : []),
-    ...(hasPermission(permissions, "partners.manage") ? [{ name: "Đối tác", path: "/partners" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Đơn mua", path: "/purchasing" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Bán hàng", path: "/sales" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Trả hàng", path: "/returns" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Kiểm kê", path: "/stock-counts" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Chuyển kho", path: "/transfers" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Báo cáo", path: "/reports" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Kiểm tra scanner", path: "/scanner" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Phiếu nhập", path: "/receipts" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Phiếu xuất", path: "/outbounds" }] : []),
-    ...(hasPermission(permissions, "outbound.pick") ? [{ name: "Soạn hàng", path: "/picking" }] : []),
-    ...(hasPermission(permissions, "outbound.check") ? [{ name: "Kiểm và xuất", path: "/checking" }] : []),
-    ...(hasPermission(permissions, "outbound.resolveDiscrepancy") ? [{ name: "Ngoại lệ xuất", path: "/outbound-exceptions" }] : []),
-    ...(hasPermission(permissions, "stock.manage") ? [{ name: "Tồn kho", path: "/inventory" }] : []),
+    ...(hasPermission(permissions, "locations.view") ? [{ name: "Vị trí kho", path: "/locations" }] : []),
+    ...(hasPermission(permissions, "catalog.categories.view") ? [{ name: "Danh mục", path: "/catalog/categories" }] : []),
+    ...(hasPermission(permissions, "catalog.units.view") ? [{ name: "Đơn vị", path: "/catalog/units" }] : []),
+    ...(hasPermission(permissions, "products.view") ? [{ name: "Sản phẩm", path: "/products" }] : []),
+    ...(hasPermission(permissions, "partners.view") ? [{ name: "Đối tác", path: "/partners" }] : []),
+    ...(hasPermission(permissions, "purchasing.view") ? [{ name: "Đơn mua", path: "/purchasing" }] : []),
+    ...(hasPermission(permissions, "sales.view") ? [{ name: "Bán hàng", path: "/sales" }] : []),
+    ...(hasPermission(permissions, "returns.view") ? [{ name: "Trả hàng", path: "/returns" }] : []),
+    ...(hasPermission(permissions, "stockCounts.view") ? [{ name: "Kiểm kê", path: "/stock-counts" }] : []),
+    ...(hasPermission(permissions, "transfers.view") ? [{ name: "Chuyển kho", path: "/transfers" }] : []),
+    ...(hasPermission(permissions, "reports.view") ? [{ name: "Báo cáo", path: "/reports" }] : []),
+    ...(hasPermission(permissions, "inventory.view") ? [{ name: "Kiểm tra scanner", path: "/scanner" }] : []),
+    ...(hasPermission(permissions, "receipts.view") ? [{ name: "Phiếu nhập", path: "/receipts" }] : []),
+    ...(hasPermission(permissions, "outbounds.view") ? [{ name: "Phiếu xuất", path: "/outbounds" }] : []),
+    ...(hasPermission(permissions, "picking.view") ? [{ name: "Soạn hàng", path: "/picking" }] : []),
+    ...(hasPermission(permissions, "checking.view") ? [{ name: "Kiểm và xuất", path: "/checking" }] : []),
+    ...(hasPermission(permissions, "outbound.exceptions.view") ? [{ name: "Ngoại lệ xuất", path: "/outbound-exceptions" }] : []),
+    ...(hasPermission(permissions, "inventory.view") ? [{ name: "Tồn kho", path: "/inventory" }] : []),
   ];
 
   if (warehouseSubItems.length > 0) {

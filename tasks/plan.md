@@ -317,14 +317,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Frontend access state, route và navigation dùng permission chi tiết; action theo domain được nối trong T43-T51.
 
 **Acceptance criteria:**
-- [ ] Menu hiển thị theo `.view`.
-- [ ] Shared permission lookup hỗ trợ action cụ thể; route/menu dùng `.view` và không còn `*.manage`.
-- [ ] T43-T51 dùng lookup này để gate action theo domain, tránh sửa toàn bộ `features/**` trong một task.
-- [ ] Không còn logic `canCatalog = catalog.manage` làm nguồn mới.
+- [x] Menu hiển thị theo `.view`.
+- [x] Shared permission lookup hỗ trợ exact action và wildcard; route/menu dùng `.view` và không còn `*.manage`.
+- [x] T43-T51 có thể dùng chung `hasPermission` để gate action theo domain.
+- [x] Không còn logic nguồn quyền tổng quát kiểu `canCatalog`.
 
 **Verification:**
-- [ ] `npm test --prefix frontend`
-- [ ] `npm run build --prefix frontend`
+- [x] `npm test --prefix frontend` — 53/53 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T35, T36, T37
 
@@ -338,9 +338,9 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 ### Checkpoint C — Granular permissions
 
-- [ ] T34-T38 pass.
-- [ ] Role matrix usable.
-- [ ] User with partial permission is blocked by API, not only UI.
+- [x] T34-T38 pass.
+- [x] Role matrix usable.
+- [x] User with partial permission is blocked by API, not only UI.
 
 ### Phase 4 — Metadata API và client
 

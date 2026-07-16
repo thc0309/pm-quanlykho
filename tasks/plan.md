@@ -349,14 +349,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Backend hỗ trợ sửa tên và vô hiệu hóa/kích hoạt category/unit.
 
 **Acceptance criteria:**
-- [ ] Category/unit update/status scoped theo kho.
-- [ ] Delete action hiển thị/semantics là `Vô hiệu hóa`.
-- [ ] 403/404/409/422 có test.
-- [ ] Audit update/status cho category và unit.
+- [x] Category/unit update/status scoped theo kho.
+- [x] Delete action có semantics `Vô hiệu hóa`; không hard delete.
+- [x] 403/404/409/422 có test.
+- [x] Audit update/status cho category và unit.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern catalog`
-- [ ] `npm run build --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern catalog` — 80/80 test pass.
+- [x] `npm run build --prefix backend`
 
 **Dependencies:** T35
 

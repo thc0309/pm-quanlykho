@@ -22,6 +22,8 @@ class MemoryCatalogStore implements AuthStore, AccessStore, CatalogStore {
   audits: AuditEntry[] = [];
   categories: CatalogCategory[] = [];
   units: CatalogUnit[] = [];
+  referencedCategoryIds = new Set<string>();
+  referencedUnitIds = new Set<string>();
   warehouseIds = ["warehouse-a"];
 
   async findUserByEmail(email: string) { return this.users.find((user) => user.email === email) ?? null; }
@@ -45,6 +47,19 @@ class MemoryCatalogStore implements AuthStore, AccessStore, CatalogStore {
     this.categories.push(category);
     return category;
   }
+  async updateCategory(warehouseId: string, id: string, name: string) {
+    const category = this.categories.find((item) => item.warehouseId === warehouseId && item.id === id);
+    if (!category) return null;
+    category.name = name;
+    return category;
+  }
+  async setCategoryStatus(warehouseId: string, id: string, status: CatalogCategory["status"]) {
+    const category = this.categories.find((item) => item.warehouseId === warehouseId && item.id === id);
+    if (!category) return null;
+    if (status === "inactive" && this.referencedCategoryIds.has(id)) throw new Error("REFERENCE_CONFLICT");
+    category.status = status;
+    return category;
+  }
   async listUnits(warehouseId: string | null) {
     const data = warehouseId ? this.units.filter((item) => item.warehouseId === warehouseId) : this.units;
     return { data, total: data.length };
@@ -58,6 +73,19 @@ class MemoryCatalogStore implements AuthStore, AccessStore, CatalogStore {
     }
     const unit: CatalogUnit = { ...input, id: randomUUID(), status: "active" };
     this.units.push(unit);
+    return unit;
+  }
+  async updateUnit(warehouseId: string, id: string, name: string) {
+    const unit = this.units.find((item) => item.warehouseId === warehouseId && item.id === id);
+    if (!unit) return null;
+    unit.name = name;
+    return unit;
+  }
+  async setUnitStatus(warehouseId: string, id: string, status: CatalogUnit["status"]) {
+    const unit = this.units.find((item) => item.warehouseId === warehouseId && item.id === id);
+    if (!unit) return null;
+    if (status === "inactive" && this.referencedUnitIds.has(id)) throw new Error("REFERENCE_CONFLICT");
+    unit.status = status;
     return unit;
   }
 }
@@ -88,8 +116,8 @@ async function setup() {
     },
   );
   store.permissions.set("admin-a", [
-    "catalog.categories.view", "catalog.categories.create",
-    "catalog.units.view", "catalog.units.create",
+    "catalog.categories.view", "catalog.categories.create", "catalog.categories.update", "catalog.categories.delete",
+    "catalog.units.view", "catalog.units.create", "catalog.units.update", "catalog.units.delete",
   ]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
@@ -188,5 +216,64 @@ test("catalog view permissions cannot create category or unit", async () => {
       body: JSON.stringify(body),
     })).status, 403);
   }
+  assert.equal(store.audits.length, 0);
+});
+
+test("category and unit update/status are scoped and audited", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  const category = await store.createCategory({ warehouseId: "warehouse-a", code: "CAT", name: "Danh mục cũ" });
+  const unit = await store.createUnit({ warehouseId: "warehouse-a", code: "EA", name: "Đơn vị cũ", baseUnitId: null, conversionFactor: "1" });
+
+  for (const [path, body] of [
+    [`/api/catalog/categories/${category.id}`, { name: "Danh mục mới" }],
+    [`/api/catalog/categories/${category.id}/status`, { status: "inactive" }],
+    [`/api/catalog/units/${unit.id}`, { name: "Đơn vị mới" }],
+    [`/api/catalog/units/${unit.id}/status`, { status: "inactive" }],
+  ] as const) {
+    assert.equal((await app.request(path, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify(body),
+    })).status, 200);
+  }
+  assert.equal(category.name, "Danh mục mới");
+  assert.equal(category.status, "inactive");
+  assert.equal(unit.name, "Đơn vị mới");
+  assert.equal(unit.status, "inactive");
+  assert.deepEqual(store.audits.map((entry) => entry.action), [
+    "catalog.category.update", "catalog.category.status",
+    "catalog.unit.update", "catalog.unit.status",
+  ]);
+});
+
+test("catalog mutations reject permission, scope, validation and reference conflicts", async () => {
+  const { app, store } = await setup();
+  const adminCookie = await login(app, "admin@example.test");
+  const deniedCookie = await login(app, "denied@example.test");
+  const category = await store.createCategory({ warehouseId: "warehouse-a", code: "CAT", name: "Danh mục" });
+  const unit = await store.createUnit({ warehouseId: "warehouse-a", code: "EA", name: "Đơn vị", baseUnitId: null, conversionFactor: "1" });
+  store.referencedCategoryIds.add(category.id);
+  store.referencedUnitIds.add(unit.id);
+  store.permissions.set("denied-a", ["catalog.categories.view", "catalog.units.view"]);
+
+  assert.equal((await app.request(`/api/catalog/categories/${category.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie: deniedCookie }, body: JSON.stringify({ name: "Bị chặn" }),
+  })).status, 403);
+  assert.equal((await app.request(`/api/catalog/categories/${category.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie: adminCookie }, body: JSON.stringify({ code: "NOT_ALLOWED" }),
+  })).status, 422);
+  assert.equal((await app.request(`/api/catalog/categories/${randomUUID()}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie: adminCookie }, body: JSON.stringify({ name: "Không có" }),
+  })).status, 404);
+  assert.equal((await app.request(`/api/catalog/categories/${category.id}/status`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie: adminCookie }, body: JSON.stringify({ status: "inactive" }),
+  })).status, 409);
+  assert.equal((await app.request(`/api/catalog/units/${unit.id}/status`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie: adminCookie }, body: JSON.stringify({ status: "inactive" }),
+  })).status, 409);
+  assert.equal(category.name, "Danh mục");
+  assert.equal(category.status, "active");
+  assert.equal(unit.status, "active");
   assert.equal(store.audits.length, 0);
 });

@@ -138,6 +138,8 @@ export interface CatalogUnit {
 export interface CatalogClient {
   listCategories(): Promise<CatalogCategory[]>;
   createCategory(input: Pick<CatalogCategory, "code" | "name">): Promise<CatalogCategory>;
+  updateCategory(id: string, input: Pick<CatalogCategory, "name">): Promise<CatalogCategory>;
+  setCategoryStatus(id: string, status: CatalogCategory["status"]): Promise<CatalogCategory>;
   listUnits(): Promise<CatalogUnit[]>;
   createUnit(input: {
     code: string;
@@ -145,6 +147,8 @@ export interface CatalogClient {
     baseUnitId?: string;
     conversionFactor?: string;
   }): Promise<CatalogUnit>;
+  updateUnit(id: string, input: Pick<CatalogUnit, "name">): Promise<CatalogUnit>;
+  setUnitStatus(id: string, status: CatalogUnit["status"]): Promise<CatalogUnit>;
 }
 
 export interface Product {
@@ -448,11 +452,23 @@ export const catalogApi: CatalogClient = {
   async createCategory(input) {
     return (await request<{ category: CatalogCategory }>("/api/catalog/categories", { method: "POST", body: JSON.stringify(input) })).category;
   },
+  async updateCategory(id, input) {
+    return (await request<{ category: CatalogCategory }>(`/api/catalog/categories/${id}`, { method: "PATCH", body: JSON.stringify(input) })).category;
+  },
+  async setCategoryStatus(id, status) {
+    return (await request<{ category: CatalogCategory }>(`/api/catalog/categories/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).category;
+  },
   async listUnits() {
     return (await request<{ data: CatalogUnit[] }>("/api/catalog/units")).data;
   },
   async createUnit(input) {
     return (await request<{ unit: CatalogUnit }>("/api/catalog/units", { method: "POST", body: JSON.stringify(input) })).unit;
+  },
+  async updateUnit(id, input) {
+    return (await request<{ unit: CatalogUnit }>(`/api/catalog/units/${id}`, { method: "PATCH", body: JSON.stringify(input) })).unit;
+  },
+  async setUnitStatus(id, status) {
+    return (await request<{ unit: CatalogUnit }>(`/api/catalog/units/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).unit;
   },
 };
 

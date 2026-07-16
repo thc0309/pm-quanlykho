@@ -32,15 +32,21 @@ export interface CatalogStore {
   defaultWarehouseId(): Promise<string | null>;
   listCategories(warehouseId: string | null, limit: number, offset: number): Promise<Page<CatalogCategory>>;
   createCategory(input: Omit<CatalogCategory, "id" | "status">): Promise<CatalogCategory>;
+  updateCategory(warehouseId: string, id: string, name: string): Promise<CatalogCategory | null>;
+  setCategoryStatus(warehouseId: string, id: string, status: CatalogCategory["status"]): Promise<CatalogCategory | null>;
   listUnits(warehouseId: string | null, limit: number, offset: number): Promise<Page<CatalogUnit>>;
   findUnit(warehouseId: string, id: string): Promise<CatalogUnit | null>;
   createUnit(input: Omit<CatalogUnit, "id" | "status">): Promise<CatalogUnit>;
+  updateUnit(warehouseId: string, id: string, name: string): Promise<CatalogUnit | null>;
+  setUnitStatus(warehouseId: string, id: string, status: CatalogUnit["status"]): Promise<CatalogUnit | null>;
 }
 
 const categorySchema = z.object({
   code: z.string().trim().min(1).max(50).regex(/^[A-Za-z0-9_-]+$/),
   name: z.string().trim().min(1).max(120),
 }).strict();
+const nameUpdateSchema = z.object({ name: z.string().trim().min(1).max(120) }).strict();
+const statusSchema = z.object({ status: z.enum(["active", "inactive"]) }).strict();
 
 const unitSchema = z.object({
   code: z.string().trim().min(1).max(50).regex(/^[A-Za-z0-9_-]+$/),
@@ -84,11 +90,24 @@ function warehouseScopeFor(context: Context, actor: AccessActor) {
   return result.data;
 }
 
-function conflict(error: unknown) {
+function conflict(error: unknown): never {
   if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
     throw new HttpError(409, "DUPLICATE", "Mã đã tồn tại");
   }
   throw error;
+}
+
+function mutationError(error: unknown): never {
+  if (error instanceof Error && error.message === "REFERENCE_CONFLICT") {
+    throw new HttpError(409, "REFERENCE_CONFLICT", "Dữ liệu đang được tham chiếu và không thể vô hiệu hóa");
+  }
+  conflict(error);
+}
+
+function routeId(context: Context) {
+  const result = z.string().uuid().safeParse(context.req.param("id"));
+  if (!result.success) throw new HttpError(422, "VALIDATION_ERROR", "ID không hợp lệ");
+  return result.data;
 }
 
 function pageResponse<T>(data: Page<T>, page: number, pageSize: number) {
@@ -134,6 +153,36 @@ export function registerCatalogRoutes(
     return c.json({ category: category! }, 201);
   });
 
+  app.patch("/api/catalog/categories/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/catalog/categories/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const { name } = await parseJson(c, nameUpdateSchema);
+    let category: CatalogCategory | null = null;
+    try {
+      category = await store.updateCategory(warehouseId, routeId(c), name);
+    } catch (error) {
+      mutationError(error);
+    }
+    if (!category) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy danh mục");
+    await auditChange(accessStore, current, { warehouseId, action: "catalog.category.update", entityType: "category", entityId: category.id });
+    return c.json({ category });
+  });
+
+  app.patch("/api/catalog/categories/:id/status", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/catalog/categories/:id/status"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const { status } = await parseJson(c, statusSchema);
+    let category: CatalogCategory | null = null;
+    try {
+      category = await store.setCategoryStatus(warehouseId, routeId(c), status);
+    } catch (error) {
+      mutationError(error);
+    }
+    if (!category) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy danh mục");
+    await auditChange(accessStore, current, { warehouseId, action: "catalog.category.status", entityType: "category", entityId: category.id, metadata: { status } });
+    return c.json({ category });
+  });
+
   app.get("/api/catalog/units", async (c) => {
     const current = await actor(c, routePermissionCatalog["GET /api/catalog/units"]);
     const pagination = parsePagination(c.req.query());
@@ -166,6 +215,36 @@ export function registerCatalogRoutes(
     }
     await auditChange(accessStore, current, { warehouseId, action: "catalog.unit.create", entityType: "unit", entityId: unit!.id });
     return c.json({ unit: unit! }, 201);
+  });
+
+  app.patch("/api/catalog/units/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/catalog/units/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const { name } = await parseJson(c, nameUpdateSchema);
+    let unit: CatalogUnit | null = null;
+    try {
+      unit = await store.updateUnit(warehouseId, routeId(c), name);
+    } catch (error) {
+      mutationError(error);
+    }
+    if (!unit) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy đơn vị");
+    await auditChange(accessStore, current, { warehouseId, action: "catalog.unit.update", entityType: "unit", entityId: unit.id });
+    return c.json({ unit });
+  });
+
+  app.patch("/api/catalog/units/:id/status", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/catalog/units/:id/status"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const { status } = await parseJson(c, statusSchema);
+    let unit: CatalogUnit | null = null;
+    try {
+      unit = await store.setUnitStatus(warehouseId, routeId(c), status);
+    } catch (error) {
+      mutationError(error);
+    }
+    if (!unit) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy đơn vị");
+    await auditChange(accessStore, current, { warehouseId, action: "catalog.unit.status", entityType: "unit", entityId: unit.id, metadata: { status } });
+    return c.json({ unit });
   });
 }
 
@@ -203,6 +282,29 @@ export function createPostgresCatalogStore(pool: Pool): CatalogStore {
       if (!category) throw new Error("Category insert returned no row");
       return category;
     },
+    async updateCategory(warehouseId, id, name) {
+      return (await pool.query<CatalogCategory>(
+        `UPDATE categories SET name = $3, updated_at = now()
+         WHERE warehouse_id = $1 AND id = $2 RETURNING ${categoryColumns}`,
+        [warehouseId, id, name],
+      )).rows[0] ?? null;
+    },
+    async setCategoryStatus(warehouseId, id, status) {
+      const updated = await pool.query<CatalogCategory>(
+        `UPDATE categories category SET status = $3, updated_at = now()
+         WHERE warehouse_id = $1 AND id = $2
+           AND ($3 = 'active' OR category.status = 'inactive' OR (
+             NOT EXISTS (SELECT 1 FROM products WHERE category_id = category.id)
+             AND NOT EXISTS (SELECT 1 FROM categories child WHERE child.parent_id = category.id)
+           ))
+         RETURNING ${categoryColumns}`,
+        [warehouseId, id, status],
+      );
+      if (updated.rows[0]) return updated.rows[0];
+      const exists = await pool.query(`SELECT 1 FROM categories WHERE warehouse_id = $1 AND id = $2`, [warehouseId, id]);
+      if (exists.rowCount) throw new Error("REFERENCE_CONFLICT");
+      return null;
+    },
     async listUnits(warehouseId, limit, offset) {
       const [rows, count] = await Promise.all([
         pool.query<CatalogUnit>(
@@ -233,6 +335,29 @@ export function createPostgresCatalogStore(pool: Pool): CatalogStore {
       const unit = result.rows[0];
       if (!unit) throw new Error("Unit insert returned no row");
       return unit;
+    },
+    async updateUnit(warehouseId, id, name) {
+      return (await pool.query<CatalogUnit>(
+        `UPDATE units SET name = $3, updated_at = now()
+         WHERE warehouse_id = $1 AND id = $2 RETURNING ${unitColumns}`,
+        [warehouseId, id, name],
+      )).rows[0] ?? null;
+    },
+    async setUnitStatus(warehouseId, id, status) {
+      const updated = await pool.query<CatalogUnit>(
+        `UPDATE units unit SET status = $3, updated_at = now()
+         WHERE warehouse_id = $1 AND id = $2
+           AND ($3 = 'active' OR unit.status = 'inactive' OR (
+             NOT EXISTS (SELECT 1 FROM products WHERE base_unit_id = unit.id)
+             AND NOT EXISTS (SELECT 1 FROM units child WHERE child.base_unit_id = unit.id)
+           ))
+         RETURNING ${unitColumns}`,
+        [warehouseId, id, status],
+      );
+      if (updated.rows[0]) return updated.rows[0];
+      const exists = await pool.query(`SELECT 1 FROM units WHERE warehouse_id = $1 AND id = $2`, [warehouseId, id]);
+      if (exists.rowCount) throw new Error("REFERENCE_CONFLICT");
+      return null;
     },
   };
 }

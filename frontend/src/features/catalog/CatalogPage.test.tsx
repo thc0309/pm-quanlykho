@@ -18,8 +18,12 @@ function createApi(overrides: Partial<CatalogClient> = {}): CatalogClient {
   return {
     listCategories: vi.fn().mockResolvedValue([]),
     createCategory: vi.fn(),
+    updateCategory: vi.fn(),
+    setCategoryStatus: vi.fn(),
     listUnits: vi.fn().mockResolvedValue([]),
     createUnit: vi.fn(),
+    updateUnit: vi.fn(),
+    setUnitStatus: vi.fn(),
     ...overrides,
   };
 }

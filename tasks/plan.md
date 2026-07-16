@@ -427,9 +427,9 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 ### Checkpoint D — Metadata APIs
 
-- [ ] T39-T42 pass.
-- [ ] API client expose update/status/delete methods.
-- [ ] Hard delete boundaries reviewed.
+- [x] T39-T42 pass.
+- [x] API client expose update/status/delete methods.
+- [x] Hard delete boundaries reviewed.
 
 ### Phase 5 — Metadata UI actions
 
@@ -438,11 +438,13 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Nối sửa/vô hiệu hóa category/unit, không còn nút disabled.
 
 **Acceptance criteria:**
-- [ ] Edit/status cập nhật row không reload.
-- [ ] Lỗi permission/constraint tiếng Việt.
-- [ ] Không dùng chữ `Xóa` cho dữ liệu nghiệp vụ.
+- [x] Edit/status cập nhật row không reload.
+- [x] Lỗi permission/constraint tiếng Việt.
+- [x] Không dùng chữ `Xóa` cho dữ liệu nghiệp vụ.
 
-**Verification:** `npm test --prefix frontend -- --run CatalogPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run CatalogPage` — 7/7 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T39, T38
 

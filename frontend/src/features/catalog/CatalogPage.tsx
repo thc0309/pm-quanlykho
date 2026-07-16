@@ -8,7 +8,8 @@ import {
   type CatalogClient,
   type CatalogUnit,
 } from "../../lib/api";
-import { PencilIcon, PlusIcon, TrashBinIcon } from "../../icons";
+import { hasPermission } from "../../lib/permissions";
+import { PencilIcon, PlusIcon } from "../../icons";
 
 const panelClass =
   "rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]";
@@ -24,12 +25,64 @@ const iconButtonClass =
 const tableHeadClass =
   "bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-white/[0.03] dark:text-gray-400";
 const tableCellClass = "px-4 py-3 text-sm text-gray-700 dark:text-gray-300";
+const rowActionClass =
+  "inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5";
 
-export function CategoriesPage({ api = catalogApi }: { api?: CatalogClient }) {
+type CatalogListProps = { api?: CatalogClient; permissions?: readonly string[] };
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export function CategoriesPage({ api = catalogApi, permissions = ["*"] }: CatalogListProps) {
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [categoryPage, setCategoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+  const canCreate = hasPermission(permissions, "catalog.categories.create");
+  const canUpdate = hasPermission(permissions, "catalog.categories.update");
+  const canChangeStatus = hasPermission(permissions, "catalog.categories.delete");
+
+  function startEdit(category: CatalogCategory) {
+    setEditingId(category.id);
+    setDraftName(category.name);
+    setRowError(null);
+  }
+
+  async function saveCategory(event: FormEvent<HTMLFormElement>, category: CatalogCategory) {
+    event.preventDefault();
+    setBusyId(category.id);
+    setRowError(null);
+    try {
+      const updated = await api.updateCategory(category.id, { name: draftName.trim() });
+      setCategories((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingId(null);
+    } catch (caught) {
+      setRowError({ id: category.id, message: errorMessage(caught, "Không thể cập nhật danh mục") });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeCategoryStatus(category: CatalogCategory) {
+    const nextStatus = category.status === "active" ? "inactive" : "active";
+    const action = nextStatus === "inactive" ? "vô hiệu hóa" : "kích hoạt";
+    if (!window.confirm(`Bạn có chắc muốn ${action} danh mục ${category.name}?`)) return;
+    setBusyId(category.id);
+    setRowError(null);
+    try {
+      const updated = await api.setCategoryStatus(category.id, nextStatus);
+      setCategories((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (caught) {
+      setRowError({ id: category.id, message: errorMessage(caught, `Không thể ${action} danh mục`) });
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   useEffect(() => {
     api.listCategories()
@@ -52,10 +105,12 @@ export function CategoriesPage({ api = catalogApi }: { api?: CatalogClient }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/catalog/categories/create" className={primaryButtonClass}>
-            <PlusIcon className="h-4 w-4" />
-            Thêm danh mục
-          </Link>
+          {canCreate && (
+            <Link to="/catalog/categories/create" className={primaryButtonClass}>
+              <PlusIcon className="h-4 w-4" />
+              Thêm danh mục
+            </Link>
+          )}
         </div>
       </div>
 
@@ -86,17 +141,47 @@ export function CategoriesPage({ api = catalogApi }: { api?: CatalogClient }) {
                 </tr>
               ) : paginate(categories, categoryPage).map((category) => (
                 <tr key={category.id}>
-                  <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{category.name}</td>
+                  <td className={`${tableCellClass} min-w-64 font-medium text-gray-800 dark:text-white/90`}>
+                    {editingId === category.id ? (
+                      <form className="flex items-center gap-2" onSubmit={(event) => saveCategory(event, category)}>
+                        <label className="sr-only" htmlFor={`category-name-${category.id}`}>Tên danh mục {category.name}</label>
+                        <input
+                          id={`category-name-${category.id}`}
+                          aria-label={`Tên danh mục ${category.name}`}
+                          autoFocus
+                          required
+                          value={draftName}
+                          onChange={(event) => setDraftName(event.target.value)}
+                          className="h-9 min-w-36 rounded-lg border border-gray-300 px-2 text-sm outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 dark:border-gray-700 dark:bg-gray-900"
+                        />
+                        <button type="submit" disabled={busyId === category.id} className={rowActionClass} aria-label={`Lưu danh mục ${category.name}`}>
+                          {busyId === category.id ? "Đang lưu…" : "Lưu"}
+                        </button>
+                        <button type="button" disabled={busyId === category.id} className={rowActionClass} onClick={() => setEditingId(null)}>Hủy</button>
+                      </form>
+                    ) : category.name}
+                    {rowError?.id === category.id && <p role="alert" className="mt-1 text-xs font-normal text-error-600">{rowError.message}</p>}
+                  </td>
                   <td className={tableCellClass}>{category.code}</td>
                   <td className={tableCellClass}>{category.status === "active" ? "Đang dùng" : "Tạm ngưng"}</td>
                   <td className={`${tableCellClass} text-right`}>
-                    <div className="inline-flex gap-2">
-                      <button type="button" disabled aria-label={`Sửa danh mục ${category.name}`} title="Chưa hỗ trợ sửa danh mục" className={iconButtonClass}>
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button type="button" disabled aria-label={`Xóa danh mục ${category.name}`} title="Chưa hỗ trợ xóa danh mục" className={iconButtonClass}>
-                        <TrashBinIcon className="h-4 w-4" />
-                      </button>
+                    <div className="inline-flex items-center gap-2">
+                      {canUpdate && editingId !== category.id && (
+                        <button type="button" disabled={busyId === category.id} aria-label={`Sửa danh mục ${category.name}`} title="Sửa danh mục" className={iconButtonClass} onClick={() => startEdit(category)}>
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canChangeStatus && (
+                        <button
+                          type="button"
+                          disabled={busyId === category.id}
+                          aria-label={`${category.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} danh mục ${category.name}`}
+                          className={rowActionClass}
+                          onClick={() => changeCategoryStatus(category)}
+                        >
+                          {busyId === category.id ? "Đang xử lý…" : category.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -110,12 +195,56 @@ export function CategoriesPage({ api = catalogApi }: { api?: CatalogClient }) {
   );
 }
 
-export function UnitsPage({ api = catalogApi }: { api?: CatalogClient }) {
+export function UnitsPage({ api = catalogApi, permissions = ["*"] }: CatalogListProps) {
   const [units, setUnits] = useState<CatalogUnit[]>([]);
   const [unitPage, setUnitPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const unitNameById = useMemo(() => new Map(units.map((unit) => [unit.id, unit.name])), [units]);
+  const canCreate = hasPermission(permissions, "catalog.units.create");
+  const canUpdate = hasPermission(permissions, "catalog.units.update");
+  const canChangeStatus = hasPermission(permissions, "catalog.units.delete");
+
+  function startEdit(unit: CatalogUnit) {
+    setEditingId(unit.id);
+    setDraftName(unit.name);
+    setRowError(null);
+  }
+
+  async function saveUnit(event: FormEvent<HTMLFormElement>, unit: CatalogUnit) {
+    event.preventDefault();
+    setBusyId(unit.id);
+    setRowError(null);
+    try {
+      const updated = await api.updateUnit(unit.id, { name: draftName.trim() });
+      setUnits((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingId(null);
+    } catch (caught) {
+      setRowError({ id: unit.id, message: errorMessage(caught, "Không thể cập nhật đơn vị") });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeUnitStatus(unit: CatalogUnit) {
+    const nextStatus = unit.status === "active" ? "inactive" : "active";
+    const action = nextStatus === "inactive" ? "vô hiệu hóa" : "kích hoạt";
+    if (!window.confirm(`Bạn có chắc muốn ${action} đơn vị ${unit.name}?`)) return;
+    setBusyId(unit.id);
+    setRowError(null);
+    try {
+      const updated = await api.setUnitStatus(unit.id, nextStatus);
+      setUnits((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (caught) {
+      setRowError({ id: unit.id, message: errorMessage(caught, `Không thể ${action} đơn vị`) });
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   useEffect(() => {
     api.listUnits()
@@ -138,10 +267,12 @@ export function UnitsPage({ api = catalogApi }: { api?: CatalogClient }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/catalog/units/create" className={primaryButtonClass}>
-            <PlusIcon className="h-4 w-4" />
-            Thêm đơn vị
-          </Link>
+          {canCreate && (
+            <Link to="/catalog/units/create" className={primaryButtonClass}>
+              <PlusIcon className="h-4 w-4" />
+              Thêm đơn vị
+            </Link>
+          )}
         </div>
       </div>
 
@@ -173,20 +304,50 @@ export function UnitsPage({ api = catalogApi }: { api?: CatalogClient }) {
                 </tr>
               ) : paginate(units, unitPage).map((unit) => (
                 <tr key={unit.id}>
-                  <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{unit.name}</td>
+                  <td className={`${tableCellClass} min-w-64 font-medium text-gray-800 dark:text-white/90`}>
+                    {editingId === unit.id ? (
+                      <form className="flex items-center gap-2" onSubmit={(event) => saveUnit(event, unit)}>
+                        <label className="sr-only" htmlFor={`unit-name-${unit.id}`}>Tên đơn vị {unit.name}</label>
+                        <input
+                          id={`unit-name-${unit.id}`}
+                          aria-label={`Tên đơn vị ${unit.name}`}
+                          autoFocus
+                          required
+                          value={draftName}
+                          onChange={(event) => setDraftName(event.target.value)}
+                          className="h-9 min-w-36 rounded-lg border border-gray-300 px-2 text-sm outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 dark:border-gray-700 dark:bg-gray-900"
+                        />
+                        <button type="submit" disabled={busyId === unit.id} className={rowActionClass} aria-label={`Lưu đơn vị ${unit.name}`}>
+                          {busyId === unit.id ? "Đang lưu…" : "Lưu"}
+                        </button>
+                        <button type="button" disabled={busyId === unit.id} className={rowActionClass} onClick={() => setEditingId(null)}>Hủy</button>
+                      </form>
+                    ) : unit.name}
+                    {rowError?.id === unit.id && <p role="alert" className="mt-1 text-xs font-normal text-error-600">{rowError.message}</p>}
+                  </td>
                   <td className={tableCellClass}>{unit.code}</td>
                   <td className={tableCellClass}>
                     {unit.baseUnitId ? `${unit.conversionFactor} ${unitNameById.get(unit.baseUnitId) ?? "đơn vị gốc"}` : "Đơn vị gốc"}
                   </td>
                   <td className={tableCellClass}>{unit.status === "active" ? "Đang dùng" : "Tạm ngưng"}</td>
                   <td className={`${tableCellClass} text-right`}>
-                    <div className="inline-flex gap-2">
-                      <button type="button" disabled aria-label={`Sửa đơn vị ${unit.name}`} title="Chưa hỗ trợ sửa đơn vị" className={iconButtonClass}>
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button type="button" disabled aria-label={`Xóa đơn vị ${unit.name}`} title="Chưa hỗ trợ xóa đơn vị" className={iconButtonClass}>
-                        <TrashBinIcon className="h-4 w-4" />
-                      </button>
+                    <div className="inline-flex items-center gap-2">
+                      {canUpdate && editingId !== unit.id && (
+                        <button type="button" disabled={busyId === unit.id} aria-label={`Sửa đơn vị ${unit.name}`} title="Sửa đơn vị" className={iconButtonClass} onClick={() => startEdit(unit)}>
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canChangeStatus && (
+                        <button
+                          type="button"
+                          disabled={busyId === unit.id}
+                          aria-label={`${unit.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} đơn vị ${unit.name}`}
+                          className={rowActionClass}
+                          onClick={() => changeUnitStatus(unit)}
+                        >
+                          {busyId === unit.id ? "Đang xử lý…" : unit.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

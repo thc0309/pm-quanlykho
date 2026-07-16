@@ -34,7 +34,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 
 ## Phase 5 — Metadata UI actions
 
-- [ ] [T43 UI danh mục và đơn vị](task-detail/task-43.md).
+- [x] [T43 UI danh mục và đơn vị](task-detail/task-43.md).
 - [ ] [T44 UI vị trí và sản phẩm](task-detail/task-44.md).
 - [ ] [T45 UI đối tác và role](task-detail/task-45.md).
 - [ ] Checkpoint E reviewed.

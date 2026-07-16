@@ -69,10 +69,10 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="locations" element={allow("locations.view", <LocationsPage />)} />
         <Route path="locations/create" element={allow("locations.view", <LocationCreatePage />)} />
         <Route path="catalog" element={catalogHome} />
-        <Route path="catalog/categories" element={allow("catalog.categories.view", <CategoriesPage />)} />
-        <Route path="catalog/categories/create" element={allow("catalog.categories.view", <CategoryCreatePage />)} />
-        <Route path="catalog/units" element={allow("catalog.units.view", <UnitsPage />)} />
-        <Route path="catalog/units/create" element={allow("catalog.units.view", <UnitCreatePage />)} />
+        <Route path="catalog/categories" element={allow("catalog.categories.view", <CategoriesPage permissions={access.permissions} />)} />
+        <Route path="catalog/categories/create" element={allow("catalog.categories.create", <CategoryCreatePage />)} />
+        <Route path="catalog/units" element={allow("catalog.units.view", <UnitsPage permissions={access.permissions} />)} />
+        <Route path="catalog/units/create" element={allow("catalog.units.create", <UnitCreatePage />)} />
         <Route path="products" element={allow("products.view", <ProductsPage />)} />
         <Route path="products/create" element={allow("products.view", <ProductCreatePage />)} />
         <Route path="partners" element={allow("partners.view", <PartnersPage />)} />

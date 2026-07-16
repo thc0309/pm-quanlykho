@@ -8,7 +8,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CatalogClient } from "../../lib/api";
 import { CategoriesPage, CategoryCreatePage, UnitCreatePage, UnitsPage } from "./CatalogPage";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function renderWithRouter(element: ReactElement) {
   return render(<MemoryRouter>{element}</MemoryRouter>);
@@ -74,6 +77,76 @@ describe("CatalogPage", () => {
 
     expect(api.createCategory).toHaveBeenCalledWith({ code: "DRY", name: "Hàng khô" });
     expect(await screen.findByText("Đã tạo danh mục")).toBeTruthy();
+  });
+
+  it("updates and deactivates a category in place", async () => {
+    const category = { id: "category-1", warehouseId: "warehouse-a", code: "DRY", name: "Hàng khô", status: "active" as const };
+    const api = createApi({
+      listCategories: vi.fn().mockResolvedValue([category]),
+      updateCategory: vi.fn().mockResolvedValue({ ...category, name: "Hàng khô mới" }),
+      setCategoryStatus: vi.fn().mockResolvedValue({ ...category, name: "Hàng khô mới", status: "inactive" }),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    renderWithRouter(<CategoriesPage api={api} permissions={["catalog.categories.view", "catalog.categories.update", "catalog.categories.delete"]} />);
+
+    await user.click(await screen.findByRole("button", { name: "Sửa danh mục Hàng khô" }));
+    const input = screen.getByRole("textbox", { name: "Tên danh mục Hàng khô" });
+    expect(input).toHaveFocus();
+    await user.clear(input);
+    await user.type(input, "Hàng khô mới");
+    await user.click(screen.getByRole("button", { name: "Lưu danh mục Hàng khô" }));
+    expect(await screen.findByText("Hàng khô mới")).toBeTruthy();
+    expect(api.updateCategory).toHaveBeenCalledWith("category-1", { name: "Hàng khô mới" });
+
+    await user.click(screen.getByRole("button", { name: "Vô hiệu hóa danh mục Hàng khô mới" }));
+    expect(window.confirm).toHaveBeenCalled();
+    expect(api.setCategoryStatus).toHaveBeenCalledWith("category-1", "inactive");
+    expect(await screen.findByText("Tạm ngưng")).toBeTruthy();
+  });
+
+  it("updates and activates a unit in place", async () => {
+    const unit = { id: "unit-1", warehouseId: "warehouse-a", code: "PCS", name: "Cái", baseUnitId: null, conversionFactor: "1", status: "inactive" as const };
+    const api = createApi({
+      listUnits: vi.fn().mockResolvedValue([unit]),
+      updateUnit: vi.fn().mockResolvedValue({ ...unit, name: "Chiếc" }),
+      setUnitStatus: vi.fn().mockResolvedValue({ ...unit, name: "Chiếc", status: "active" }),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    renderWithRouter(<UnitsPage api={api} permissions={["catalog.units.view", "catalog.units.update", "catalog.units.delete"]} />);
+
+    await user.click(await screen.findByRole("button", { name: "Sửa đơn vị Cái" }));
+    await user.clear(screen.getByRole("textbox", { name: "Tên đơn vị Cái" }));
+    await user.type(screen.getByRole("textbox", { name: "Tên đơn vị Cái" }), "Chiếc");
+    await user.click(screen.getByRole("button", { name: "Lưu đơn vị Cái" }));
+    expect(await screen.findByText("Chiếc")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Kích hoạt đơn vị Chiếc" }));
+    expect(api.setUnitStatus).toHaveBeenCalledWith("unit-1", "active");
+    expect(await screen.findByText("Đang dùng")).toBeTruthy();
+  });
+
+  it("hides unauthorized catalog actions and displays a constraint error", async () => {
+    const category = { id: "category-1", warehouseId: "warehouse-a", code: "DRY", name: "Hàng khô", status: "active" as const };
+    const viewApi = createApi({ listCategories: vi.fn().mockResolvedValue([category]) });
+    const { unmount } = renderWithRouter(<CategoriesPage api={viewApi} permissions={["catalog.categories.view"]} />);
+    expect(await screen.findByText("Hàng khô")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Sửa danh mục/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Vô hiệu hóa danh mục/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Thêm danh mục" })).not.toBeInTheDocument();
+    unmount();
+
+    const errorApi = createApi({
+      listCategories: vi.fn().mockResolvedValue([category]),
+      updateCategory: vi.fn().mockRejectedValue(new Error("Danh mục đang được sản phẩm tham chiếu")),
+    });
+    const user = userEvent.setup();
+    renderWithRouter(<CategoriesPage api={errorApi} permissions={["catalog.categories.view", "catalog.categories.update"]} />);
+    await user.click(await screen.findByRole("button", { name: "Sửa danh mục Hàng khô" }));
+    await user.clear(screen.getByRole("textbox", { name: "Tên danh mục Hàng khô" }));
+    await user.type(screen.getByRole("textbox", { name: "Tên danh mục Hàng khô" }), "Tên mới");
+    await user.click(screen.getByRole("button", { name: "Lưu danh mục Hàng khô" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Danh mục đang được sản phẩm tham chiếu");
   });
 
   it("creates a converted unit from a base unit", async () => {

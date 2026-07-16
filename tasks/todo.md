@@ -46,7 +46,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 - [x] [T48 Phiếu nhập nhiều dòng với tracking theo từng dòng](task-detail/task-48.md).
 - [x] [T49 Phiếu xuất nhiều dòng](task-detail/task-49.md).
 - [x] [T50 Trả hàng nhiều dòng](task-detail/task-50.md).
-- [ ] [T51 Chuyển kho và kiểm kê nhiều dòng](task-detail/task-51.md).
+- [x] [T51 Chuyển kho và kiểm kê nhiều dòng](task-detail/task-51.md).
 - [ ] Checkpoint F reviewed.
 
 ## Phase 7 — E2E và review

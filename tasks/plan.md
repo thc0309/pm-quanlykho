@@ -597,9 +597,15 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 **Description:** Transfer create và stock count create hỗ trợ nhiều dòng/tồn trong cùng chứng từ.
 
-**Acceptance criteria:** transfer gửi nhiều source balance/quantity; stock count chọn nhiều balance; không xóa dòng cuối.
+**Acceptance criteria:**
+- [x] Phiếu chuyển gửi nhiều tồn nguồn/số lượng cùng kho, không xóa dòng cuối.
+- [x] Chặn tồn nguồn trùng, số lượng vượt khả dụng và kho đích trùng kho nguồn ngay trên form.
+- [x] Kiểm kê chọn nhiều tồn và gửi đầy đủ `stockBalanceIds[]`, không submit lựa chọn rỗng.
+- [x] Luồng điều chuyển, hủy, gửi duyệt và duyệt điều chỉnh không đổi.
 
-**Verification:** `npm test --prefix frontend -- --run TransfersPage StockCountsPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run TransfersPage StockCountsPage` — 6/6 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T30, T38
 
@@ -609,7 +615,7 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 ### Checkpoint F — Multi-line forms
 
-- [ ] T46-T51 pass.
+- [x] T46-T51 pass.
 - [ ] Browser smoke tạo đơn mua hai dòng và trả hàng hai dòng.
 - [ ] Human review xem có cần form sửa chứng từ nháp ở phase sau không.
 

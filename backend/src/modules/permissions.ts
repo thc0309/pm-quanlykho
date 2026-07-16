@@ -95,6 +95,8 @@ export const routePermissionCatalog = {
   "PATCH /api/catalog/units/:id/status": "catalog.units.delete",
   "GET /api/products": "products.view",
   "POST /api/products": "products.create",
+  "PATCH /api/products/:id": "products.update",
+  "PATCH /api/products/:id/status": "products.delete",
   "GET /api/products/lookup/:barcode": "products.view",
   "GET /api/partners": "partners.view",
   "POST /api/partners": "partners.create",

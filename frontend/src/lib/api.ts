@@ -179,6 +179,8 @@ export interface ProductClient {
     fefoEnabled: boolean;
     barcodes: string[];
   }): Promise<Product>;
+  updateProduct(id: string, input: Partial<Pick<Product, "name" | "barcodes" | "categoryId" | "baseUnitId" | "expiryManaged" | "fefoEnabled">>): Promise<Product>;
+  setProductStatus(id: string, status: Product["status"]): Promise<Product>;
   findProductByBarcode(barcode: string): Promise<Product>;
 }
 
@@ -486,6 +488,12 @@ export const productApi: ProductClient = {
   },
   async createProduct(input) {
     return (await request<{ product: Product }>("/api/products", { method: "POST", body: JSON.stringify(input) })).product;
+  },
+  async updateProduct(id, input) {
+    return (await request<{ product: Product }>(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify(input) })).product;
+  },
+  async setProductStatus(id, status) {
+    return (await request<{ product: Product }>(`/api/products/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).product;
   },
   async findProductByBarcode(barcode) {
     return (await request<{ product: Product }>(`/api/products/lookup/${encodeURIComponent(barcode)}`)).product;

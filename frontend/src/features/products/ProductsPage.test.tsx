@@ -18,6 +18,8 @@ function createApi(overrides: Partial<ProductClient> = {}): ProductClient {
   return {
     listProducts: vi.fn().mockResolvedValue([]),
     createProduct: vi.fn(),
+    updateProduct: vi.fn(),
+    setProductStatus: vi.fn(),
     findProductByBarcode: vi.fn(),
     ...overrides,
   };

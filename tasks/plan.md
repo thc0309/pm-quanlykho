@@ -389,14 +389,15 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Sửa thông tin an toàn và vô hiệu hóa product.
 
 **Acceptance criteria:**
-- [ ] Sửa name/barcodes/category/baseUnit/FEFO/expiry trong phạm vi an toàn.
-- [ ] Duplicate barcode bị reject.
-- [ ] Không sửa SKU/tracking mode trong task này.
-- [ ] Audit update/status và chặn thay đổi nguy hiểm khi sản phẩm đã có tồn/chứng từ.
+- [x] Sửa name/barcodes/category/baseUnit/FEFO/expiry trong phạm vi an toàn.
+- [x] Duplicate barcode bị reject.
+- [x] Không sửa SKU/tracking mode trong task này.
+- [x] Audit update/status và chặn thay đổi nguy hiểm khi sản phẩm đã có tồn/chứng từ.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern product`
-- [ ] `npm run build --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern product` — 84/84 test pass.
+- [x] `npm run build --prefix backend`
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T35, T39
 

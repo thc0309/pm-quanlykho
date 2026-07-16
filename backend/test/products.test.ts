@@ -17,6 +17,9 @@ class MemoryProductStore implements AuthStore, AccessStore, ProductStore {
   audits: AuditEntry[] = [];
   products: Product[] = [];
   warehouseIds = ["warehouse-a"];
+  categoryWarehouse = new Map<string, string>();
+  unitWarehouse = new Map<string, string>();
+  busyProductIds = new Set<string>();
 
   async findUserByEmail(email: string) { return this.users.find((user) => user.email === email) ?? null; }
   async findUserById(id: string) { return this.users.find((user) => user.id === id) ?? null; }
@@ -45,6 +48,31 @@ class MemoryProductStore implements AuthStore, AccessStore, ProductStore {
   async findByBarcode(warehouseId: string, barcode: string) {
     return this.products.find((item) => item.warehouseId === warehouseId && item.barcodes.includes(barcode)) ?? null;
   }
+  async updateProduct(
+    warehouseId: string,
+    id: string,
+    input: Partial<Pick<Product, "name" | "barcodes" | "categoryId" | "baseUnitId" | "expiryManaged" | "fefoEnabled">>,
+  ) {
+    const product = this.products.find((item) => item.id === id && item.warehouseId === warehouseId);
+    if (!product) return null;
+    if (input.categoryId && this.categoryWarehouse.get(input.categoryId) !== warehouseId) throw Object.assign(new Error("invalid reference"), { code: "INVALID_PRODUCT_REFERENCE" });
+    if (input.baseUnitId && this.unitWarehouse.get(input.baseUnitId) !== warehouseId) throw Object.assign(new Error("invalid reference"), { code: "INVALID_PRODUCT_REFERENCE" });
+    if (input.barcodes?.some((barcode) => this.products.some((item) => item.id !== id && item.warehouseId === warehouseId && item.barcodes.includes(barcode)))) {
+      throw Object.assign(new Error("duplicate barcode"), { code: "23505" });
+    }
+    if (this.busyProductIds.has(id) && Object.keys(input).some((key) => key !== "name")) {
+      throw Object.assign(new Error("product in use"), { code: "PRODUCT_IN_USE" });
+    }
+    Object.assign(product, input);
+    return product;
+  }
+  async setProductStatus(warehouseId: string, id: string, status: Product["status"]) {
+    const product = this.products.find((item) => item.id === id && item.warehouseId === warehouseId);
+    if (!product) return null;
+    if (status === "inactive" && this.busyProductIds.has(id)) throw Object.assign(new Error("product in use"), { code: "PRODUCT_IN_USE" });
+    product.status = status;
+    return product;
+  }
 }
 
 async function setup() {
@@ -72,7 +100,7 @@ async function setup() {
       status: "active",
     },
   );
-  store.permissions.set("admin-a", ["products.view", "products.create"]);
+  store.permissions.set("admin-a", ["products.view", "products.create", "products.update", "products.delete"]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerProductRoutes(app, store, store, store, secret);
@@ -161,5 +189,106 @@ test("product view permission cannot create a product", async () => {
     body: JSON.stringify({ sku: "NO-SKU", name: "Không tạo", trackingMode: "none", barcodes: ["NO-BC"] }),
   });
   assert.equal(response.status, 403);
+  assert.equal((await app.request(`/api/products/${randomUUID()}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Không được sửa" }),
+  })).status, 403);
+  assert.equal((await app.request(`/api/products/${randomUUID()}/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ status: "inactive" }),
+  })).status, 403);
+  assert.equal(store.audits.length, 0);
+});
+
+test("product update and status are scoped, atomic and audited", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  const categoryId = randomUUID();
+  const unitId = randomUUID();
+  store.categoryWarehouse.set(categoryId, "warehouse-a");
+  store.unitWarehouse.set(unitId, "warehouse-a");
+  const product = await store.createProduct({
+    warehouseId: "warehouse-a",
+    sku: "SKU-LOT",
+    name: "Hàng theo lô",
+    productType: "stock",
+    trackingMode: "lot",
+    expiryManaged: false,
+    fefoEnabled: false,
+    categoryId: null,
+    baseUnitId: null,
+    barcodes: ["BC-OLD"],
+  });
+
+  const updated = await app.request(`/api/products/${product.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Hàng FEFO", barcodes: ["BC-NEW", "BC-NEW-2"], categoryId, baseUnitId: unitId, expiryManaged: true, fefoEnabled: true }),
+  });
+  assert.equal(updated.status, 200);
+  assert.deepEqual((await updated.json()).product.barcodes, ["BC-NEW", "BC-NEW-2"]);
+
+  const status = await app.request(`/api/products/${product.id}/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ status: "inactive" }),
+  });
+  assert.equal(status.status, 200);
+  assert.equal((await status.json()).product.status, "inactive");
+  assert.deepEqual(store.audits.slice(-2).map((entry) => entry.action), ["products.update", "products.status"]);
+});
+
+test("product mutations reject immutable, duplicate, cross-scope and in-use changes", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  const product = await store.createProduct({ warehouseId: "warehouse-a", sku: "SKU-1", name: "Sản phẩm một", productType: "stock", trackingMode: "lot", expiryManaged: false, fefoEnabled: false, categoryId: null, baseUnitId: null, barcodes: ["BC-1"] });
+  await store.createProduct({ warehouseId: "warehouse-a", sku: "SKU-2", name: "Sản phẩm hai", productType: "stock", trackingMode: "none", expiryManaged: false, fefoEnabled: false, categoryId: null, baseUnitId: null, barcodes: ["BC-2"] });
+
+  for (const body of [{ sku: "SKU-CHANGED" }, { trackingMode: "serial" }, { productType: "service" }]) {
+    const response = await app.request(`/api/products/${product.id}`, { method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) });
+    assert.equal(response.status, 422);
+  }
+
+  const duplicate = await app.request(`/api/products/${product.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Không được lưu dở", barcodes: ["BC-2"] }),
+  });
+  assert.equal(duplicate.status, 409);
+  assert.equal(product.name, "Sản phẩm một");
+  assert.deepEqual(product.barcodes, ["BC-1"]);
+
+  const outsideCategoryId = randomUUID();
+  store.categoryWarehouse.set(outsideCategoryId, "warehouse-b");
+  const outsideReference = await app.request(`/api/products/${product.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ categoryId: outsideCategoryId }),
+  });
+  assert.equal(outsideReference.status, 409);
+
+  store.busyProductIds.add(product.id);
+  const dangerousUpdate = await app.request(`/api/products/${product.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ expiryManaged: true }),
+  });
+  assert.equal(dangerousUpdate.status, 409);
+  const deactivate = await app.request(`/api/products/${product.id}/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ status: "inactive" }),
+  });
+  assert.equal(deactivate.status, 409);
+
+  const outsideProduct = await store.createProduct({ warehouseId: "warehouse-b", sku: "SKU-B", name: "Kho B", productType: "stock", trackingMode: "none", expiryManaged: false, fefoEnabled: false, categoryId: null, baseUnitId: null, barcodes: ["BC-B"] });
+  const outsideScope = await app.request(`/api/products/${outsideProduct.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Không được sửa" }),
+  });
+  assert.equal(outsideScope.status, 404);
   assert.equal(store.audits.length, 0);
 });

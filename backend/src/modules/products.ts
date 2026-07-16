@@ -1,5 +1,5 @@
 import type { Context, Hono } from "hono";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 
 import { HttpError } from "../http/errors.js";
@@ -29,8 +29,16 @@ export interface ProductStore {
   defaultWarehouseId(): Promise<string | null>;
   listProducts(warehouseId: string | null, limit: number, offset: number): Promise<Page<Product>>;
   createProduct(input: Omit<Product, "id" | "status">): Promise<Product>;
+  updateProduct(
+    warehouseId: string,
+    id: string,
+    input: Partial<Pick<Product, "name" | "barcodes" | "categoryId" | "baseUnitId" | "expiryManaged" | "fefoEnabled">>,
+  ): Promise<Product | null>;
+  setProductStatus(warehouseId: string, id: string, status: Product["status"]): Promise<Product | null>;
   findByBarcode(warehouseId: string, barcode: string): Promise<Product | null>;
 }
+
+const barcodeSchema = z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_.-]+$/);
 
 const productSchema = z.object({
   sku: z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/),
@@ -41,7 +49,7 @@ const productSchema = z.object({
   fefoEnabled: z.boolean().default(false),
   categoryId: z.string().uuid().optional(),
   baseUnitId: z.string().uuid().optional(),
-  barcodes: z.array(z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_.-]+$/)).min(1).max(10),
+  barcodes: z.array(barcodeSchema).min(1).max(10),
 }).strict().superRefine((value, context) => {
   if (new Set(value.barcodes).size !== value.barcodes.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["barcodes"], message: "Barcodes must be unique" });
@@ -56,6 +64,25 @@ const productSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["fefoEnabled"], message: "FEFO requires lot tracking" });
   }
 });
+
+const productUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  expiryManaged: z.boolean().optional(),
+  fefoEnabled: z.boolean().optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+  baseUnitId: z.string().uuid().nullable().optional(),
+  barcodes: z.array(barcodeSchema).min(1).max(10).optional(),
+}).strict().superRefine((value, context) => {
+  if (Object.keys(value).length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Cần ít nhất một trường để cập nhật" });
+  }
+  if (value.barcodes && new Set(value.barcodes).size !== value.barcodes.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["barcodes"], message: "Barcode không được trùng" });
+  }
+});
+
+const productStatusSchema = z.object({ status: z.enum(["active", "inactive"]) }).strict();
+const routeIdSchema = z.string().uuid();
 
 async function warehouseFor(context: Context, actor: AccessActor, store: ProductStore) {
   if (actor.user.kind !== "master_admin") {
@@ -87,6 +114,22 @@ function warehouseScopeFor(context: Context, actor: AccessActor) {
 function conflict(error: unknown) {
   if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
     throw new HttpError(409, "DUPLICATE", "SKU hoặc barcode đã tồn tại");
+  }
+  throw error;
+}
+
+function mutationError(error: unknown): never {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    if (error.code === "23505") throw new HttpError(409, "DUPLICATE_PRODUCT", "Barcode đã tồn tại trong kho");
+    if (error.code === "23503" || error.code === "INVALID_PRODUCT_REFERENCE") {
+      throw new HttpError(409, "INVALID_PRODUCT_REFERENCE", "Danh mục hoặc đơn vị không thuộc kho hiện tại");
+    }
+    if (error.code === "PRODUCT_IN_USE") {
+      throw new HttpError(409, "PRODUCT_IN_USE", "Sản phẩm đã có tồn kho hoặc lịch sử chứng từ");
+    }
+    if (error.code === "INVALID_TRACKING_POLICY") {
+      throw new HttpError(409, "INVALID_TRACKING_POLICY", "Thiết lập hạn dùng hoặc FEFO không phù hợp cách theo dõi sản phẩm");
+    }
   }
   throw error;
 }
@@ -145,6 +188,50 @@ export function registerProductRoutes(
     return c.json({ product: product! }, 201);
   });
 
+  app.patch("/api/products/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/products/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const id = routeIdSchema.parse(c.req.param("id"));
+    const input = await parseJson(c, productUpdateSchema);
+    let product: Product | null;
+    try {
+      product = await store.updateProduct(warehouseId, id, input);
+    } catch (error) {
+      mutationError(error);
+    }
+    if (!product!) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy sản phẩm");
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "products.update",
+      entityType: "product",
+      entityId: product.id,
+      metadata: { fields: Object.keys(input) },
+    });
+    return c.json({ product });
+  });
+
+  app.patch("/api/products/:id/status", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/products/:id/status"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const id = routeIdSchema.parse(c.req.param("id"));
+    const input = await parseJson(c, productStatusSchema);
+    let product: Product | null;
+    try {
+      product = await store.setProductStatus(warehouseId, id, input.status);
+    } catch (error) {
+      mutationError(error);
+    }
+    if (!product!) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy sản phẩm");
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "products.status",
+      entityType: "product",
+      entityId: product.id,
+      metadata: { status: input.status },
+    });
+    return c.json({ product });
+  });
+
   app.get("/api/products/lookup/:barcode", async (c) => {
     const current = await actor(c, routePermissionCatalog["GET /api/products/lookup/:barcode"]);
     const warehouseId = await warehouseFor(c, current, store);
@@ -171,6 +258,37 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
       [id],
     );
     return result.rows[0] ?? null;
+  }
+
+  async function productInUse(client: PoolClient, id: string) {
+    const result = await client.query<{ busy: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM stock_balances WHERE product_id = $1 AND on_hand <> 0
+         UNION ALL SELECT 1 FROM stock_document_lines WHERE product_id = $1
+         UNION ALL SELECT 1 FROM stock_movements WHERE product_id = $1
+         UNION ALL SELECT 1 FROM lots WHERE product_id = $1
+         UNION ALL SELECT 1 FROM serials WHERE product_id = $1
+         UNION ALL SELECT 1 FROM stock_reservations WHERE product_id = $1 AND status IN ('reserved', 'picked')
+       ) AS busy`,
+      [id],
+    );
+    return result.rows[0]?.busy ?? false;
+  }
+
+  async function assertScopedReferences(
+    client: PoolClient,
+    warehouseId: string,
+    input: Partial<Pick<Product, "categoryId" | "baseUnitId">>,
+  ) {
+    const result = await client.query<{ categoryValid: boolean; unitValid: boolean }>(
+      `SELECT
+         ($2::boolean = false OR $3::uuid IS NULL OR EXISTS (SELECT 1 FROM categories WHERE id = $3 AND warehouse_id = $1)) AS "categoryValid",
+         ($4::boolean = false OR $5::uuid IS NULL OR EXISTS (SELECT 1 FROM units WHERE id = $5 AND warehouse_id = $1)) AS "unitValid"`,
+      [warehouseId, input.categoryId !== undefined, input.categoryId ?? null, input.baseUnitId !== undefined, input.baseUnitId ?? null],
+    );
+    if (!result.rows[0]?.categoryValid || !result.rows[0]?.unitValid) {
+      throw Object.assign(new Error("Invalid product reference"), { code: "INVALID_PRODUCT_REFERENCE" });
+    }
   }
 
   return {
@@ -218,6 +336,82 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
         const product = await rowById(id);
         if (!product) throw new Error("Product lookup returned no row");
         return product;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    async updateProduct(warehouseId, id, input) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const locked = await client.query<Pick<Product, "trackingMode" | "expiryManaged" | "fefoEnabled">>(
+          `SELECT tracking_mode AS "trackingMode", expiry_managed AS "expiryManaged", fefo_enabled AS "fefoEnabled"
+           FROM products WHERE id = $1 AND warehouse_id = $2 FOR UPDATE`,
+          [id, warehouseId],
+        );
+        const current = locked.rows[0];
+        if (!current) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+        await assertScopedReferences(client, warehouseId, input);
+        const expiryManaged = input.expiryManaged ?? current.expiryManaged;
+        const fefoEnabled = input.fefoEnabled ?? current.fefoEnabled;
+        if ((expiryManaged || fefoEnabled) && current.trackingMode !== "lot") {
+          throw Object.assign(new Error("Invalid tracking policy"), { code: "INVALID_TRACKING_POLICY" });
+        }
+        if (Object.keys(input).some((key) => key !== "name") && await productInUse(client, id)) {
+          throw Object.assign(new Error("Product in use"), { code: "PRODUCT_IN_USE" });
+        }
+        await client.query(
+          `UPDATE products SET
+             name = COALESCE($3, name),
+             category_id = CASE WHEN $4 THEN $5 ELSE category_id END,
+             base_unit_id = CASE WHEN $6 THEN $7 ELSE base_unit_id END,
+             expiry_managed = COALESCE($8, expiry_managed),
+             fefo_enabled = COALESCE($9, fefo_enabled),
+             updated_at = now()
+           WHERE id = $1 AND warehouse_id = $2`,
+          [id, warehouseId, input.name ?? null, input.categoryId !== undefined, input.categoryId ?? null, input.baseUnitId !== undefined, input.baseUnitId ?? null, input.expiryManaged ?? null, input.fefoEnabled ?? null],
+        );
+        if (input.barcodes) {
+          await client.query(`DELETE FROM product_barcodes WHERE product_id = $1`, [id]);
+          await client.query(
+            `INSERT INTO product_barcodes (warehouse_id, product_id, barcode)
+             SELECT $1, $2, unnest($3::text[])`,
+            [warehouseId, id, input.barcodes],
+          );
+        }
+        await client.query("COMMIT");
+        return await rowById(id);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    async setProductStatus(warehouseId, id, status) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const locked = await client.query<{ status: Product["status"] }>(
+          `SELECT status FROM products WHERE id = $1 AND warehouse_id = $2 FOR UPDATE`,
+          [id, warehouseId],
+        );
+        if (!locked.rows[0]) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+        if (status === "inactive" && locked.rows[0].status !== "inactive" && await productInUse(client, id)) {
+          throw Object.assign(new Error("Product in use"), { code: "PRODUCT_IN_USE" });
+        }
+        await client.query(`UPDATE products SET status = $3, updated_at = now() WHERE id = $1 AND warehouse_id = $2`, [id, warehouseId, status]);
+        await client.query("COMMIT");
+        return await rowById(id);
       } catch (error) {
         await client.query("ROLLBACK");
         throw error;

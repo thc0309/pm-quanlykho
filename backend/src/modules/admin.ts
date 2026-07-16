@@ -1,5 +1,8 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm } from "node:fs/promises";
+import { join } from "node:path";
 import type { Context, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import type { Pool } from "pg";
 import { z } from "zod";
 
@@ -13,6 +16,11 @@ import {
   type AccessStore,
 } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import {
+  AvatarError,
+  MAX_AVATAR_INPUT_BYTES,
+  processAvatar,
+} from "./avatar.js";
 
 export const permissionCodes = [
   "admin.access.manage",
@@ -66,6 +74,10 @@ export interface AdminStore {
     input: AdminUserWrite & Pick<AdminUser, "kind" | "warehouseId"> & { passwordHash: string },
   ): Promise<AdminUser>;
   updateUser(userId: string, input: Partial<AdminUserWrite>): Promise<AdminUser | null>;
+  setUserAvatar(
+    userId: string,
+    avatarUrl: string,
+  ): Promise<{ user: AdminUser; previousAvatarUrl: string | null } | null>;
   findUserWarehouse(userId: string): Promise<string | null>;
   setUserStatus(userId: string, status: "active" | "inactive"): Promise<AdminUser | null>;
   listRoles(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminRole>>;
@@ -150,7 +162,9 @@ export function registerAdminRoutes(
   accessStore: AccessStore,
   adminStore: AdminStore,
   sessionSecret: string,
+  options: { avatarDir?: string } = {},
 ) {
+  const avatarDir = options.avatarDir ?? join(process.cwd(), "uploads", "avatars");
   const actor = (context: Context) =>
     requireAccess(context, authStore, accessStore, sessionSecret, {
       permission: "admin.access.manage",
@@ -225,6 +239,25 @@ export function registerAdminRoutes(
     return c.json({ user });
   });
 
+  app.get("/uploads/avatars/:file", async (c) => {
+    const file = c.req.param("file");
+    if (!/^[0-9a-f-]{36}\.webp$/.test(file)) {
+      throw new HttpError(404, "NOT_FOUND", "Không tìm thấy ảnh đại diện");
+    }
+    try {
+      const image = await readFile(join(avatarDir, file));
+      c.header("content-type", "image/webp");
+      c.header("content-disposition", "inline; filename=avatar.webp");
+      c.header("cache-control", "public, max-age=31536000, immutable");
+      return c.body(image);
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+        throw new HttpError(404, "NOT_FOUND", "Không tìm thấy ảnh đại diện");
+      }
+      throw error;
+    }
+  });
+
   app.patch("/api/admin/users/:id", async (c) => {
     const current = await actor(c);
     const targetId = c.req.param("id");
@@ -247,6 +280,71 @@ export function registerAdminRoutes(
     });
     return c.json({ user });
   });
+
+  app.post(
+    "/api/admin/users/:id/avatar",
+    bodyLimit({
+      maxSize: MAX_AVATAR_INPUT_BYTES + 64 * 1024,
+      onError: (c) => c.json({
+        error: {
+          code: "AVATAR_TOO_LARGE",
+          message: "Ảnh đại diện không được vượt quá 5 MB",
+        },
+      }, 413),
+    }),
+    async (c) => {
+      const current = await actor(c);
+      const targetId = c.req.param("id");
+      const warehouseId = await adminStore.findUserWarehouse(targetId);
+      assertWarehouse(current, warehouseId);
+      const body = await c.req.parseBody();
+      const file = body.avatar;
+      if (!(file instanceof File)) {
+        throw new HttpError(422, "INVALID_AVATAR", "Phải chọn một tệp ảnh đại diện");
+      }
+      if (file.size > MAX_AVATAR_INPUT_BYTES) {
+        throw new HttpError(413, "AVATAR_TOO_LARGE", "Ảnh đại diện không được vượt quá 5 MB");
+      }
+
+      await mkdir(avatarDir, { recursive: true });
+      const key = randomUUID();
+      const temporaryPath = join(avatarDir, `.${key}.tmp`);
+      const finalPath = join(avatarDir, `${key}.webp`);
+      const avatarUrl = `/uploads/avatars/${key}.webp`;
+      try {
+        await processAvatar(Buffer.from(await file.arrayBuffer()), temporaryPath);
+        await rename(temporaryPath, finalPath);
+      } catch (error) {
+        await rm(temporaryPath, { force: true });
+        if (error instanceof AvatarError) {
+          throw new HttpError(error.status, error.code, error.message);
+        }
+        throw error;
+      }
+
+      let updated: Awaited<ReturnType<AdminStore["setUserAvatar"]>>;
+      try {
+        updated = await adminStore.setUserAvatar(targetId, avatarUrl);
+      } catch (error) {
+        await rm(finalPath, { force: true });
+        throw error;
+      }
+      if (!updated) {
+        await rm(finalPath, { force: true });
+        throw new HttpError(404, "NOT_FOUND", "Không tìm thấy người dùng");
+      }
+
+      await auditChange(accessStore, current, {
+        warehouseId,
+        action: "admin.user.avatar",
+        entityType: "user",
+        entityId: targetId,
+      });
+      const previous = updated.previousAvatarUrl?.match(/^\/uploads\/avatars\/([0-9a-f-]{36}\.webp)$/)?.[1];
+      if (previous) await rm(join(avatarDir, previous), { force: true });
+      return c.json({ user: updated.user });
+    },
+  );
 
   app.get("/api/admin/roles", async (c) => {
     const current = await actor(c);
@@ -378,6 +476,35 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
         [userId, ...entries.map((entry) => entry[1])],
       );
       return result.rows[0] ?? null;
+    },
+    async setUserAvatar(userId, avatarUrl) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const previous = await client.query<{ avatarUrl: string | null }>(
+          `SELECT avatar_url AS "avatarUrl" FROM users WHERE id = $1 FOR UPDATE`,
+          [userId],
+        );
+        if (!previous.rows[0]) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+        const result = await client.query<AdminUser>(
+          `UPDATE users SET avatar_url = $2, updated_at = now() WHERE id = $1
+           RETURNING ${userColumns}`,
+          [userId, avatarUrl],
+        );
+        await client.query("COMMIT");
+        return {
+          user: result.rows[0]!,
+          previousAvatarUrl: previous.rows[0].avatarUrl,
+        };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     },
     async findUserWarehouse(userId) {
       const result = await pool.query<{ warehouseId: string }>(

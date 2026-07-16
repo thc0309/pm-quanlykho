@@ -153,14 +153,16 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Thêm đường upload avatar an toàn, resize ảnh trước khi lưu, DB chỉ lưu URL/key.
 
 **Acceptance criteria:**
-- [ ] Chỉ nhận file hình hợp lệ, giới hạn size/type.
-- [ ] Kiểm tra magic bytes; crop 256x256, bỏ metadata, lưu WebP không quá 200 KB từ file đầu vào không quá 5 MB.
-- [ ] API trả `avatarUrl`, không lưu binary trong DB.
-- [ ] Upload/update kiểm tra permission và warehouse scope, audit thành công, dọn file cũ; lỗi trả tiếng Việt.
+- [x] Chỉ nhận file hình hợp lệ, giới hạn size/type.
+- [x] Kiểm tra magic bytes; crop 256x256, bỏ metadata, lưu WebP không quá 200 KB từ file đầu vào không quá 5 MB.
+- [x] API trả `avatarUrl`, không lưu binary trong DB.
+- [x] Upload/update kiểm tra permission và warehouse scope, audit thành công, dọn file cũ; lỗi trả tiếng Việt.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern avatar`
-- [ ] `npm run build --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern avatar` — 69 test pass; decoder xác nhận WebP 256×256, bỏ EXIF/XMP và ≤200 KB.
+- [x] `npm run build --prefix backend` — TypeScript pass.
+- [x] `npm audit --prefix backend --audit-level=high` — 0 lỗ hổng.
+- [x] Đối chiếu docs chính thức: Hono body limit/file upload và Sharp 0.35 constructor/resize/output.
 
 **Dependencies:** T31
 

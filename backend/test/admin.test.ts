@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import { access, mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 import test from "node:test";
+import sharp from "sharp";
 
 import { createApp } from "../src/app.js";
 import { hashPassword } from "../src/domain/password.js";
@@ -84,6 +88,13 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
     Object.assign(user, input);
     return user;
   }
+  async setUserAvatar(userId: string, avatarUrl: string) {
+    const user = this.users.find((candidate) => candidate.id === userId);
+    if (!user) return null;
+    const previousAvatarUrl = user.avatarUrl;
+    user.avatarUrl = avatarUrl;
+    return { user, previousAvatarUrl };
+  }
   async findUserWarehouse(userId: string) {
     return this.users.find((user) => user.id === userId)?.warehouseId ?? null;
   }
@@ -110,7 +121,7 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
   }
 }
 
-async function setup() {
+async function setup(options: { avatarDir?: string } = {}) {
   const store = new MemoryAdminStore();
   const passwordHash = await hashPassword("secure-password");
   store.authUsers.push(
@@ -160,7 +171,7 @@ async function setup() {
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerAccessRoutes(app, store, store, secret);
-  registerAdminRoutes(app, store, store, store, secret);
+  registerAdminRoutes(app, store, store, store, secret, options);
   return { app, store };
 }
 
@@ -300,4 +311,82 @@ test("warehouse admin cannot disable a user in another warehouse", async () => {
     body: JSON.stringify({ status: "inactive" }),
   });
   assert.equal(response.status, 403);
+});
+
+test("avatar upload is scoped, replaces the old file and serves fixed WebP", async () => {
+  const avatarDir = await mkdtemp(join(tmpdir(), "warehouse-avatar-route-"));
+  try {
+    const { app, store } = await setup({ avatarDir });
+    const cookie = await login(app, "admin@example.test");
+    store.users.push({
+      id: "inside-avatar",
+      email: "avatar@example.test",
+      fullName: "Avatar User",
+      phone: "0900000004",
+      ...emptyMetadata,
+      kind: "warehouse_user",
+      warehouseId: "warehouse-a",
+      status: "active",
+    });
+    const image = await sharp({
+      create: { width: 320, height: 240, channels: 3, background: "#16a34a" },
+    }).jpeg().toBuffer();
+    const upload = () => {
+      const form = new FormData();
+      form.set("avatar", new File([image], "ignored.jpg", { type: "text/plain" }));
+      return app.request("/api/admin/users/inside-avatar/avatar", {
+        method: "POST",
+        headers: { cookie },
+        body: form,
+      });
+    };
+
+    const first = await upload();
+    assert.equal(first.status, 200);
+    const firstBody = await first.json();
+    assert.match(firstBody.user.avatarUrl, /^\/uploads\/avatars\/[0-9a-f-]+\.webp$/);
+    const firstFile = join(avatarDir, basename(firstBody.user.avatarUrl));
+    await access(firstFile);
+
+    const second = await upload();
+    assert.equal(second.status, 200);
+    const secondBody = await second.json();
+    assert.notEqual(secondBody.user.avatarUrl, firstBody.user.avatarUrl);
+    await assert.rejects(access(firstFile));
+    assert.equal(store.audits.at(-1)?.action, "admin.user.avatar");
+
+    const served = await app.request(secondBody.user.avatarUrl);
+    assert.equal(served.status, 200);
+    assert.equal(served.headers.get("content-type"), "image/webp");
+
+    const beforeRejected = await readdir(avatarDir);
+    const outside = new FormData();
+    outside.set("avatar", new File([image], "outside.jpg", { type: "image/jpeg" }));
+    assert.equal((await app.request("/api/admin/users/outside-user/avatar", {
+      method: "POST",
+      headers: { cookie },
+      body: outside,
+    })).status, 403);
+    assert.deepEqual(await readdir(avatarDir), beforeRejected);
+
+    const fake = new FormData();
+    fake.set("avatar", new File(["not-an-image"], "fake.png", { type: "image/png" }));
+    assert.equal((await app.request("/api/admin/users/inside-avatar/avatar", {
+      method: "POST",
+      headers: { cookie },
+      body: fake,
+    })).status, 422);
+    assert.deepEqual(await readdir(avatarDir), beforeRejected);
+
+    const oversized = new FormData();
+    oversized.set("avatar", new File([Buffer.alloc(5 * 1024 * 1024 + 1)], "large.png"));
+    assert.equal((await app.request("/api/admin/users/inside-avatar/avatar", {
+      method: "POST",
+      headers: { cookie },
+      body: oversized,
+    })).status, 413);
+    assert.deepEqual(await readdir(avatarDir), beforeRejected);
+  } finally {
+    await rm(avatarDir, { recursive: true, force: true });
+  }
 });

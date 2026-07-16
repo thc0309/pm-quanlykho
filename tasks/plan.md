@@ -578,9 +578,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 **Description:** Return create form nhiều dòng movement/quantity, sửa nhãn `Trả nhà cung cấp`.
 
-**Acceptance criteria:** thêm/xóa nhiều dòng, submit nhiều `lines[]`, không còn `Trả supplier`.
+**Acceptance criteria:**
+- [x] Thêm/xóa dòng, không xóa dòng cuối và validate số lượng dương theo dòng.
+- [x] Submit đầy đủ nhiều `lines[]`, giữ nguyên form khi API báo vượt số lượng.
+- [x] Dùng nhãn `Trả nhà cung cấp`, reset về một dòng sạch sau khi tạo thành công.
 
-**Verification:** `npm test --prefix frontend -- --run ReturnsPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run ReturnsPage` — 3/3 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T30, T38
 

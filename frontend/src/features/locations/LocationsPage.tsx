@@ -161,7 +161,7 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
 
       <form onSubmit={createLocation} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
         <label className={labelClass}>
-          Mã vị trí
+          Mã vị trí (*)
           <input
             name="locationCode"
             required
@@ -173,7 +173,7 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
           />
         </label>
         <label className={labelClass}>
-          Barcode
+          Barcode (*)
           <input
             name="barcode"
             required
@@ -185,7 +185,7 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
           />
         </label>
         <label className={labelClass}>
-          Tên vị trí
+          Tên vị trí (*)
           <input
             name="locationName"
             required
@@ -196,9 +196,10 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
           />
         </label>
         <label className={labelClass}>
-          Loại vị trí
+          Loại vị trí (*)
           <select
             name="locationType"
+            required
             autoComplete="off"
             value={form.type}
             onChange={(event) => setForm({ ...form, type: event.target.value as WarehouseLocation["type"] })}

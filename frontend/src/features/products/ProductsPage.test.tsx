@@ -63,7 +63,7 @@ describe("ProductsPage", () => {
 
     expect(await screen.findByText("Hàng theo lô")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Thêm sản phẩm" })).toHaveAttribute("href", "/products/create");
-    expect(screen.queryByLabelText("SKU")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("SKU (*)")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Tra barcode"), "BC-LOT");
     await user.click(screen.getByRole("button", { name: "Tra" }));
@@ -93,9 +93,9 @@ describe("ProductsPage", () => {
 
     renderWithRouter(<ProductCreatePage api={api} />);
 
-    await user.type(screen.getByLabelText("SKU"), "SKU-LOT");
-    await user.type(screen.getByLabelText("Tên sản phẩm"), "Hàng theo lô");
-    await user.type(screen.getByLabelText("Barcode"), "BC-LOT, BC-LOT-2");
+    await user.type(screen.getByLabelText("SKU (*)"), "SKU-LOT");
+    await user.type(screen.getByLabelText("Tên sản phẩm (*)"), "Hàng theo lô");
+    await user.type(screen.getByLabelText("Barcode (*)"), "BC-LOT, BC-LOT-2");
     await user.selectOptions(screen.getByLabelText("Tracking"), "lot");
     await user.click(screen.getByLabelText("Quản lý hạn dùng"));
     await user.click(screen.getByLabelText("FEFO"));

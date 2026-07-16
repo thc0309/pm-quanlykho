@@ -36,7 +36,7 @@ describe("PartnersPage", () => {
 
     expect(await screen.findByText("Nhà cung cấp 1")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Thêm đối tác" })).toHaveAttribute("href", "/partners/create");
-    expect(screen.queryByLabelText("Mã đối tác")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mã đối tác (*)")).not.toBeInTheDocument();
   });
 
   it("creates a supplier from a dedicated form screen", async () => {
@@ -47,9 +47,9 @@ describe("PartnersPage", () => {
 
     renderWithRouter(<PartnerCreatePage api={api} />);
 
-    await user.type(screen.getByLabelText("Mã đối tác"), "SUP-1");
-    await user.type(screen.getByLabelText("Tên đối tác"), "Nhà cung cấp 1");
-    await user.selectOptions(screen.getByLabelText("Loại đối tác"), "supplier");
+    await user.type(screen.getByLabelText("Mã đối tác (*)"), "SUP-1");
+    await user.type(screen.getByLabelText("Tên đối tác (*)"), "Nhà cung cấp 1");
+    await user.selectOptions(screen.getByLabelText("Loại đối tác (*)"), "supplier");
     await user.type(screen.getByLabelText("Điện thoại"), "0900000000");
     await user.click(screen.getByRole("button", { name: "Tạo đối tác" }));
 

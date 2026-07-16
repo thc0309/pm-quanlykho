@@ -226,7 +226,7 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Thông tin người dùng</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className={labelClass}>
-            Họ tên
+            Họ tên (*)
             <input
               name="fullName"
               required
@@ -237,7 +237,7 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
             />
           </label>
           <label className={labelClass}>
-            Email người dùng
+            Email người dùng (*)
             <input
               name="email"
               type="email"
@@ -258,9 +258,10 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
       <form onSubmit={assignRoles} className={`space-y-4 ${panelClass}`}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Vai trò</h2>
         <label className={labelClass}>
-          Người dùng cần gán
+          Người dùng cần gán (*)
           <select
             name="assignedUser"
+            required
             autoComplete="off"
             value={assignment.userId}
             onChange={(event) => setAssignment({ ...assignment, userId: event.target.value })}
@@ -272,8 +273,8 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
             ))}
           </select>
         </label>
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Vai trò được gán</legend>
+        <fieldset aria-required="true" className="space-y-2">
+          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Vai trò được gán (*)</legend>
           {roles.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">Chưa có vai trò.</p>
           ) : roles.map((role) => (
@@ -411,7 +412,7 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Thông tin vai trò</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className={labelClass}>
-            Mã vai trò
+            Mã vai trò (*)
             <input
               name="roleCode"
               required
@@ -424,7 +425,7 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
             />
           </label>
           <label className={labelClass}>
-            Tên vai trò
+            Tên vai trò (*)
             <input
               name="roleName"
               required
@@ -435,8 +436,8 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
             />
           </label>
         </div>
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Quyền</legend>
+        <fieldset aria-required="true" className="space-y-2">
+          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Quyền (*)</legend>
           {permissionOptions.map(([code, label]) => (
             <label key={code} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input

@@ -1,10 +1,10 @@
 # Todo: Hoàn thiện form, user metadata và phân quyền v4
 
-Status: draft v4.1 — đã có task-detail T29-T53, chờ xác nhận trước khi build
+Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 
 ## Phase 1 — Rule nền và nhãn bắt buộc
 
-- [ ] [T29 Chuẩn hóa label bắt buộc cho form lõi](task-detail/task-29.md).
+- [x] [T29 Chuẩn hóa label bắt buộc cho form lõi](task-detail/task-29.md).
 - [ ] [T30 Chuẩn hóa label bắt buộc cho form chứng từ](task-detail/task-30.md).
 - [ ] Checkpoint A reviewed.
 

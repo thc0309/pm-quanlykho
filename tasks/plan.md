@@ -1,6 +1,6 @@
 # Implementation Plan: Hoàn thiện form, user metadata và phân quyền v4
 
-Status: draft v4.1 — đã chi tiết hóa T29-T53, chờ xác nhận trước khi build
+Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 
 ## Overview
 
@@ -66,13 +66,13 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Áp dụng `(*)` cho form auth, user/role, metadata nhỏ.
 
 **Acceptance criteria:**
-- [ ] Field bắt buộc trong auth, admin user/role, category/unit, location, product, partner có `(*)`.
-- [ ] Field optional không có `(*)`.
-- [ ] Accessible label vẫn tìm được bằng tiếng Việt.
+- [x] Field bắt buộc trong auth, admin user/role, category/unit, location, product, partner có `(*)`.
+- [x] Field optional không có `(*)`.
+- [x] Accessible label vẫn tìm được bằng tiếng Việt.
 
 **Verification:**
-- [ ] `npm test --prefix frontend -- --run AccessPage CatalogPage LocationsPage ProductsPage PartnersPage AuthPage`
-- [ ] `npm run build --prefix frontend`
+- [x] `npm test --prefix frontend -- --run AccessPage CatalogPage LocationsPage ProductsPage PartnersPage AuthPage` — 6 file, 20 test pass.
+- [x] `npm run build --prefix frontend` — TypeScript và Vite build pass.
 
 **Dependencies:** None
 

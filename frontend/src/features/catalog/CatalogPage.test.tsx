@@ -37,7 +37,7 @@ describe("CatalogPage", () => {
     expect(await screen.findByText("Hàng khô")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Thêm danh mục" })).toHaveAttribute("href", "/catalog/categories/create");
     expect(screen.queryByRole("link", { name: "Thêm đơn vị" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Mã danh mục")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mã danh mục (*)")).not.toBeInTheDocument();
     expect(api.listUnits).not.toHaveBeenCalled();
   });
 
@@ -53,7 +53,7 @@ describe("CatalogPage", () => {
     expect(await screen.findByText("Cái")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Thêm đơn vị" })).toHaveAttribute("href", "/catalog/units/create");
     expect(screen.queryByRole("link", { name: "Thêm danh mục" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Mã đơn vị")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mã đơn vị (*)")).not.toBeInTheDocument();
     expect(api.listCategories).not.toHaveBeenCalled();
   });
 
@@ -64,8 +64,8 @@ describe("CatalogPage", () => {
     const user = userEvent.setup();
     renderWithRouter(<CategoryCreatePage api={api} />);
 
-    await user.type(screen.getByLabelText("Mã danh mục"), "DRY");
-    await user.type(screen.getByLabelText("Tên danh mục"), "Hàng khô");
+    await user.type(screen.getByLabelText("Mã danh mục (*)"), "DRY");
+    await user.type(screen.getByLabelText("Tên danh mục (*)"), "Hàng khô");
     await user.click(screen.getByRole("button", { name: "Tạo danh mục" }));
 
     expect(api.createCategory).toHaveBeenCalledWith({ code: "DRY", name: "Hàng khô" });
@@ -90,11 +90,11 @@ describe("CatalogPage", () => {
     const user = userEvent.setup();
     renderWithRouter(<UnitCreatePage api={api} />);
 
-    await user.type(await screen.findByLabelText("Mã đơn vị"), "PCS");
-    await user.type(screen.getByLabelText("Tên đơn vị"), "Cái");
+    await user.type(await screen.findByLabelText("Mã đơn vị (*)"), "PCS");
+    await user.type(screen.getByLabelText("Tên đơn vị (*)"), "Cái");
     await user.selectOptions(screen.getByLabelText("Loại đơn vị"), "conversion");
-    await user.selectOptions(screen.getByLabelText("Đơn vị gốc"), "unit-base");
-    await user.type(screen.getByLabelText("Hệ số quy đổi"), "24");
+    await user.selectOptions(screen.getByLabelText("Đơn vị gốc (*)"), "unit-base");
+    await user.type(screen.getByLabelText("Hệ số quy đổi (*)"), "24");
     await user.click(screen.getByRole("button", { name: "Tạo đơn vị" }));
 
     expect(api.createUnit).toHaveBeenCalledWith({

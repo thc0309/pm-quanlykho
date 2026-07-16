@@ -47,8 +47,9 @@ describe("AccessPage", () => {
     const user = userEvent.setup();
     renderWithRouter(<RoleCreatePage api={api} />);
 
-    await user.type(await screen.findByLabelText("Mã vai trò"), "Picker Role");
-    await user.type(screen.getByLabelText("Tên vai trò"), "Nhân viên soạn");
+    await user.type(await screen.findByLabelText("Mã vai trò (*)"), "Picker Role");
+    await user.type(screen.getByLabelText("Tên vai trò (*)"), "Nhân viên soạn");
+    expect(screen.getByRole("group", { name: "Quyền (*)" })).toHaveAttribute("aria-required", "true");
     await user.click(screen.getByLabelText("Soạn hàng"));
     await user.click(screen.getByRole("button", { name: "Tạo vai trò" }));
 
@@ -65,8 +66,8 @@ describe("AccessPage", () => {
     const user = userEvent.setup();
     renderWithRouter(<UserCreatePage api={api} />);
 
-    await user.type(await screen.findByLabelText("Họ tên"), "Picker One");
-    await user.type(screen.getByLabelText("Email người dùng"), "picker@example.test");
+    await user.type(await screen.findByLabelText("Họ tên (*)"), "Picker One");
+    await user.type(screen.getByLabelText("Email người dùng (*)"), "picker@example.test");
     await user.click(screen.getByRole("button", { name: "Tạo người dùng" }));
 
     expect(await screen.findByText("temporary-pass")).toBeVisible();
@@ -107,7 +108,8 @@ describe("AccessPage", () => {
     const user = userEvent.setup();
     renderWithRouter(<UserCreatePage api={api} />);
 
-    await user.selectOptions(await screen.findByLabelText("Người dùng cần gán"), "user-1");
+    await user.selectOptions(await screen.findByLabelText("Người dùng cần gán (*)"), "user-1");
+    expect(screen.getByRole("group", { name: "Vai trò được gán (*)" })).toHaveAttribute("aria-required", "true");
     await user.click(screen.getByLabelText("Gán Nhân viên soạn"));
     await user.click(screen.getByRole("button", { name: "Gán vai trò" }));
 
@@ -132,7 +134,7 @@ describe("AccessPage", () => {
 
     expect(await screen.findByText("Picker One")).toBeVisible();
     expect(screen.getByRole("link", { name: "Thêm người dùng" })).toHaveAttribute("href", "/admin/users/create");
-    expect(screen.queryByLabelText("Họ tên")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Họ tên (*)")).not.toBeInTheDocument();
   });
 
   it("keeps the role screen as a list with an add action", async () => {
@@ -151,7 +153,7 @@ describe("AccessPage", () => {
 
     expect(await screen.findByText("Nhân viên soạn")).toBeVisible();
     expect(screen.getByRole("link", { name: "Thêm vai trò" })).toHaveAttribute("href", "/admin/roles/create");
-    expect(screen.queryByLabelText("Mã vai trò")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mã vai trò (*)")).not.toBeInTheDocument();
   });
 
   it("shows the permission catalog", () => {

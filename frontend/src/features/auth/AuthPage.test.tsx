@@ -34,8 +34,8 @@ describe("AuthPage", () => {
     const user = userEvent.setup();
     render(<AuthPage api={api} />);
 
-    await user.type(screen.getByLabelText("Email"), "master@example.test");
-    await user.type(screen.getByLabelText("Mật khẩu"), "temporary-password");
+    await user.type(screen.getByLabelText("Email (*)"), "master@example.test");
+    await user.type(screen.getByLabelText("Mật khẩu (*)"), "temporary-password");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
     expect(await screen.findByRole("heading", { name: "Đổi mật khẩu tạm" })).toBeVisible();
@@ -47,8 +47,8 @@ describe("AuthPage", () => {
     const user = userEvent.setup();
     render(<AuthPage api={api} />);
 
-    await user.type(await screen.findByLabelText("Mật khẩu mới"), "new-secure-password");
-    await user.type(screen.getByLabelText("Nhập lại mật khẩu"), "new-secure-password");
+    await user.type(await screen.findByLabelText("Mật khẩu mới (*)"), "new-secure-password");
+    await user.type(screen.getByLabelText("Nhập lại mật khẩu (*)"), "new-secure-password");
     await user.click(screen.getByRole("button", { name: "Cập nhật mật khẩu" }));
     expect(await screen.findByText("Đăng nhập thành công")).toBeVisible();
 
@@ -66,8 +66,8 @@ describe("AuthPage", () => {
     const user = userEvent.setup();
     render(<AuthPage api={api} />);
 
-    await user.type(screen.getByLabelText("Email"), "master@example.test");
-    await user.type(screen.getByLabelText("Mật khẩu"), "wrong-password");
+    await user.type(screen.getByLabelText("Email (*)"), "master@example.test");
+    await user.type(screen.getByLabelText("Mật khẩu (*)"), "wrong-password");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Email hoặc mật khẩu không đúng");
   });

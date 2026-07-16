@@ -24,10 +24,10 @@ describe("LocationsPage", () => {
     const user = userEvent.setup();
     renderWithRouter(<LocationCreatePage api={api} />);
 
-    await user.type(await screen.findByLabelText("Mã vị trí"), "ST-01");
-    await user.type(screen.getByLabelText("Barcode"), "SCAN-ST-01");
-    await user.type(screen.getByLabelText("Tên vị trí"), "Kệ lưu trữ 01");
-    await user.selectOptions(screen.getByLabelText("Loại vị trí"), "storage");
+    await user.type(await screen.findByLabelText("Mã vị trí (*)"), "ST-01");
+    await user.type(screen.getByLabelText("Barcode (*)"), "SCAN-ST-01");
+    await user.type(screen.getByLabelText("Tên vị trí (*)"), "Kệ lưu trữ 01");
+    await user.selectOptions(screen.getByLabelText("Loại vị trí (*)"), "storage");
     await user.click(screen.getByRole("button", { name: "Tạo vị trí" }));
 
     expect(api.createLocation).toHaveBeenCalledWith({ code: "ST-01", barcode: "SCAN-ST-01", name: "Kệ lưu trữ 01", type: "storage" });
@@ -55,6 +55,6 @@ describe("LocationsPage", () => {
 
     expect(await screen.findByText("Kệ lưu trữ 01")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Thêm vị trí" })).toHaveAttribute("href", "/locations/create");
-    expect(screen.queryByLabelText("Mã vị trí")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mã vị trí (*)")).not.toBeInTheDocument();
   });
 });

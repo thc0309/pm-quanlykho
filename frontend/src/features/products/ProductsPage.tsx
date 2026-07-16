@@ -198,15 +198,15 @@ export function ProductCreatePage({ api = productApi }: { api?: ProductClient })
 
       <form onSubmit={createProduct} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
         <label className={labelClass}>
-          SKU
+          SKU (*)
           <input required autoComplete="off" value={form.sku} onChange={(event) => setForm({ ...form, sku: event.target.value })} className={inputClass} />
         </label>
         <label className={labelClass}>
-          Tên sản phẩm
+          Tên sản phẩm (*)
           <input required autoComplete="off" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />
         </label>
         <label className={labelClass}>
-          Barcode
+          Barcode (*)
           <input required autoComplete="off" value={form.barcodes} onChange={(event) => setForm({ ...form, barcodes: event.target.value })} className={inputClass} />
         </label>
         <label className={labelClass}>

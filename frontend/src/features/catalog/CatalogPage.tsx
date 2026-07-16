@@ -247,7 +247,7 @@ export function CategoryCreatePage({ api = catalogApi }: { api?: CatalogClient }
 
       <form onSubmit={createCategory} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
         <label className={labelClass}>
-          Mã danh mục
+          Mã danh mục (*)
           <input
             name="categoryCode"
             required
@@ -259,7 +259,7 @@ export function CategoryCreatePage({ api = catalogApi }: { api?: CatalogClient }
           />
         </label>
         <label className={labelClass}>
-          Tên danh mục
+          Tên danh mục (*)
           <input
             name="categoryName"
             required
@@ -347,7 +347,7 @@ export function UnitCreatePage({ api = catalogApi }: { api?: CatalogClient }) {
 
       <form onSubmit={createUnit} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
         <label className={labelClass}>
-          Mã đơn vị
+          Mã đơn vị (*)
           <input
             name="unitCode"
             required
@@ -359,7 +359,7 @@ export function UnitCreatePage({ api = catalogApi }: { api?: CatalogClient }) {
           />
         </label>
         <label className={labelClass}>
-          Tên đơn vị
+          Tên đơn vị (*)
           <input
             name="unitName"
             required
@@ -384,7 +384,7 @@ export function UnitCreatePage({ api = catalogApi }: { api?: CatalogClient }) {
         {form.mode === "conversion" && (
           <>
             <label className={labelClass}>
-              Đơn vị gốc
+              Đơn vị gốc (*)
               <select
                 name="baseUnit"
                 required
@@ -399,7 +399,7 @@ export function UnitCreatePage({ api = catalogApi }: { api?: CatalogClient }) {
               </select>
             </label>
             <label className={labelClass}>
-              Hệ số quy đổi
+              Hệ số quy đổi (*)
               <input
                 name="conversionFactor"
                 required

@@ -157,16 +157,16 @@ export function PartnerCreatePage({ api = partnerApi }: { api?: PartnerClient })
 
       <form onSubmit={createPartner} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
         <label className={labelClass}>
-          Mã đối tác
+          Mã đối tác (*)
           <input required autoComplete="off" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={inputClass} />
         </label>
         <label className={labelClass}>
-          Tên đối tác
+          Tên đối tác (*)
           <input required autoComplete="off" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />
         </label>
         <label className={labelClass}>
-          Loại đối tác
-          <select value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as Partner["kind"] })} className={inputClass}>
+          Loại đối tác (*)
+          <select required value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as Partner["kind"] })} className={inputClass}>
             <option value="customer">Khách hàng</option>
             <option value="supplier">Nhà cung cấp</option>
           </select>

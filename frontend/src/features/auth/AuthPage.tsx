@@ -98,7 +98,7 @@ export default function AuthPage({
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Dùng tài khoản do quản trị viên cấp.</p>
             </div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
-              Email
+              Email (*)
               <input
                 name="email"
                 type="email"
@@ -112,7 +112,7 @@ export default function AuthPage({
               />
             </label>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
-              Mật khẩu
+              Mật khẩu (*)
               <input
                 name="password"
                 type="password"
@@ -137,7 +137,7 @@ export default function AuthPage({
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Mật khẩu mới cần ít nhất 12 ký tự.</p>
             </div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
-              Mật khẩu mới
+              Mật khẩu mới (*)
               <input
                 name="new-password"
                 type="password"
@@ -151,7 +151,7 @@ export default function AuthPage({
               />
             </label>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
-              Nhập lại mật khẩu
+              Nhập lại mật khẩu (*)
               <input
                 name="confirm-password"
                 type="password"

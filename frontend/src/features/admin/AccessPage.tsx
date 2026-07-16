@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
 import {
   adminApi,
+  ApiError,
   type AdminClient,
   type AdminRole,
   type AdminUser,
@@ -69,10 +70,137 @@ function normalizeRoleCode(value: string) {
     .replace(/[^a-z0-9_-]/g, "");
 }
 
+type UserFormState = {
+  fullName: string;
+  email: string;
+  phone: string;
+  employeeCode: string;
+  jobTitle: string;
+  department: string;
+  note: string;
+};
+
+const emptyUserForm: UserFormState = {
+  fullName: "",
+  email: "",
+  phone: "",
+  employeeCode: "",
+  jobTitle: "",
+  department: "",
+  note: "",
+};
+
+function userFormFor(user?: AdminUser): UserFormState {
+  return user ? {
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
+    employeeCode: user.employeeCode ?? "",
+    jobTitle: user.jobTitle ?? "",
+    department: user.department ?? "",
+    note: user.note ?? "",
+  } : { ...emptyUserForm };
+}
+
+function createUserInput(form: UserFormState): Parameters<AdminClient["createUser"]>[0] {
+  return {
+    fullName: form.fullName.trim(),
+    email: form.email.trim(),
+    phone: form.phone.trim(),
+    ...(form.employeeCode.trim() ? { employeeCode: form.employeeCode.trim() } : {}),
+    ...(form.jobTitle.trim() ? { jobTitle: form.jobTitle.trim() } : {}),
+    ...(form.department.trim() ? { department: form.department.trim() } : {}),
+    ...(form.note.trim() ? { note: form.note.trim() } : {}),
+  };
+}
+
+function updateUserInput(form: UserFormState): Parameters<AdminClient["updateUser"]>[1] {
+  return {
+    fullName: form.fullName.trim(),
+    email: form.email.trim(),
+    phone: form.phone.trim(),
+    employeeCode: form.employeeCode.trim() || null,
+    jobTitle: form.jobTitle.trim() || null,
+    department: form.department.trim() || null,
+    note: form.note.trim() || null,
+  };
+}
+
+function useAvatarPreview(file: File | null) {
+  const [preview, setPreview] = useState("");
+  useEffect(() => {
+    if (!file) {
+      setPreview("");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  return preview;
+}
+
+function UserProfileFields({
+  form,
+  setForm,
+  setAvatar,
+  previewUrl,
+  onFileError,
+}: {
+  form: UserFormState;
+  setForm: (form: UserFormState) => void;
+  setAvatar: (file: File | null) => void;
+  previewUrl?: string | null;
+  onFileError: (message: string) => void;
+}) {
+  const field = (name: keyof UserFormState) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm({ ...form, [name]: event.target.value });
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <label className={labelClass}>Họ tên (*)<input required autoComplete="name" value={form.fullName} onChange={field("fullName")} className={inputClass} /></label>
+      <label className={labelClass}>Email người dùng (*)<input type="email" required autoComplete="email" spellCheck={false} value={form.email} onChange={field("email")} className={inputClass} /></label>
+      <label className={labelClass}>Số điện thoại (*)<input type="tel" required autoComplete="tel" value={form.phone} onChange={field("phone")} className={inputClass} /></label>
+      <label className={labelClass}>Mã nhân viên<input maxLength={50} autoComplete="off" value={form.employeeCode} onChange={field("employeeCode")} className={inputClass} /></label>
+      <label className={labelClass}>Chức danh<input maxLength={100} autoComplete="organization-title" value={form.jobTitle} onChange={field("jobTitle")} className={inputClass} /></label>
+      <label className={labelClass}>Bộ phận<input maxLength={100} autoComplete="organization" value={form.department} onChange={field("department")} className={inputClass} /></label>
+      <label className={`${labelClass} sm:col-span-2`}>Ghi chú<textarea maxLength={500} value={form.note} onChange={field("note")} className={`${inputClass} min-h-24 py-3`} /></label>
+      <label className={`${labelClass} sm:col-span-2`}>
+        Ảnh đại diện
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(event) => {
+            const file = event.target.files?.[0] ?? null;
+            if (file && file.size > 5 * 1024 * 1024) {
+              event.target.value = "";
+              onFileError("Ảnh đại diện không được vượt quá 5 MB");
+              return;
+            }
+            setAvatar(file);
+          }}
+          className={`${inputClass} py-2`}
+        />
+      </label>
+      {previewUrl && (
+        <img src={previewUrl} alt="Xem trước ảnh đại diện" className="h-20 w-20 rounded-full object-cover" />
+      )}
+    </div>
+  );
+}
+
+function apiMessage(error: unknown, fallback: string) {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
 export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
   const { users, setUsers, loading, error, setError } = useAdminData(api);
   const [busy, setBusy] = useState(false);
   const [userPage, setUserPage] = useState(1);
+  const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [editForm, setEditForm] = useState<UserFormState>(emptyUserForm);
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const avatarPreview = useAvatarPreview(avatar);
   const pagedUsers = paginate(users, userPage);
 
   async function toggleUserStatus(item: AdminUser) {
@@ -84,6 +212,37 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
       setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
     } catch {
       setError("Không thể cập nhật trạng thái người dùng.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startEditing(user: AdminUser) {
+    setEditing(user);
+    setEditForm(userFormFor(user));
+    setAvatar(null);
+    setError("");
+  }
+
+  function cancelEditing() {
+    setEditing(null);
+    setAvatar(null);
+    editButtonRef.current?.focus();
+  }
+
+  async function saveUser(event: FormEvent) {
+    event.preventDefault();
+    if (!editing) return;
+    setBusy(true);
+    setError("");
+    try {
+      let updated = await api.updateUser(editing.id, updateUserInput(editForm));
+      if (avatar) updated = await api.uploadUserAvatar(editing.id, avatar);
+      setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
+      setEditing(null);
+      setAvatar(null);
+    } catch (cause) {
+      setError(apiMessage(cause, "Không thể cập nhật người dùng."));
     } finally {
       setBusy(false);
     }
@@ -107,45 +266,82 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
       />
       <ErrorNotice message={error} />
 
+      {editing && (
+        <form onSubmit={saveUser} aria-label={`Sửa ${editing.fullName}`} className={`space-y-4 ${panelClass}`}>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Sửa người dùng</h2>
+          <UserProfileFields
+            form={editForm}
+            setForm={setEditForm}
+            setAvatar={setAvatar}
+            previewUrl={avatarPreview || editing.avatarUrl}
+            onFileError={setError}
+          />
+          <div className="flex flex-wrap gap-3">
+            <button type="submit" disabled={busy} className={primaryButtonClass}>Lưu thay đổi</button>
+            <button type="button" onClick={cancelEditing} className={secondaryButtonClass}>Hủy chỉnh sửa</button>
+          </div>
+        </form>
+      )}
+
       <section className={panelClass}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Người dùng hiện có</h2>
         <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
+          <table className="min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
             <thead className={tableHeadClass}>
               <tr>
-                <th scope="col" className="px-4 py-3">Họ tên</th>
-                <th scope="col" className="px-4 py-3">Email</th>
+                <th scope="col" className="px-4 py-3">Người dùng</th>
+                <th scope="col" className="px-4 py-3">Điện thoại</th>
+                <th scope="col" className="px-4 py-3">Bộ phận / chức danh</th>
                 <th scope="col" className="px-4 py-3">Trạng thái</th>
-                <th scope="col" className="px-4 py-3 text-right">Action</th>
+                <th scope="col" className="px-4 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
+                  <td colSpan={5} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
                     Chưa có người dùng.
                   </td>
                 </tr>
               ) : pagedUsers.map((item) => (
                 <tr key={item.id}>
-                  <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{item.fullName}</td>
-                  <td className={tableCellClass}>{item.email}</td>
+                  <td className={tableCellClass}>
+                    <div className="flex items-center gap-3">
+                      {item.avatarUrl ? (
+                        <img src={item.avatarUrl} alt={`Ảnh đại diện của ${item.fullName}`} className="h-10 w-10 rounded-full object-cover" />
+                      ) : (
+                        <span role="img" aria-label={`Chưa có ảnh đại diện của ${item.fullName}`} className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                          {item.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                        </span>
+                      )}
+                      <span><strong className="block text-gray-800 dark:text-white/90">{item.fullName}</strong><span>{item.email}</span></span>
+                    </div>
+                  </td>
+                  <td className={tableCellClass}>{item.phone}</td>
+                  <td className={tableCellClass}>{[item.department, item.jobTitle].filter(Boolean).join(" / ") || "—"}</td>
                   <td className={tableCellClass}>{item.status === "active" ? "Đang hoạt động" : "Đã vô hiệu hóa"}</td>
                   <td className={`${tableCellClass} text-right`}>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => toggleUserStatus(item)}
-                      aria-label={`${item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} ${item.fullName}`}
-                      title={item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
-                      className={iconButtonClass}
-                    >
-                      {item.status === "active" ? (
-                        <TrashBinIcon className="h-4 w-4" />
-                      ) : (
-                        <CheckCircleIcon className="h-4 w-4" />
-                      )}
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        ref={editing?.id === item.id ? editButtonRef : undefined}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => startEditing(item)}
+                        aria-label={`Sửa ${item.fullName}`}
+                        title="Sửa"
+                        className={iconButtonClass}
+                      ><PencilIcon className="h-4 w-4" /></button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => toggleUserStatus(item)}
+                        aria-label={`${item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} ${item.fullName}`}
+                        title={item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                        className={iconButtonClass}
+                      >
+                        {item.status === "active" ? <TrashBinIcon className="h-4 w-4" /> : <CheckCircleIcon className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -163,7 +359,9 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
-  const [userForm, setUserForm] = useState({ fullName: "", email: "", phone: "" });
+  const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const avatarPreview = useAvatarPreview(avatar);
   const [assignment, setAssignment] = useState({ userId: "", roleIds: [] as string[] });
 
   async function createUser(event: FormEvent) {
@@ -171,13 +369,22 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
     setBusy(true);
     setError("");
     try {
-      const result = await api.createUser(userForm);
-      setUsers((current) => [result.user, ...current]);
+      const result = await api.createUser(createUserInput(userForm));
+      let savedUser = result.user;
+      if (avatar) {
+        try {
+          savedUser = await api.uploadUserAvatar(result.user.id, avatar);
+        } catch (cause) {
+          setError(apiMessage(cause, "Đã tạo người dùng nhưng không thể tải ảnh đại diện."));
+        }
+      }
+      setUsers((current) => [savedUser, ...current]);
       setAssignment((current) => ({ ...current, userId: result.user.id }));
       setTemporaryPassword(result.temporaryPassword);
-      setUserForm({ fullName: "", email: "", phone: "" });
-    } catch {
-      setError("Không thể tạo người dùng. Kiểm tra email đã tồn tại hay chưa.");
+      setUserForm(userFormFor());
+      setAvatar(null);
+    } catch (cause) {
+      setError(apiMessage(cause, "Không thể tạo người dùng. Kiểm tra email đã tồn tại hay chưa."));
     } finally {
       setBusy(false);
     }
@@ -224,44 +431,13 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
 
       <form onSubmit={createUser} className={`space-y-4 ${panelClass}`}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Thông tin người dùng</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className={labelClass}>
-            Họ tên (*)
-            <input
-              name="fullName"
-              required
-              autoComplete="name"
-              value={userForm.fullName}
-              onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })}
-              className={inputClass}
-            />
-          </label>
-          <label className={labelClass}>
-            Email người dùng (*)
-            <input
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              spellCheck={false}
-              value={userForm.email}
-              onChange={(event) => setUserForm({ ...userForm, email: event.target.value })}
-              className={inputClass}
-            />
-          </label>
-          <label className={labelClass}>
-            Số điện thoại (*)
-            <input
-              name="phone"
-              type="tel"
-              required
-              autoComplete="tel"
-              value={userForm.phone}
-              onChange={(event) => setUserForm({ ...userForm, phone: event.target.value })}
-              className={inputClass}
-            />
-          </label>
-        </div>
+        <UserProfileFields
+          form={userForm}
+          setForm={setUserForm}
+          setAvatar={setAvatar}
+          previewUrl={avatarPreview}
+          onFileError={setError}
+        />
         <button type="submit" disabled={busy} className={primaryButtonClass}>
           Tạo người dùng
         </button>

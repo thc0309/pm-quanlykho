@@ -8,7 +8,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AdminClient } from "../../lib/api";
 import UsersPage, { AccessNavigation, PermissionsPage, RoleCreatePage, RolesPage, UserCreatePage } from "./AccessPage";
 
-afterEach(cleanup);
+Object.defineProperties(URL, {
+  createObjectURL: { configurable: true, value: vi.fn(() => "blob:avatar-preview") },
+  revokeObjectURL: { configurable: true, value: vi.fn() },
+});
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function renderWithRouter(element: ReactElement) {
   return render(<MemoryRouter>{element}</MemoryRouter>);
@@ -25,8 +33,8 @@ function client(): AdminClient {
         phone: "0901234567",
         avatarUrl: null,
         employeeCode: null,
-        jobTitle: null,
-        department: null,
+        jobTitle: "Nhân viên soạn",
+        department: "Vận hành kho",
         note: null,
         kind: "warehouse_user",
         warehouseId: "warehouse-a",
@@ -35,6 +43,20 @@ function client(): AdminClient {
       temporaryPassword: "temporary-pass",
     }),
     updateUser: vi.fn(),
+    uploadUserAvatar: vi.fn().mockResolvedValue({
+      id: "user-1",
+      email: "picker@example.test",
+      fullName: "Picker One",
+      phone: "0901234567",
+      avatarUrl: "/uploads/avatars/user-1.webp",
+      employeeCode: "NV-001",
+      jobTitle: null,
+      department: "Vận hành kho",
+      note: null,
+      kind: "warehouse_user",
+      warehouseId: "warehouse-a",
+      status: "active",
+    }),
     setUserStatus: vi.fn(),
     listRoles: vi.fn().mockResolvedValue([]),
     createRole: vi.fn().mockResolvedValue({
@@ -76,6 +98,11 @@ describe("AccessPage", () => {
     await user.type(await screen.findByLabelText("Họ tên (*)"), "Picker One");
     await user.type(screen.getByLabelText("Email người dùng (*)"), "picker@example.test");
     await user.type(screen.getByLabelText("Số điện thoại (*)"), "0901234567");
+    await user.type(screen.getByLabelText("Mã nhân viên"), "NV-001");
+    await user.type(screen.getByLabelText("Bộ phận"), "Vận hành kho");
+    const avatar = new File(["avatar"], "avatar.png", { type: "image/png" });
+    await user.upload(screen.getByLabelText("Ảnh đại diện"), avatar);
+    expect(screen.getByRole("img", { name: "Xem trước ảnh đại diện" })).toHaveAttribute("src", "blob:avatar-preview");
     await user.click(screen.getByRole("button", { name: "Tạo người dùng" }));
 
     expect(await screen.findByText("temporary-pass")).toBeVisible();
@@ -83,7 +110,10 @@ describe("AccessPage", () => {
       fullName: "Picker One",
       email: "picker@example.test",
       phone: "0901234567",
+      employeeCode: "NV-001",
+      department: "Vận hành kho",
     });
+    expect(api.uploadUserAvatar).toHaveBeenCalledWith("user-1", avatar);
   });
 
   it("omits access administration navigation when permission is denied", () => {
@@ -103,8 +133,8 @@ describe("AccessPage", () => {
         phone: "0901234567",
         avatarUrl: null,
         employeeCode: null,
-        jobTitle: null,
-        department: null,
+        jobTitle: "Nhân viên soạn",
+        department: "Vận hành kho",
         note: null,
         kind: "warehouse_user",
         warehouseId: "warehouse-a",
@@ -142,8 +172,8 @@ describe("AccessPage", () => {
         phone: "0901234567",
         avatarUrl: null,
         employeeCode: null,
-        jobTitle: null,
-        department: null,
+        jobTitle: "Nhân viên soạn",
+        department: "Vận hành kho",
         note: null,
         kind: "warehouse_user",
         warehouseId: "warehouse-a",
@@ -154,8 +184,75 @@ describe("AccessPage", () => {
     renderWithRouter(<UsersPage api={api} />);
 
     expect(await screen.findByText("Picker One")).toBeVisible();
+    expect(screen.getByText("0901234567")).toBeVisible();
+    expect(screen.getByText("Vận hành kho / Nhân viên soạn")).toBeVisible();
+    expect(screen.getByRole("img", { name: "Chưa có ảnh đại diện của Picker One" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Thêm người dùng" })).toHaveAttribute("href", "/admin/users/create");
     expect(screen.queryByLabelText("Họ tên (*)")).not.toBeInTheDocument();
+  });
+
+  it("updates user metadata and avatar without reloading the list", async () => {
+    const api = client();
+    const existing = {
+      id: "user-1",
+      email: "picker@example.test",
+      fullName: "Picker One",
+      phone: "0901234567",
+      avatarUrl: null,
+      employeeCode: "NV-001",
+      jobTitle: "Nhân viên soạn",
+      department: "Vận hành kho",
+      note: null,
+      kind: "warehouse_user" as const,
+      warehouseId: "warehouse-a",
+      status: "active" as const,
+    };
+    api.listUsers = vi.fn().mockResolvedValue([existing]);
+    api.updateUser = vi.fn().mockResolvedValue({ ...existing, phone: "0912345678", note: "Ca sáng" });
+    api.uploadUserAvatar = vi.fn().mockResolvedValue({
+      ...existing,
+      phone: "0912345678",
+      note: "Ca sáng",
+      avatarUrl: "/uploads/avatars/user-1.webp",
+    });
+    const user = userEvent.setup();
+    renderWithRouter(<UsersPage api={api} />);
+
+    await user.click(await screen.findByRole("button", { name: "Sửa Picker One" }));
+    await user.clear(screen.getByLabelText("Số điện thoại (*)"));
+    await user.type(screen.getByLabelText("Số điện thoại (*)"), "0912345678");
+    await user.type(screen.getByLabelText("Ghi chú"), "Ca sáng");
+    const avatar = new File(["avatar"], "avatar.webp", { type: "image/webp" });
+    await user.upload(screen.getByLabelText("Ảnh đại diện"), avatar);
+    await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+
+    expect(api.updateUser).toHaveBeenCalledWith("user-1", {
+      email: "picker@example.test",
+      fullName: "Picker One",
+      phone: "0912345678",
+      employeeCode: "NV-001",
+      jobTitle: "Nhân viên soạn",
+      department: "Vận hành kho",
+      note: "Ca sáng",
+    });
+    expect(api.uploadUserAvatar).toHaveBeenCalledWith("user-1", avatar);
+    expect(await screen.findByText("0912345678")).toBeVisible();
+  });
+
+  it("returns focus to the edit button when editing is cancelled", async () => {
+    const api = client();
+    api.listUsers = vi.fn().mockResolvedValue([(await api.createUser({
+      email: "picker@example.test",
+      fullName: "Picker One",
+      phone: "0901234567",
+    })).user]);
+    const user = userEvent.setup();
+    renderWithRouter(<UsersPage api={api} />);
+
+    const edit = await screen.findByRole("button", { name: "Sửa Picker One" });
+    await user.click(edit);
+    await user.click(screen.getByRole("button", { name: "Hủy chỉnh sửa" }));
+    expect(edit).toHaveFocus();
   });
 
   it("keeps the role screen as a list with an add action", async () => {

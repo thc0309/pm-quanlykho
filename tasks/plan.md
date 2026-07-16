@@ -179,14 +179,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** User list/create/edit hiển thị và lưu avatar, phone, employeeCode, jobTitle, department, note.
 
 **Acceptance criteria:**
-- [ ] Form user có `phone (*)`; metadata khác optional.
-- [ ] Upload avatar preview được trước/sau lưu.
-- [ ] User list hiển thị avatar, họ tên, email, phone, bộ phận/chức danh, trạng thái.
-- [ ] Không hard delete user.
+- [x] Form user có `phone (*)`; metadata khác optional.
+- [x] Upload avatar preview được trước/sau lưu.
+- [x] User list hiển thị avatar, họ tên, email, phone, bộ phận/chức danh, trạng thái.
+- [x] Không hard delete user.
 
 **Verification:**
-- [ ] `npm test --prefix frontend -- --run AccessPage`
-- [ ] `npm run build --prefix frontend`
+- [x] `npm test --prefix frontend -- --run AccessPage` — 9/9 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T31, T32
 
@@ -199,9 +199,9 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 ### Checkpoint B — User metadata
 
-- [ ] T31-T33 pass.
-- [ ] Avatar upload không lưu binary trong DB.
-- [ ] Phone required được enforce ở UI và backend.
+- [x] T31-T33 pass.
+- [x] Avatar upload không lưu binary trong DB.
+- [x] Phone required được enforce ở UI và backend.
 
 ### Phase 3 — Granular permission model
 

@@ -23,7 +23,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: "include",
     headers: {
-      ...(init?.body ? { "content-type": "application/json" } : {}),
+      ...(init?.body && !(init.body instanceof FormData) ? { "content-type": "application/json" } : {}),
       ...init?.headers,
     },
   });
@@ -83,6 +83,7 @@ export interface AdminClient {
     temporaryPassword: string;
   }>; 
   updateUser(id: string, input: Partial<Pick<AdminUser, "email" | "fullName" | "phone" | "employeeCode" | "jobTitle" | "department" | "note">>): Promise<AdminUser>;
+  uploadUserAvatar(id: string, file: File): Promise<AdminUser>;
   setUserStatus(id: string, status: AdminUser["status"]): Promise<AdminUser>;
   listRoles(): Promise<AdminRole[]>;
   createRole(input: {
@@ -378,6 +379,16 @@ export const adminApi: AdminClient = {
       await request<{ user: AdminUser }>(`/api/admin/users/${id}`, {
         method: "PATCH",
         body: JSON.stringify(input),
+      })
+    ).user;
+  },
+  async uploadUserAvatar(id, file) {
+    const body = new FormData();
+    body.set("avatar", file);
+    return (
+      await request<{ user: AdminUser }>(`/api/admin/users/${id}/avatar`, {
+        method: "POST",
+        body,
       })
     ).user;
   },

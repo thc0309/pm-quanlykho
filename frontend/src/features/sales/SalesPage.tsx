@@ -42,13 +42,13 @@ export function SalesCreatePage({ api = salesApi }: { api?: SalesClient }) {
   return <form onSubmit={submit} className={`grid max-w-2xl gap-4 sm:grid-cols-2 ${panelClass} p-5`}>
     <h1 className={`sm:col-span-2 ${pageTitleClass}`}>Tạo báo giá / đơn bán</h1>
     {created && <p role="status" className={`sm:col-span-2 ${successClass}`}>Đã tạo chứng từ</p>}
-    <label className={labelClass}>Số chứng từ<input name="documentNo" required className={inputClass} /></label>
-    <label className={labelClass}>Loại<select name="kind" className={inputClass}><option value="quote">Báo giá</option><option value="order">Đơn bán</option></select></label>
-    <label className={labelClass}>Khách hàng<select name="customerId" required className={inputClass}><option value="">Chọn khách</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
-    <label className={labelClass}>Sản phẩm<select name="productId" required className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
-    <label className={labelClass}>Số lượng<input name="quantity" type="number" defaultValue="1" required className={inputClass} /></label>
-    <label className={labelClass}>Đơn giá<input name="unitPrice" type="number" defaultValue="0" required className={inputClass} /></label>
-    <label className={labelClass}>Thuế %<input name="taxRate" type="number" defaultValue="0" required className={inputClass} /></label>
+    <label className={labelClass}>Số chứng từ (*)<input name="documentNo" required className={inputClass} /></label>
+    <label className={labelClass}>Loại (*)<select name="kind" required className={inputClass}><option value="quote">Báo giá</option><option value="order">Đơn bán</option></select></label>
+    <label className={labelClass}>Khách hàng (*)<select name="customerId" required className={inputClass}><option value="">Chọn khách</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
+    <label className={labelClass}>Sản phẩm (*)<select name="productId" required className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
+    <label className={labelClass}>Số lượng (*)<input name="quantity" type="number" defaultValue="1" required className={inputClass} /></label>
+    <label className={labelClass}>Đơn giá (*)<input name="unitPrice" type="number" defaultValue="0" required className={inputClass} /></label>
+    <label className={labelClass}>Thuế % (*)<input name="taxRate" type="number" defaultValue="0" required className={inputClass} /></label>
     <button className={primaryButtonClass}>Tạo chứng từ</button>
   </form>;
 }

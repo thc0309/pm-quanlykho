@@ -146,9 +146,9 @@ export function OutboundCreatePage({ api = outboundApi }: { api?: OutboundClient
       {error && <p role="alert" className={errorClass}>{error}</p>}
       {message && <p role="status" className={successClass}>{message}</p>}
       <form onSubmit={submit} className={`${panelClass} grid gap-4 p-5 sm:grid-cols-2`}>
-        <label className={labelClass}>Số phiếu<input name="documentNo" required maxLength={80} className={inputClass} /></label>
-        <label className={labelClass}>Sản phẩm<select name="productId" required className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((product) => <option key={product.id} value={product.id}>{product.sku} - {product.name}</option>)}</select></label>
-        <label className={labelClass}>Số lượng<input name="quantity" type="number" min="0.0001" step="0.0001" defaultValue="1" required className={inputClass} /></label>
+        <label className={labelClass}>Số phiếu (*)<input name="documentNo" required maxLength={80} className={inputClass} /></label>
+        <label className={labelClass}>Sản phẩm (*)<select name="productId" required className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((product) => <option key={product.id} value={product.id}>{product.sku} - {product.name}</option>)}</select></label>
+        <label className={labelClass}>Số lượng (*)<input name="quantity" type="number" min="0.0001" step="0.0001" defaultValue="1" required className={inputClass} /></label>
         <div className="flex items-end gap-3">
           <button type="submit" disabled={saving} className={primaryButtonClass}>{saving ? "Đang lưu…" : "Tạo phiếu xuất"}</button>
           <Link to="/outbounds" className={secondaryButtonClass}>Quay lại</Link>

@@ -44,7 +44,7 @@ describe("ReceiptPage", () => {
 
     expect(await screen.findByText("RCV-001")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Thêm phiếu nhập" })).toHaveAttribute("href", "/receipts/create");
-    expect(screen.queryByLabelText("Số phiếu")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Số phiếu (*)")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Xác nhận phiếu RCV-001" }));
     expect(client.confirmReceipt).toHaveBeenCalledWith("receipt-a");
   });
@@ -55,13 +55,14 @@ describe("ReceiptPage", () => {
     render(<MemoryRouter><ReceiptCreatePage api={client} /></MemoryRouter>);
 
     await screen.findByRole("option", { name: "LOT-01 - Hàng theo lô" });
-    await user.type(screen.getByLabelText("Số phiếu"), "RCV-001");
-    await user.selectOptions(screen.getByLabelText("Sản phẩm"), "prod-lot");
-    await user.selectOptions(screen.getByLabelText("Vị trí"), "loc-a");
-    await user.clear(screen.getByLabelText("Số lượng"));
-    await user.type(screen.getByLabelText("Số lượng"), "5");
-    await user.type(screen.getByLabelText("Mã lô"), "LOT-A");
-    await user.type(screen.getByLabelText("Hạn dùng"), "2027-01-01");
+    await user.type(screen.getByLabelText("Số phiếu (*)"), "RCV-001");
+    await user.selectOptions(screen.getByLabelText("Sản phẩm (*)"), "prod-lot");
+    await user.selectOptions(screen.getByLabelText("Vị trí (*)"), "loc-a");
+    await user.clear(screen.getByLabelText("Số lượng (*)"));
+    await user.type(screen.getByLabelText("Số lượng (*)"), "5");
+    await user.type(screen.getByLabelText("Mã lô (*)"), "LOT-A");
+    expect(screen.getByLabelText("Ngày sản xuất")).not.toBeRequired();
+    await user.type(screen.getByLabelText("Hạn dùng (*)"), "2027-01-01");
     await user.click(screen.getByRole("button", { name: "Tạo phiếu nhập" }));
 
     expect(client.createReceipt).toHaveBeenCalledWith({

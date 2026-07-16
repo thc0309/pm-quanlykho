@@ -37,8 +37,8 @@ export function StockCountCreatePage({ api = stockCountApi }: { api?: StockCount
   return <form onSubmit={submit} className={`max-w-xl space-y-4 ${panelClass} p-5`}>
     <h1 className={pageTitleClass}>Tạo kiểm kê</h1>
     {created && <p role="status" className={successClass}>Đã freeze snapshot kiểm kê</p>}
-    <label className={labelClass}>Số kiểm kê<input name="countNo" required className={inputClass} /></label>
-    <label className={labelClass}>Tồn cần đếm<select name="stockBalanceId" required className={inputClass}><option value="">Chọn stock key</option>{balances.filter((item) => item.id).map((item) => <option key={item.id} value={item.id}>{item.sku} / {item.locationCode} / {item.onHand}</option>)}</select></label>
+    <label className={labelClass}>Số kiểm kê (*)<input name="countNo" required className={inputClass} /></label>
+    <label className={labelClass}>Tồn cần đếm (*)<select name="stockBalanceId" required className={inputClass}><option value="">Chọn tồn</option>{balances.filter((item) => item.id).map((item) => <option key={item.id} value={item.id}>{item.sku} / {item.locationCode} / {item.onHand}</option>)}</select></label>
     <button className={primaryButtonClass}>Freeze snapshot</button>
   </form>;
 }

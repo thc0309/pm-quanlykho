@@ -35,10 +35,10 @@ export function TransferCreatePage({ api = transferApi }: { api?: TransferClient
   return <form onSubmit={submit} className={`grid max-w-2xl gap-4 sm:grid-cols-2 ${panelClass} p-5`}>
     <h1 className={`sm:col-span-2 ${pageTitleClass}`}>Tạo transfer</h1>
     {created && <p role="status" className={`sm:col-span-2 ${successClass}`}>Đã tạo transfer</p>}
-    <label className={labelClass}>Số transfer<input name="transferNo" required className={inputClass} /></label>
-    <label className={labelClass}>Target warehouse ID<input name="targetWarehouseId" required className={inputClass} /></label>
-    <label className={labelClass}>Stock key<select name="stockBalanceId" required className={inputClass}><option value="">Chọn tồn</option>{balances.filter((item) => item.id).map((item) => <option key={item.id} value={item.id}>{item.sku} / {item.locationCode} / {item.available}</option>)}</select></label>
-    <label className={labelClass}>Số lượng<input name="quantity" type="number" min="0.0001" required className={inputClass} /></label>
+    <label className={labelClass}>Số phiếu chuyển (*)<input name="transferNo" required className={inputClass} /></label>
+    <label className={labelClass}>ID kho đích (*)<input name="targetWarehouseId" required className={inputClass} /></label>
+    <label className={labelClass}>Tồn nguồn (*)<select name="stockBalanceId" required className={inputClass}><option value="">Chọn tồn</option>{balances.filter((item) => item.id).map((item) => <option key={item.id} value={item.id}>{item.sku} / {item.locationCode} / {item.available}</option>)}</select></label>
+    <label className={labelClass}>Số lượng (*)<input name="quantity" type="number" min="0.0001" required className={inputClass} /></label>
     <button className={primaryButtonClass}>Tạo transfer</button>
   </form>;
 }

@@ -73,10 +73,10 @@ export function PurchaseCreatePage({ api = purchasingApi }: { api?: PurchasingCl
     <form onSubmit={submit} className={`grid max-w-2xl gap-4 sm:grid-cols-2 ${panelClass} p-5`}>
       <h1 className={`sm:col-span-2 ${pageTitleClass}`}>Tạo PO</h1>
       {created && <p role="status" className={`sm:col-span-2 ${successClass}`}>Đã tạo PO</p>}
-      <label className={labelClass}>Số PO<input name="orderNo" required className={inputClass} /></label>
-      <label className={labelClass}>Supplier<select name="supplierId" required className={inputClass}><option value="">Chọn supplier</option>{suppliers.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
-      <label className={labelClass}>Sản phẩm<select name="productId" required className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
-      <label className={labelClass}>Số lượng<input name="quantity" type="number" min="0.0001" defaultValue="1" required className={inputClass} /></label>
+      <label className={labelClass}>Số PO (*)<input name="orderNo" required className={inputClass} /></label>
+      <label className={labelClass}>Nhà cung cấp (*)<select name="supplierId" required className={inputClass}><option value="">Chọn nhà cung cấp</option>{suppliers.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
+      <label className={labelClass}>Sản phẩm (*)<select name="productId" required className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
+      <label className={labelClass}>Số lượng (*)<input name="quantity" type="number" min="0.0001" defaultValue="1" required className={inputClass} /></label>
       <button className={primaryButtonClass}>Tạo PO</button>
     </form>
   );

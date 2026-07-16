@@ -144,14 +144,14 @@ export function ReceiptCreatePage({ api = receiptApi }: { api?: ReceiptClient })
       {error && <p role="alert" className="rounded-lg bg-error-50 p-3 text-sm text-error-700 dark:bg-error-500/15 dark:text-error-400">{error}</p>}
       {success && <p role="status" className="rounded-lg bg-success-50 p-3 text-sm text-success-700 dark:bg-success-500/15 dark:text-success-400">{success}</p>}
       <form onSubmit={createReceipt} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
-        <label className={labelClass}>Số phiếu<input name="documentNo" required maxLength={80} className={inputClass} /></label>
-        <label className={labelClass}>Sản phẩm<select name="productId" required value={productId} onChange={(event) => setProductId(event.target.value)} className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
-        <label className={labelClass}>Vị trí<select name="locationId" required className={inputClass}><option value="">Chọn vị trí</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
-        <label className={labelClass}>Số lượng<input name="quantity" type="number" min="0.0001" step="0.0001" defaultValue="1" required className={inputClass} /></label>
-        {product?.trackingMode === "lot" && <label className={labelClass}>Mã lô<input name="lotCode" required maxLength={120} className={inputClass} /></label>}
-        {product?.trackingMode === "serial" && <label className={labelClass}>Serial<input name="serialCode" required maxLength={120} className={inputClass} /></label>}
+        <label className={labelClass}>Số phiếu (*)<input name="documentNo" required maxLength={80} className={inputClass} /></label>
+        <label className={labelClass}>Sản phẩm (*)<select name="productId" required value={productId} onChange={(event) => setProductId(event.target.value)} className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
+        <label className={labelClass}>Vị trí (*)<select name="locationId" required className={inputClass}><option value="">Chọn vị trí</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
+        <label className={labelClass}>Số lượng (*)<input name="quantity" type="number" min="0.0001" step="0.0001" defaultValue="1" required className={inputClass} /></label>
+        {product?.trackingMode === "lot" && <label className={labelClass}>Mã lô (*)<input name="lotCode" required maxLength={120} className={inputClass} /></label>}
+        {product?.trackingMode === "serial" && <label className={labelClass}>Serial (*)<input name="serialCode" required maxLength={120} className={inputClass} /></label>}
         {product?.trackingMode === "lot" && <label className={labelClass}>Ngày sản xuất<input name="manufacturedAt" type="date" className={inputClass} /></label>}
-        {product?.expiryManaged && <label className={labelClass}>Hạn dùng<input name="expiresAt" type="date" required className={inputClass} /></label>}
+        {product?.expiryManaged && <label className={labelClass}>Hạn dùng (*)<input name="expiresAt" type="date" required className={inputClass} /></label>}
         <div className="sm:col-span-2 flex gap-3"><button type="submit" disabled={saving} className={primaryButtonClass}>{saving ? "Đang lưu…" : "Tạo phiếu nhập"}</button><Link to="/receipts" className="inline-flex h-11 items-center px-4 text-sm font-medium text-gray-700 dark:text-gray-300">Quay lại</Link></div>
       </form>
     </div>

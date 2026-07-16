@@ -91,13 +91,13 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Áp dụng `(*)` và tiếng Việt cho form đơn mua, nhập, xuất, bán, trả hàng, chuyển kho, kiểm kê.
 
 **Acceptance criteria:**
-- [ ] Tất cả field required trong form chứng từ có `(*)`.
-- [ ] Label user-facing dùng tiếng Việt; giữ `SKU`, `barcode`, `ID` khi là thuật ngữ kỹ thuật.
-- [ ] Test cập nhật theo label mới.
+- [x] Tất cả field required trong form chứng từ có `(*)`.
+- [x] Label user-facing dùng tiếng Việt; giữ `SKU`, `barcode`, `ID` khi là thuật ngữ kỹ thuật.
+- [x] Test cập nhật theo label mới.
 
 **Verification:**
-- [ ] `npm test --prefix frontend -- --run PurchasingPage ReceiptPage OutboundPage SalesPage ReturnsPage TransfersPage StockCountsPage`
-- [ ] `npm run build --prefix frontend`
+- [x] `npm test --prefix frontend -- --run PurchasingPage ReceiptPage OutboundPage SalesPage ReturnsPage TransfersPage StockCountsPage` — 7 file, 14 test pass.
+- [x] `npm run build --prefix frontend` — TypeScript và Vite build pass.
 
 **Dependencies:** T29
 
@@ -114,9 +114,9 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 ### Checkpoint A — Required labels
 
-- [ ] T29-T30 pass.
-- [ ] Không còn form chính thiếu `(*)`.
-- [ ] Human review tiếng Việt/thuật ngữ.
+- [x] T29-T30 pass.
+- [x] Không còn form chính thiếu `(*)`.
+- [x] Rà soát thủ công tiếng Việt/thuật ngữ; giữ `PO`, `SKU`, `ID`, `barcode` khi phù hợp.
 
 ### Phase 2 — User metadata và avatar
 

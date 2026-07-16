@@ -13,13 +13,13 @@ describe("OutboundPage", () => {
   it("keeps the list separate and releases a draft", async () => {
     const api = client({ listOutbounds: vi.fn().mockResolvedValue([{ id: "out-a", documentNo: "OUT-001", status: "draft", lineCount: 1, reservedUntil: null, createdAt: "2026-07-15T00:00:00Z" }]), releaseOutbound: vi.fn().mockResolvedValue({ alreadyReleased: false, reservedUntil: "2026-07-15T00:30:00Z" }) });
     const user = userEvent.setup(); render(<MemoryRouter><OutboundPage api={api} /></MemoryRouter>);
-    expect(await screen.findByText("OUT-001")).toBeTruthy(); expect(screen.queryByLabelText("Số phiếu")).not.toBeInTheDocument();
+    expect(await screen.findByText("OUT-001")).toBeTruthy(); expect(screen.queryByLabelText("Số phiếu (*)")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Release phiếu OUT-001" }));
     expect(api.releaseOutbound).toHaveBeenCalledWith("out-a"); expect(await screen.findByText("Sẵn sàng soạn")).toBeTruthy();
   });
   it("creates a draft from a dedicated form", async () => {
     const api = client({ createOutbound: vi.fn().mockResolvedValue({ id: "out-a" }) }); const user = userEvent.setup(); render(<MemoryRouter><OutboundCreatePage api={api} /></MemoryRouter>);
-    await screen.findByRole("option", { name: "SKU-A - Sản phẩm A" }); await user.type(screen.getByLabelText("Số phiếu"), "OUT-001"); await user.selectOptions(screen.getByLabelText("Sản phẩm"), "product-a"); await user.clear(screen.getByLabelText("Số lượng")); await user.type(screen.getByLabelText("Số lượng"), "3"); await user.click(screen.getByRole("button", { name: "Tạo phiếu xuất" }));
+    await screen.findByRole("option", { name: "SKU-A - Sản phẩm A" }); await user.type(screen.getByLabelText("Số phiếu (*)"), "OUT-001"); await user.selectOptions(screen.getByLabelText("Sản phẩm (*)"), "product-a"); await user.clear(screen.getByLabelText("Số lượng (*)")); await user.type(screen.getByLabelText("Số lượng (*)"), "3"); await user.click(screen.getByRole("button", { name: "Tạo phiếu xuất" }));
     expect(api.createOutbound).toHaveBeenCalledWith({ documentNo: "OUT-001", lines: [{ productId: "product-a", quantity: 3 }] }); expect(await screen.findByText("Đã tạo phiếu xuất")).toBeTruthy();
   });
 });

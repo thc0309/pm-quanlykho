@@ -410,13 +410,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Role backend hỗ trợ sửa tên/quyền và xóa role chưa gán user.
 
 **Acceptance criteria:**
-- [ ] Update role không cho permission rỗng.
-- [ ] Delete role bị chặn khi đang gán user.
-- [ ] Audit update/delete.
+- [x] Update role không cho permission rỗng.
+- [x] Delete role bị chặn khi đang hoặc đã từng gán user.
+- [x] Audit update/delete.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern admin`
-- [ ] `npm run build --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern admin` — 86/86 test pass.
+- [x] `npm run build --prefix backend`
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T34
 

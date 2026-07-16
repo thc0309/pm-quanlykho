@@ -71,6 +71,8 @@ export interface AdminStore {
   setUserStatus(userId: string, status: "active" | "inactive"): Promise<AdminUser | null>;
   listRoles(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminRole>>;
   createRole(input: Omit<AdminRole, "id">): Promise<AdminRole>;
+  updateRole(warehouseId: string, roleId: string, input: Pick<AdminRole, "name" | "permissions">): Promise<AdminRole | null>;
+  deleteRole(warehouseId: string, roleId: string): Promise<boolean>;
   findRoleWarehouses(roleIds: string[]): Promise<string[]>;
   setUserRoles(userId: string, roleIds: string[]): Promise<void>;
 }
@@ -102,7 +104,8 @@ const roleSchema = z.object({
     (codes) => new Set(codes).size === codes.length,
     "Danh sách quyền không được trùng lặp",
   ),
-});
+}).strict();
+const roleUpdateSchema = roleSchema.omit({ code: true });
 const assignmentSchema = z.object({ roleIds: z.array(z.string().min(1)).max(20) });
 
 async function warehouseFor(context: Context, actor: AccessActor, store: AdminStore) {
@@ -384,6 +387,46 @@ export function registerAdminRoutes(
     return c.json({ role: role! }, 201);
   });
 
+  app.patch("/api/admin/roles/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/admin/roles/:id"]);
+    const warehouseId = await warehouseFor(c, current, adminStore);
+    const roleId = c.req.param("id");
+    const input = await parseJson(c, roleUpdateSchema);
+    const role = await adminStore.updateRole(warehouseId, roleId, input);
+    if (!role) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy vai trò");
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "admin.role.update",
+      entityType: "role",
+      entityId: role.id,
+      metadata: { permissions: input.permissions },
+    });
+    return c.json({ role });
+  });
+
+  app.delete("/api/admin/roles/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["DELETE /api/admin/roles/:id"]);
+    const warehouseId = await warehouseFor(c, current, adminStore);
+    const roleId = c.req.param("id");
+    let deleted: boolean;
+    try {
+      deleted = await adminStore.deleteRole(warehouseId, roleId);
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "ROLE_ASSIGNED") {
+        throw new HttpError(409, "ROLE_ASSIGNED", "Vai trò đã được gán cho người dùng nên không thể xóa");
+      }
+      throw error;
+    }
+    if (!deleted) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy vai trò");
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "admin.role.delete",
+      entityType: "role",
+      entityId: roleId,
+    });
+    return c.body(null, 204);
+  });
+
   app.put("/api/admin/users/:id/roles", async (c) => {
     const current = await actor(c, routePermissionCatalog["PUT /api/admin/users/:id/roles"]);
     const targetId = c.req.param("id");
@@ -555,6 +598,70 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
         );
         await client.query("COMMIT");
         return { ...role, permissions: input.permissions };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    async updateRole(warehouseId, roleId, input) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const locked = await client.query<Omit<AdminRole, "permissions">>(
+          `SELECT id, warehouse_id AS "warehouseId", code, name
+           FROM roles WHERE id = $1 AND warehouse_id = $2 FOR UPDATE`,
+          [roleId, warehouseId],
+        );
+        const role = locked.rows[0];
+        if (!role) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+        await client.query(`UPDATE roles SET name = $3, updated_at = now() WHERE id = $1 AND warehouse_id = $2`, [roleId, warehouseId, input.name]);
+        await client.query(`DELETE FROM role_permission_codes WHERE role_id = $1`, [roleId]);
+        await client.query(
+          `INSERT INTO role_permission_codes (role_id, permission_code)
+           SELECT $1, unnest($2::text[])`,
+          [roleId, input.permissions],
+        );
+        await client.query("COMMIT");
+        return { ...role, name: input.name, permissions: input.permissions };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    async deleteRole(warehouseId, roleId) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const locked = await client.query<{ id: string }>(
+          `SELECT id FROM roles WHERE id = $1 AND warehouse_id = $2 FOR UPDATE`,
+          [roleId, warehouseId],
+        );
+        if (!locked.rows[0]) {
+          await client.query("ROLLBACK");
+          return false;
+        }
+        const assigned = await client.query<{ assigned: boolean }>(
+          `SELECT EXISTS (
+             SELECT 1 FROM user_roles WHERE role_id = $1
+             UNION ALL
+             SELECT 1 FROM audit_logs
+             WHERE action = 'admin.user.roles' AND (metadata -> 'roleIds') ? $2
+           ) AS assigned`,
+          [roleId, roleId],
+        );
+        if (assigned.rows[0]?.assigned) {
+          throw Object.assign(new Error("Role assigned"), { code: "ROLE_ASSIGNED" });
+        }
+        await client.query(`DELETE FROM roles WHERE id = $1 AND warehouse_id = $2`, [roleId, warehouseId]);
+        await client.query("COMMIT");
+        return true;
       } catch (error) {
         await client.query("ROLLBACK");
         throw error;

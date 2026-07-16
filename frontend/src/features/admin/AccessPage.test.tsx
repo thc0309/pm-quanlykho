@@ -85,6 +85,8 @@ function client(): AdminClient {
       name: "Nhân viên soạn",
       permissions: ["picking.update"],
     }),
+    updateRole: vi.fn(),
+    deleteRole: vi.fn(),
     setUserRoles: vi.fn(),
   };
 }

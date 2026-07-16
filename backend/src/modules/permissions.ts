@@ -80,6 +80,8 @@ export const routePermissionCatalog = {
   "GET /api/admin/roles": "admin.roles.view",
   "GET /api/admin/permissions": "admin.roles.view",
   "POST /api/admin/roles": "admin.roles.create",
+  "PATCH /api/admin/roles/:id": "admin.roles.update",
+  "DELETE /api/admin/roles/:id": "admin.roles.delete",
   "GET /api/locations": "locations.view",
   "POST /api/locations": "locations.create",
   "PATCH /api/locations/:id": "locations.update",

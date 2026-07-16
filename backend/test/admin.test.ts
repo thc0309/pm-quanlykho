@@ -42,6 +42,7 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
   permissions = new Map<string, string[]>();
   roles: AdminRole[] = [];
   userRoles = new Map<string, string[]>();
+  assignedRoleIds = new Set<string>();
   audits: AuditEntry[] = [];
   warehouseIds = ["warehouse-a"];
 
@@ -118,11 +119,26 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
     this.roles.push(role);
     return role;
   }
+  async updateRole(warehouseId: string, roleId: string, input: Pick<AdminRole, "name" | "permissions">) {
+    const role = this.roles.find((candidate) => candidate.id === roleId && candidate.warehouseId === warehouseId);
+    if (!role) return null;
+    role.name = input.name;
+    role.permissions = [...input.permissions];
+    return role;
+  }
+  async deleteRole(warehouseId: string, roleId: string) {
+    const index = this.roles.findIndex((candidate) => candidate.id === roleId && candidate.warehouseId === warehouseId);
+    if (index < 0) return false;
+    if (this.assignedRoleIds.has(roleId)) throw Object.assign(new Error("role assigned"), { code: "ROLE_ASSIGNED" });
+    this.roles.splice(index, 1);
+    return true;
+  }
   async findRoleWarehouses(roleIds: string[]) {
     return this.roles.filter((role) => roleIds.includes(role.id)).map((role) => role.warehouseId);
   }
   async setUserRoles(userId: string, roleIds: string[]) {
     this.userRoles.set(userId, roleIds);
+    for (const roleId of roleIds) this.assignedRoleIds.add(roleId);
   }
 }
 
@@ -416,10 +432,76 @@ test("admin view permissions cannot mutate users or roles", async () => {
       headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ code: "blocked", name: "Role bị chặn", permissions: ["inventory.view"] }),
     }),
+    app.request("/api/admin/roles/role-blocked", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Không được sửa", permissions: ["inventory.view"] }),
+    }),
+    app.request("/api/admin/roles/role-blocked", {
+      method: "DELETE",
+      headers: { cookie },
+    }),
   ];
   for (const response of await Promise.all(mutations)) assert.equal(response.status, 403);
   assert.equal(store.users.length, 2);
   assert.equal(store.roles.length, 0);
+  assert.equal(store.audits.length, 0);
+});
+
+test("admin updates role permissions atomically and deletes an unused role", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  const role = await store.createRole({ warehouseId: "warehouse-a", code: "picker", name: "Nhân viên lấy hàng", permissions: ["outbounds.view"] });
+
+  const updated = await app.request(`/api/admin/roles/${role.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Nhân viên soạn hàng", permissions: ["outbounds.view", "picking.update"] }),
+  });
+  assert.equal(updated.status, 200);
+  assert.deepEqual((await updated.json()).role.permissions, ["outbounds.view", "picking.update"]);
+  assert.equal(role.code, "picker");
+
+  const unused = await store.createRole({ warehouseId: "warehouse-a", code: "unused", name: "Vai trò chưa dùng", permissions: ["inventory.view"] });
+  assert.equal((await app.request(`/api/admin/roles/${unused.id}`, { method: "DELETE", headers: { cookie } })).status, 204);
+  assert.equal(store.roles.some((candidate) => candidate.id === unused.id), false);
+  assert.deepEqual(store.audits.slice(-2).map((entry) => entry.action), ["admin.role.update", "admin.role.delete"]);
+});
+
+test("admin role mutations reject invalid, assigned and cross-warehouse changes", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  const role = await store.createRole({ warehouseId: "warehouse-a", code: "checker", name: "Nhân viên kiểm hàng", permissions: ["outbounds.view"] });
+
+  for (const body of [
+    { name: "Rỗng", permissions: [] },
+    { name: "Sai quyền", permissions: ["unknown.permission"] },
+    { name: "Trùng quyền", permissions: ["outbounds.view", "outbounds.view"] },
+    { code: "changed", name: "Đổi code", permissions: ["outbounds.view"] },
+  ]) {
+    const response = await app.request(`/api/admin/roles/${role.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify(body),
+    });
+    assert.equal(response.status, 422);
+  }
+  assert.equal(role.name, "Nhân viên kiểm hàng");
+  assert.deepEqual(role.permissions, ["outbounds.view"]);
+
+  await store.setUserRoles("inside-user", [role.id]);
+  await store.setUserRoles("inside-user", []);
+  const assigned = await app.request(`/api/admin/roles/${role.id}`, { method: "DELETE", headers: { cookie } });
+  assert.equal(assigned.status, 409);
+  assert.match((await assigned.json()).error.message, /đã được gán/);
+
+  const outside = await store.createRole({ warehouseId: "warehouse-b", code: "outside", name: "Kho khác", permissions: ["inventory.view"] });
+  assert.equal((await app.request(`/api/admin/roles/${outside.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Không được sửa", permissions: ["inventory.view"] }),
+  })).status, 404);
+  assert.equal((await app.request(`/api/admin/roles/${outside.id}`, { method: "DELETE", headers: { cookie } })).status, 404);
   assert.equal(store.audits.length, 0);
 });
 

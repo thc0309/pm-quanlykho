@@ -98,6 +98,8 @@ export interface AdminClient {
     name: string;
     permissions: string[];
   }): Promise<AdminRole>;
+  updateRole(id: string, input: Pick<AdminRole, "name" | "permissions">): Promise<AdminRole>;
+  deleteRole(id: string): Promise<void>;
   setUserRoles(userId: string, roleIds: string[]): Promise<void>;
 }
 
@@ -428,6 +430,17 @@ export const adminApi: AdminClient = {
         body: JSON.stringify(input),
       })
     ).role;
+  },
+  async updateRole(id, input) {
+    return (
+      await request<{ role: AdminRole }>(`/api/admin/roles/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+    ).role;
+  },
+  deleteRole(id) {
+    return request(`/api/admin/roles/${id}`, { method: "DELETE" });
   },
   setUserRoles(userId, roleIds) {
     return request(`/api/admin/users/${userId}/roles`, {

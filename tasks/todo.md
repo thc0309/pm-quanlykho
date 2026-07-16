@@ -29,8 +29,8 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 - [x] [T39 Update/status cho danh mục và đơn vị](task-detail/task-39.md).
 - [x] [T40 Update/status cho vị trí kho](task-detail/task-40.md).
 - [x] [T41 Update/status cho sản phẩm](task-detail/task-41.md).
-- [ ] [T42 Update/delete an toàn cho role](task-detail/task-42.md).
-- [ ] Checkpoint D reviewed.
+- [x] [T42 Update/delete an toàn cho role](task-detail/task-42.md).
+- [x] Checkpoint D reviewed.
 
 ## Phase 5 — Metadata UI actions
 

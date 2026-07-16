@@ -87,7 +87,10 @@ async function setup() {
       status: "active",
     },
   );
-  store.permissions.set("admin-a", ["catalog.manage"]);
+  store.permissions.set("admin-a", [
+    "catalog.categories.view", "catalog.categories.create",
+    "catalog.units.view", "catalog.units.create",
+  ]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerCatalogRoutes(app, store, store, store, secret);
@@ -169,9 +172,21 @@ test("catalog rejects invalid and ambiguous conversions", async () => {
   }
 });
 
-test("catalog management requires permission", async () => {
-  const { app } = await setup();
+test("catalog view permissions cannot create category or unit", async () => {
+  const { app, store } = await setup();
+  store.permissions.set("denied-a", ["catalog.categories.view", "catalog.units.view"]);
   const cookie = await login(app, "denied@example.test");
-  const response = await app.request("/api/catalog/categories", { headers: { cookie } });
-  assert.equal(response.status, 403);
+  assert.equal((await app.request("/api/catalog/categories", { headers: { cookie } })).status, 200);
+  assert.equal((await app.request("/api/catalog/units", { headers: { cookie } })).status, 200);
+  for (const [path, body] of [
+    ["/api/catalog/categories", { code: "NO", name: "Không tạo" }],
+    ["/api/catalog/units", { code: "NO", name: "Không tạo" }],
+  ] as const) {
+    assert.equal((await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify(body),
+    })).status, 403);
+  }
+  assert.equal(store.audits.length, 0);
 });

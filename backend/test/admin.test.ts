@@ -161,7 +161,7 @@ async function setup(options: { avatarDir?: string } = {}) {
       status: "active",
     },
   );
-  store.permissions.set("admin-a", ["admin.access.manage"]);
+  store.permissions.set("admin-a", permissionCodes);
   store.users.push({
     id: "outside-user",
     email: "outside@example.test",
@@ -361,6 +361,52 @@ test("warehouse admin cannot disable a user in another warehouse", async () => {
     body: JSON.stringify({ status: "inactive" }),
   });
   assert.equal(response.status, 403);
+});
+
+test("admin view permissions cannot mutate users or roles", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  store.users.push({
+    id: "inside-user",
+    email: "inside@example.test",
+    fullName: "Inside",
+    phone: "0900000003",
+    ...emptyMetadata,
+    kind: "warehouse_user",
+    warehouseId: "warehouse-a",
+    status: "active",
+  });
+
+  store.permissions.set("admin-a", ["admin.users.view", "admin.roles.view"]);
+  assert.equal((await app.request("/api/admin/users", { headers: { cookie } })).status, 200);
+  assert.equal((await app.request("/api/admin/roles", { headers: { cookie } })).status, 200);
+
+  const mutations = [
+    app.request("/api/admin/users", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ email: "blocked@example.test", fullName: "Blocked User", phone: "0901234567" }),
+    }),
+    app.request("/api/admin/users/inside-user", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ fullName: "Không được sửa" }),
+    }),
+    app.request("/api/admin/users/inside-user/status", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ status: "inactive" }),
+    }),
+    app.request("/api/admin/roles", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ code: "blocked", name: "Role bị chặn", permissions: ["inventory.view"] }),
+    }),
+  ];
+  for (const response of await Promise.all(mutations)) assert.equal(response.status, 403);
+  assert.equal(store.users.length, 2);
+  assert.equal(store.roles.length, 0);
+  assert.equal(store.audits.length, 0);
 });
 
 test("avatar upload is scoped, replaces the old file and serves fixed WebP", async () => {

@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 type Page<T> = { data: T[]; total: number };
 
@@ -97,18 +98,18 @@ export function registerPartnerRoutes(
   store: PartnerStore,
   sessionSecret: string,
 ) {
-  const actor = (context: Context) =>
-    requireAccess(context, authStore, accessStore, sessionSecret, { permission: "partners.manage" });
+  const actor = (context: Context, permission: PermissionCode) =>
+    requireAccess(context, authStore, accessStore, sessionSecret, { permission });
 
   app.get("/api/partners", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/partners"]);
     const pagination = parsePagination(c.req.query());
     const result = await store.listPartners(warehouseScopeFor(c, current), pagination.pageSize, pagination.offset);
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
   app.post("/api/partners", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/partners"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, partnerSchema);
     let partner: Partner;
@@ -129,7 +130,7 @@ export function registerPartnerRoutes(
   });
 
   app.patch("/api/partners/:id", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["PATCH /api/partners/:id"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, partnerUpdateSchema);
     const update: Partial<Pick<Partner, "name" | "taxCode" | "phone" | "email" | "address">> = {};
@@ -145,7 +146,7 @@ export function registerPartnerRoutes(
   });
 
   app.patch("/api/partners/:id/status", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["PATCH /api/partners/:id/status"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, statusSchema);
     const partner = await store.setPartnerStatus(warehouseId, c.req.param("id"), input.status);

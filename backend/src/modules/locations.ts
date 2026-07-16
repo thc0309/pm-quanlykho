@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 export interface WarehouseLocation {
   id: string;
@@ -59,15 +60,16 @@ function warehouseScopeFor(context: Context, actor: AccessActor) {
 }
 
 export function registerLocationRoutes(app: Hono, authStore: AuthStore, accessStore: AccessStore, store: LocationStore, sessionSecret: string) {
-  const actor = (context: Context, manage = false) => requireAccess(context, authStore, accessStore, sessionSecret, manage ? { permission: "admin.access.manage" } : {});
+  const actor = (context: Context, permission: PermissionCode) =>
+    requireAccess(context, authStore, accessStore, sessionSecret, { permission });
 
   app.get("/api/locations", async (c) => {
-    const current = await actor(c, true);
+    const current = await actor(c, routePermissionCatalog["GET /api/locations"]);
     return c.json({ data: await store.list(warehouseScopeFor(c, current)) });
   });
 
   app.post("/api/locations", async (c) => {
-    const current = await actor(c, true);
+    const current = await actor(c, routePermissionCatalog["POST /api/locations"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, locationSchema);
     let location: WarehouseLocation;
@@ -82,7 +84,7 @@ export function registerLocationRoutes(app: Hono, authStore: AuthStore, accessSt
   });
 
   app.get("/api/locations/lookup/:barcode", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/locations/lookup/:barcode"]);
     const warehouseId = await warehouseFor(c, current, store);
     const barcode = z.string().trim().min(1).max(100).safeParse(c.req.param("barcode"));
     if (!barcode.success) throw new HttpError(422, "VALIDATION_ERROR", "Barcode không hợp lệ");

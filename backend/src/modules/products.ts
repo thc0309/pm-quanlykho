@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 type Page<T> = { data: T[]; total: number };
 
@@ -109,18 +110,18 @@ export function registerProductRoutes(
   store: ProductStore,
   sessionSecret: string,
 ) {
-  const actor = (context: Context) =>
-    requireAccess(context, authStore, accessStore, sessionSecret, { permission: "products.manage" });
+  const actor = (context: Context, permission: PermissionCode) =>
+    requireAccess(context, authStore, accessStore, sessionSecret, { permission });
 
   app.get("/api/products", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/products"]);
     const pagination = parsePagination(c.req.query());
     const result = await store.listProducts(warehouseScopeFor(c, current), pagination.pageSize, pagination.offset);
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
   app.post("/api/products", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/products"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, productSchema);
     let product: Product;
@@ -145,7 +146,7 @@ export function registerProductRoutes(
   });
 
   app.get("/api/products/lookup/:barcode", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/products/lookup/:barcode"]);
     const warehouseId = await warehouseFor(c, current, store);
     const barcode = z.string().trim().min(1).max(80).parse(c.req.param("barcode"));
     const product = await store.findByBarcode(warehouseId, barcode);

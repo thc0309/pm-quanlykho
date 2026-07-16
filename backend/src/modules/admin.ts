@@ -21,7 +21,12 @@ import {
   MAX_AVATAR_INPUT_BYTES,
   processAvatar,
 } from "./avatar.js";
-import { isPermissionCode, permissionCodes } from "./permissions.js";
+import {
+  isPermissionCode,
+  permissionCodes,
+  routePermissionCatalog,
+  type PermissionCode,
+} from "./permissions.js";
 
 export interface AdminUser {
   id: string;
@@ -153,13 +158,13 @@ export function registerAdminRoutes(
   options: { avatarDir?: string } = {},
 ) {
   const avatarDir = options.avatarDir ?? join(process.cwd(), "uploads", "avatars");
-  const actor = (context: Context) =>
+  const actor = (context: Context, permission: PermissionCode) =>
     requireAccess(context, authStore, accessStore, sessionSecret, {
-      permission: "admin.access.manage",
+      permission,
     });
 
   app.get("/api/admin/users", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/admin/users"]);
     const warehouseId = warehouseScopeFor(c, current);
     const pagination = parsePagination(c.req.query());
     const result = await adminStore.listUsers(
@@ -179,7 +184,7 @@ export function registerAdminRoutes(
   });
 
   app.post("/api/admin/users", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/admin/users"]);
     const warehouseId = await warehouseFor(c, current, adminStore);
     const input = await parseJson(c, userSchema);
     const temporaryPassword = randomBytes(12).toString("base64url");
@@ -207,7 +212,7 @@ export function registerAdminRoutes(
   });
 
   app.patch("/api/admin/users/:id/status", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["PATCH /api/admin/users/:id/status"]);
     const targetId = c.req.param("id");
     const { status } = await parseJson(c, statusSchema);
     if (targetId === current.user.id && status === "inactive") {
@@ -247,7 +252,7 @@ export function registerAdminRoutes(
   });
 
   app.patch("/api/admin/users/:id", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["PATCH /api/admin/users/:id"]);
     const targetId = c.req.param("id");
     const warehouseId = await adminStore.findUserWarehouse(targetId);
     assertWarehouse(current, warehouseId);
@@ -281,7 +286,7 @@ export function registerAdminRoutes(
       }, 413),
     }),
     async (c) => {
-      const current = await actor(c);
+      const current = await actor(c, routePermissionCatalog["POST /api/admin/users/:id/avatar"]);
       const targetId = c.req.param("id");
       const warehouseId = await adminStore.findUserWarehouse(targetId);
       assertWarehouse(current, warehouseId);
@@ -335,7 +340,7 @@ export function registerAdminRoutes(
   );
 
   app.get("/api/admin/roles", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/admin/roles"]);
     const warehouseId = warehouseScopeFor(c, current);
     const pagination = parsePagination(c.req.query());
     const result = await adminStore.listRoles(
@@ -355,7 +360,7 @@ export function registerAdminRoutes(
   });
 
   app.post("/api/admin/roles", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/admin/roles"]);
     const warehouseId = await warehouseFor(c, current, adminStore);
     const input = await parseJson(c, roleSchema);
     let role: AdminRole;
@@ -374,7 +379,7 @@ export function registerAdminRoutes(
   });
 
   app.put("/api/admin/users/:id/roles", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["PUT /api/admin/users/:id/roles"]);
     const targetId = c.req.param("id");
     const { roleIds } = await parseJson(c, assignmentSchema);
     const warehouseId = await adminStore.findUserWarehouse(targetId);

@@ -53,7 +53,7 @@ async function setup() {
     kind: "master_admin", warehouseId: null,
     passwordHash: await hashPassword("secure-password"), mustChangePassword: false, status: "active",
   });
-  store.permissions.set("admin-a", ["admin.access.manage"]);
+  store.permissions.set("admin-a", ["locations.view", "locations.create"]);
   store.locations.push({ id: "foreign", warehouseId: "warehouse-b", code: "B-01", barcode: "FOREIGN-SCAN", name: "Kho B", type: "storage", status: "active" });
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
@@ -109,4 +109,17 @@ test("master can list locations across warehouses", async () => {
   const response = await app.request("/api/locations", { headers: { cookie } });
   assert.equal(response.status, 200);
   assert.deepEqual((await response.json()).data.map((item: WarehouseLocation) => item.id), ["foreign", "own"]);
+});
+
+test("location view permission cannot create a location", async () => {
+  const { app, store, cookie } = await setup();
+  store.permissions.set("admin-a", ["locations.view"]);
+  assert.equal((await app.request("/api/locations", { headers: { cookie } })).status, 200);
+  const response = await app.request("/api/locations", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ code: "NO-01", barcode: "NO-SCAN", name: "Không tạo", type: "storage" }),
+  });
+  assert.equal(response.status, 403);
+  assert.equal(store.audits.length, 0);
 });

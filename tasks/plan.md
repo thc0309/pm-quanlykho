@@ -237,13 +237,13 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Thay checks tổng quát bằng quyền action cụ thể cho users, roles, locations, catalog, products, partners.
 
 **Acceptance criteria:**
-- [ ] `view/create/update/delete` được kiểm tra theo endpoint/action.
-- [ ] User có `view` nhưng thiếu `create/update/delete` bị 403 khi gọi API tương ứng.
-- [ ] UI hiding không phải lớp bảo mật duy nhất; backend test cover trực tiếp.
+- [x] `view/create/update/delete` được kiểm tra theo endpoint/action.
+- [x] User có `view` nhưng thiếu `create/update/delete` bị 403 khi gọi API tương ứng.
+- [x] UI hiding không phải lớp bảo mật duy nhất; backend test cover trực tiếp và xác nhận không ghi audit giả.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern "access|admin|catalog|location|product|partner"`
-- [ ] `npm run build --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern "access|admin|catalog|location|product|partner"` — 75/75 test pass.
+- [x] `npm run build --prefix backend`
 
 **Dependencies:** T34
 

@@ -78,8 +78,8 @@ async function setup() {
       status: "active",
     },
   );
-  store.permissions.set("admin-a", ["partners.manage"]);
-  store.permissions.set("admin-b", ["partners.manage"]);
+  store.permissions.set("admin-a", ["partners.view", "partners.create", "partners.update", "partners.delete"]);
+  store.permissions.set("admin-b", ["partners.view", "partners.create", "partners.update", "partners.delete"]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerPartnerRoutes(app, store, store, store, secret);
@@ -156,4 +156,21 @@ test("partners reject duplicate code and cannot cross warehouse", async () => {
   store.partners.push({ id: randomUUID(), warehouseId: "warehouse-b", code: "CUS-1", name: "Khách hàng kho B", kind: "customer", taxCode: null, phone: null, email: null, address: null, status: "active" });
   const listB = await app.request("/api/partners", { headers: { cookie: cookieB } });
   assert.equal((await listB.json()).pagination.totalItems, 1);
+});
+
+test("partner view permission cannot create, update or disable", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  store.permissions.set("admin-a", ["partners.view"]);
+  store.partners.push({ id: "partner-a", warehouseId: "warehouse-a", code: "CUS-1", name: "Khách hàng", kind: "customer", taxCode: null, phone: null, email: null, address: null, status: "active" });
+  assert.equal((await app.request("/api/partners", { headers: { cookie } })).status, 200);
+  const mutations = [
+    app.request("/api/partners", { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ code: "NO", name: "Không tạo", kind: "customer" }) }),
+    app.request("/api/partners/partner-a", { method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ name: "Không sửa" }) }),
+    app.request("/api/partners/partner-a/status", { method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ status: "inactive" }) }),
+  ];
+  for (const response of await Promise.all(mutations)) assert.equal(response.status, 403);
+  assert.equal(store.partners[0]?.name, "Khách hàng");
+  assert.equal(store.partners[0]?.status, "active");
+  assert.equal(store.audits.length, 0);
 });

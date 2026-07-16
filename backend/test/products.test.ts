@@ -72,7 +72,7 @@ async function setup() {
       status: "active",
     },
   );
-  store.permissions.set("admin-a", ["products.manage"]);
+  store.permissions.set("admin-a", ["products.view", "products.create"]);
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
   registerProductRoutes(app, store, store, store, secret);
@@ -150,9 +150,16 @@ test("products reject duplicate sku, duplicate barcode and invalid tracking poli
   }
 });
 
-test("product management requires permission", async () => {
-  const { app } = await setup();
+test("product view permission cannot create a product", async () => {
+  const { app, store } = await setup();
+  store.permissions.set("denied-a", ["products.view"]);
   const cookie = await login(app, "denied@example.test");
-  const response = await app.request("/api/products", { headers: { cookie } });
+  assert.equal((await app.request("/api/products", { headers: { cookie } })).status, 200);
+  const response = await app.request("/api/products", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ sku: "NO-SKU", name: "Không tạo", trackingMode: "none", barcodes: ["NO-BC"] }),
+  });
   assert.equal(response.status, 403);
+  assert.equal(store.audits.length, 0);
 });

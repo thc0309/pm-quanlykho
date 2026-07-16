@@ -6,6 +6,7 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 type Page<T> = { data: T[]; total: number };
 
@@ -109,18 +110,18 @@ export function registerCatalogRoutes(
   store: CatalogStore,
   sessionSecret: string,
 ) {
-  const actor = (context: Context) =>
-    requireAccess(context, authStore, accessStore, sessionSecret, { permission: "catalog.manage" });
+  const actor = (context: Context, permission: PermissionCode) =>
+    requireAccess(context, authStore, accessStore, sessionSecret, { permission });
 
   app.get("/api/catalog/categories", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/catalog/categories"]);
     const pagination = parsePagination(c.req.query());
     const result = await store.listCategories(warehouseScopeFor(c, current), pagination.pageSize, pagination.offset);
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
   app.post("/api/catalog/categories", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/catalog/categories"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, categorySchema);
     let category: CatalogCategory;
@@ -134,14 +135,14 @@ export function registerCatalogRoutes(
   });
 
   app.get("/api/catalog/units", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["GET /api/catalog/units"]);
     const pagination = parsePagination(c.req.query());
     const result = await store.listUnits(warehouseScopeFor(c, current), pagination.pageSize, pagination.offset);
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
   app.post("/api/catalog/units", async (c) => {
-    const current = await actor(c);
+    const current = await actor(c, routePermissionCatalog["POST /api/catalog/units"]);
     const warehouseId = await warehouseFor(c, current, store);
     const input = await parseJson(c, unitSchema);
     const baseUnitId = input.baseUnitId ?? null;

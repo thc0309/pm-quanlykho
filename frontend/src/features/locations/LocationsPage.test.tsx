@@ -19,6 +19,8 @@ describe("LocationsPage", () => {
     const api: LocationClient = {
       listLocations: vi.fn().mockResolvedValue([]),
       createLocation: vi.fn().mockImplementation(async (input) => ({ id: "location-1", warehouseId: "warehouse-a", status: "active", ...input })),
+      updateLocation: vi.fn(),
+      setLocationStatus: vi.fn(),
       findLocationByBarcode: vi.fn(),
     };
     const user = userEvent.setup();
@@ -48,6 +50,8 @@ describe("LocationsPage", () => {
         },
       ]),
       createLocation: vi.fn(),
+      updateLocation: vi.fn(),
+      setLocationStatus: vi.fn(),
       findLocationByBarcode: vi.fn(),
     };
 

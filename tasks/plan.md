@@ -369,13 +369,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Sửa tên/barcode/loại location và vô hiệu hóa an toàn.
 
 **Acceptance criteria:**
-- [ ] Duplicate code/barcode bị reject.
-- [ ] Không vô hiệu hóa location còn tồn hoặc đang được chứng từ/picking/checking tham chiếu.
-- [ ] Audit update/status.
+- [x] Duplicate code/barcode bị reject.
+- [x] Không vô hiệu hóa location còn tồn hoặc đang được chứng từ/picking/checking tham chiếu.
+- [x] Audit update/status.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern location`
-- [ ] `npm run build --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern location` — 82/82 test pass.
+- [x] `npm run build --prefix backend`
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T35
 

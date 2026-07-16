@@ -114,6 +114,8 @@ export interface WarehouseLocation {
 export interface LocationClient {
   listLocations(): Promise<WarehouseLocation[]>;
   createLocation(input: Pick<WarehouseLocation, "code" | "barcode" | "name" | "type">): Promise<WarehouseLocation>;
+  updateLocation(id: string, input: Partial<Pick<WarehouseLocation, "barcode" | "name" | "type">>): Promise<WarehouseLocation>;
+  setLocationStatus(id: string, status: WarehouseLocation["status"]): Promise<WarehouseLocation>;
   findLocationByBarcode(barcode: string): Promise<WarehouseLocation>;
 }
 
@@ -439,6 +441,12 @@ export const locationApi: LocationClient = {
   },
   async createLocation(input) {
     return (await request<{ location: WarehouseLocation }>("/api/locations", { method: "POST", body: JSON.stringify(input) })).location;
+  },
+  async updateLocation(id, input) {
+    return (await request<{ location: WarehouseLocation }>(`/api/locations/${id}`, { method: "PATCH", body: JSON.stringify(input) })).location;
+  },
+  async setLocationStatus(id, status) {
+    return (await request<{ location: WarehouseLocation }>(`/api/locations/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).location;
   },
   async findLocationByBarcode(barcode) {
     return (await request<{ location: WarehouseLocation }>(`/api/locations/lookup/${encodeURIComponent(barcode)}`)).location;

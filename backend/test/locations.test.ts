@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { createApp } from "../src/app.js";
@@ -19,6 +20,7 @@ class MemoryLocationStore implements AuthStore, AccessStore, LocationStore {
   permissions = new Map<string, string[]>();
   audits: AuditEntry[] = [];
   locations: WarehouseLocation[] = [];
+  busyLocationIds = new Set<string>();
   warehouseIds = ["warehouse-a"];
 
   async findUserByEmail(email: string) { return this.users.find((user) => user.email === email) ?? null; }
@@ -40,6 +42,23 @@ class MemoryLocationStore implements AuthStore, AccessStore, LocationStore {
   async findByBarcode(warehouseId: string, barcode: string) {
     return this.locations.find((item) => item.warehouseId === warehouseId && item.barcode === barcode) ?? null;
   }
+  async update(warehouseId: string, id: string, input: Partial<Pick<WarehouseLocation, "name" | "barcode" | "type">>) {
+    const location = this.locations.find((item) => item.warehouseId === warehouseId && item.id === id);
+    if (!location) return null;
+    if (input.barcode && this.locations.some((item) => item.warehouseId === warehouseId && item.id !== id && item.barcode === input.barcode)) {
+      throw Object.assign(new Error("duplicate"), { code: "23505" });
+    }
+    if (input.type && input.type !== location.type && this.busyLocationIds.has(id)) throw new Error("LOCATION_IN_USE");
+    Object.assign(location, input);
+    return location;
+  }
+  async setStatus(warehouseId: string, id: string, status: WarehouseLocation["status"]) {
+    const location = this.locations.find((item) => item.warehouseId === warehouseId && item.id === id);
+    if (!location) return null;
+    if (status === "inactive" && this.busyLocationIds.has(id)) throw new Error("LOCATION_IN_USE");
+    location.status = status;
+    return location;
+  }
 }
 
 async function setup() {
@@ -53,7 +72,7 @@ async function setup() {
     kind: "master_admin", warehouseId: null,
     passwordHash: await hashPassword("secure-password"), mustChangePassword: false, status: "active",
   });
-  store.permissions.set("admin-a", ["locations.view", "locations.create"]);
+  store.permissions.set("admin-a", ["locations.view", "locations.create", "locations.update", "locations.delete"]);
   store.locations.push({ id: "foreign", warehouseId: "warehouse-b", code: "B-01", barcode: "FOREIGN-SCAN", name: "Kho B", type: "storage", status: "active" });
   const app = createApp();
   registerAuthRoutes(app, store, { sessionSecret: secret, secureCookies: false });
@@ -121,5 +140,67 @@ test("location view permission cannot create a location", async () => {
     body: JSON.stringify({ code: "NO-01", barcode: "NO-SCAN", name: "Không tạo", type: "storage" }),
   });
   assert.equal(response.status, 403);
+  assert.equal(store.audits.length, 0);
+});
+
+test("location update and status are scoped and audited", async () => {
+  const { app, store, cookie } = await setup();
+  const location: WarehouseLocation = {
+    id: randomUUID(), warehouseId: "warehouse-a", code: "A-01", barcode: "OLD-SCAN",
+    name: "Vị trí cũ", type: "storage", status: "active",
+  };
+  store.locations.push(location);
+  const updated = await app.request(`/api/locations/${location.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Vị trí mới", barcode: "NEW-SCAN", type: "staging" }),
+  });
+  assert.equal(updated.status, 200);
+  assert.equal((await updated.json()).location.barcode, "NEW-SCAN");
+  const disabled = await app.request(`/api/locations/${location.id}/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ status: "inactive" }),
+  });
+  assert.equal(disabled.status, 200);
+  assert.equal(location.status, "inactive");
+  assert.deepEqual(store.audits.map((entry) => entry.action), ["location.update", "location.status"]);
+});
+
+test("location mutation rejects duplicate, invalid, cross-scope and in-use changes", async () => {
+  const { app, store, cookie } = await setup();
+  const location: WarehouseLocation = {
+    id: randomUUID(), warehouseId: "warehouse-a", code: "A-01", barcode: "A-SCAN",
+    name: "Vị trí A", type: "storage", status: "active",
+  };
+  const duplicate: WarehouseLocation = {
+    id: randomUUID(), warehouseId: "warehouse-a", code: "A-02", barcode: "DUP-SCAN",
+    name: "Vị trí B", type: "storage", status: "active",
+  };
+  const outside: WarehouseLocation = {
+    id: randomUUID(), warehouseId: "warehouse-b", code: "B-02", barcode: "B-SCAN",
+    name: "Vị trí ngoài kho", type: "storage", status: "active",
+  };
+  store.locations.push(location, duplicate, outside);
+  store.busyLocationIds.add(location.id);
+
+  assert.equal((await app.request(`/api/locations/${location.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ barcode: "DUP-SCAN" }),
+  })).status, 409);
+  assert.equal((await app.request(`/api/locations/${location.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ code: "NOT_ALLOWED" }),
+  })).status, 422);
+  assert.equal((await app.request(`/api/locations/${outside.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ name: "Không được sửa" }),
+  })).status, 404);
+  assert.equal((await app.request(`/api/locations/${location.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ type: "shipping" }),
+  })).status, 409);
+  assert.equal((await app.request(`/api/locations/${location.id}/status`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ status: "inactive" }),
+  })).status, 409);
+  assert.equal(location.barcode, "A-SCAN");
+  assert.equal(location.type, "storage");
+  assert.equal(location.status, "active");
   assert.equal(store.audits.length, 0);
 });

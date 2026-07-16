@@ -76,6 +76,12 @@ export interface AdminRole {
   permissions: string[];
 }
 
+export interface PermissionFeature {
+  featureCode: string;
+  featureLabel: string;
+  actions: Array<{ action: string; label: string; code: string }>;
+}
+
 export interface AdminClient {
   listUsers(): Promise<AdminUser[]>;
   createUser(input: Pick<AdminUser, "email" | "fullName" | "phone"> & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "department" | "note">>): Promise<{
@@ -86,6 +92,7 @@ export interface AdminClient {
   uploadUserAvatar(id: string, file: File): Promise<AdminUser>;
   setUserStatus(id: string, status: AdminUser["status"]): Promise<AdminUser>;
   listRoles(): Promise<AdminRole[]>;
+  listPermissionCatalog(): Promise<PermissionFeature[]>;
   createRole(input: {
     code: string;
     name: string;
@@ -402,6 +409,9 @@ export const adminApi: AdminClient = {
   },
   async listRoles() {
     return (await request<{ data: AdminRole[] }>("/api/admin/roles")).data;
+  },
+  async listPermissionCatalog() {
+    return (await request<{ data: PermissionFeature[] }>("/api/admin/permissions")).data;
   },
   async createRole(input) {
     return (

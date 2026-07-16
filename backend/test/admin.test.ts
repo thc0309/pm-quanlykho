@@ -254,6 +254,20 @@ test("permission catalog exposes only granular feature actions", () => {
   );
 });
 
+test("permission catalog API returns the runtime matrix", async () => {
+  const { app, store } = await setup();
+  store.permissions.set("admin-a", ["admin.roles.view"]);
+  const cookie = await login(app, "admin@example.test");
+  const response = await app.request("/api/admin/permissions", { headers: { cookie } });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.data[0].featureCode, "admin.users");
+  assert.equal(body.data[0].actions[0].code, "admin.users.view");
+  assert.equal((await app.request("/api/admin/permissions", {
+    headers: { cookie: await login(app, "denied@example.test") },
+  })).status, 403);
+});
+
 test("granular permission migration stays synchronized with the runtime catalog", async () => {
   const migration = await readFile(
     new URL("../db/migrations/019_granular_permissions.sql", import.meta.url),

@@ -59,12 +59,31 @@ function client(): AdminClient {
     }),
     setUserStatus: vi.fn(),
     listRoles: vi.fn().mockResolvedValue([]),
+    listPermissionCatalog: vi.fn().mockResolvedValue([
+      {
+        featureCode: "picking",
+        featureLabel: "Soạn hàng",
+        actions: [
+          { action: "view", label: "Xem", code: "picking.view" },
+          { action: "update", label: "Sửa", code: "picking.update" },
+          { action: "approve", label: "Duyệt", code: "picking.approve" },
+        ],
+      },
+      {
+        featureCode: "reports",
+        featureLabel: "Báo cáo",
+        actions: [
+          { action: "view", label: "Xem", code: "reports.view" },
+          { action: "export", label: "Xuất file", code: "reports.export" },
+        ],
+      },
+    ]),
     createRole: vi.fn().mockResolvedValue({
       id: "role-1",
       warehouseId: "warehouse-a",
       code: "picker",
       name: "Nhân viên soạn",
-      permissions: ["outbound.pick"],
+      permissions: ["picking.update"],
     }),
     setUserRoles: vi.fn(),
   };
@@ -78,15 +97,51 @@ describe("AccessPage", () => {
 
     await user.type(await screen.findByLabelText("Mã vai trò (*)"), "Picker Role");
     await user.type(screen.getByLabelText("Tên vai trò (*)"), "Nhân viên soạn");
-    expect(screen.getByRole("group", { name: "Quyền (*)" })).toHaveAttribute("aria-required", "true");
-    await user.click(screen.getByLabelText("Soạn hàng"));
+    expect(await screen.findByRole("table", { name: "Ma trận quyền" })).toBeVisible();
+    await user.click(screen.getByLabelText("Soạn hàng — Sửa"));
     await user.click(screen.getByRole("button", { name: "Tạo vai trò" }));
 
     expect(await screen.findByText("Đã tạo vai trò")).toBeVisible();
     expect(api.createRole).toHaveBeenCalledWith({
       code: "picker-role",
       name: "Nhân viên soạn",
-      permissions: ["outbound.pick"],
+      permissions: ["picking.update"],
+    });
+  });
+
+  it("selects all valid permissions and exposes the indeterminate state", async () => {
+    const api = client();
+    const user = userEvent.setup();
+    renderWithRouter(<RoleCreatePage api={api} />);
+
+    const all = await screen.findByLabelText("Chọn tất cả quyền");
+    await user.click(all);
+    expect(screen.getByLabelText("Soạn hàng — Xem")).toBeChecked();
+    expect(screen.getByLabelText("Báo cáo — Xuất file")).toBeChecked();
+    expect(screen.queryByLabelText("Báo cáo — Sửa")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Báo cáo — Xuất file"));
+    expect(all).toHaveProperty("indeterminate", true);
+  });
+
+  it("selects a permission row and submits unique applicable codes", async () => {
+    const api = client();
+    const user = userEvent.setup();
+    renderWithRouter(<RoleCreatePage api={api} />);
+
+    await user.type(await screen.findByLabelText("Mã vai trò (*)"), "picker");
+    await user.type(screen.getByLabelText("Tên vai trò (*)"), "Nhân viên soạn");
+    const row = screen.getByLabelText("Chọn tất cả Soạn hàng");
+    await user.click(row);
+    expect(screen.getByLabelText("Soạn hàng — Duyệt")).toBeChecked();
+    await user.click(screen.getByLabelText("Soạn hàng — Xem"));
+    expect(row).toHaveProperty("indeterminate", true);
+    await user.click(screen.getByRole("button", { name: "Tạo vai trò" }));
+
+    expect(api.createRole).toHaveBeenCalledWith({
+      code: "picker",
+      name: "Nhân viên soạn",
+      permissions: ["picking.update", "picking.approve"],
     });
   });
 
@@ -274,10 +329,11 @@ describe("AccessPage", () => {
     expect(screen.queryByLabelText("Mã vai trò (*)")).not.toBeInTheDocument();
   });
 
-  it("shows the permission catalog", () => {
-    render(<PermissionsPage />);
+  it("shows the permission catalog", async () => {
+    const api = client();
+    render(<PermissionsPage api={api} />);
 
-    expect(screen.getByRole("heading", { name: "Permission" })).toBeVisible();
-    expect(screen.getByText("outbound.pick")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Quyền hạn" })).toBeVisible();
+    expect(await screen.findByText("picking.view")).toBeVisible();
   });
 });

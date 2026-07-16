@@ -293,15 +293,15 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Thay checkbox phẳng bằng bảng quyền feature x action, có chọn tất cả toàn role và từng dòng.
 
 **Acceptance criteria:**
-- [ ] Role create hiển thị ma trận quyền; dữ liệu edit được mô tả bằng cùng catalog nhưng chỉ nối API ở T45.
-- [ ] `Chọn tất cả quyền` bật/tắt toàn bộ checkbox hợp lệ.
-- [ ] `Chọn tất cả` từng dòng bật/tắt quyền của một feature.
-- [ ] Cell action không áp dụng bị disabled hoặc không có checkbox.
-- [ ] Không lưu role rỗng.
+- [x] Role create hiển thị ma trận quyền từ API catalog; dữ liệu edit reuse cùng model và chỉ nối API ở T45.
+- [x] `Chọn tất cả quyền` bật/tắt toàn bộ checkbox hợp lệ.
+- [x] `Chọn tất cả` từng dòng bật/tắt quyền của một feature.
+- [x] Cell action không áp dụng không render checkbox.
+- [x] Không lưu role rỗng; payload chỉ gồm code hợp lệ, duy nhất.
 
 **Verification:**
-- [ ] `npm test --prefix frontend -- --run AccessPage`
-- [ ] `npm run build --prefix frontend`
+- [x] `npm test --prefix frontend -- --run AccessPage` — 11/11 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T34
 

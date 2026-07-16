@@ -23,6 +23,7 @@ import {
 } from "./avatar.js";
 import {
   isPermissionCode,
+  permissionMatrix,
   permissionCodes,
   routePermissionCatalog,
   type PermissionCode,
@@ -357,6 +358,11 @@ export function registerAdminRoutes(
         totalPages: Math.ceil(result.total / pagination.pageSize),
       },
     });
+  });
+
+  app.get("/api/admin/permissions", async (c) => {
+    await actor(c, routePermissionCatalog["GET /api/admin/permissions"]);
+    return c.json({ data: permissionMatrix });
   });
 
   app.post("/api/admin/roles", async (c) => {

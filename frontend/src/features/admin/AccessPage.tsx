@@ -8,6 +8,7 @@ import {
   type AdminClient,
   type AdminRole,
   type AdminUser,
+  type PermissionFeature,
 } from "../../lib/api";
 import {
   CheckCircleIcon,
@@ -20,13 +21,6 @@ import { ErrorNotice } from "./components/ErrorNotice";
 import { PageHeader } from "./components/PageHeader";
 
 export { AccessNavigation } from "./components/AccessNavigation";
-
-export const permissionOptions = [
-  ["outbound.pick", "Soạn hàng"],
-  ["outbound.check", "Kiểm hàng"],
-  ["outbound.ship", "Xuất hàng"],
-  ["outbound.resolveDiscrepancy", "Xử lý sai lệch"],
-] as const;
 
 const panelClass =
   "rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]";
@@ -68,6 +62,48 @@ function normalizeRoleCode(value: string) {
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9_-]/g, "");
+}
+
+function usePermissionCatalog(api: AdminClient) {
+  const [catalog, setCatalog] = useState<PermissionFeature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api.listPermissionCatalog()
+      .then((data) => { if (active) setCatalog(data); })
+      .catch(() => { if (active) setError("Không thể tải danh mục quyền."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [api]);
+  return { catalog, loading, error };
+}
+
+function MatrixCheckbox({
+  checked,
+  indeterminate = false,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      aria-label={label}
+      checked={checked}
+      onChange={(event) => onChange(event.target.checked)}
+      className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500 dark:border-gray-700"
+    />
+  );
 }
 
 type UserFormState = {
@@ -565,9 +601,33 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [roleForm, setRoleForm] = useState({ code: "", name: "", permissions: [] as string[] });
+  const { catalog, loading: catalogLoading, error: catalogError } = usePermissionCatalog(api);
+  const actions = useMemo(
+    () => [...new Map(catalog.flatMap((feature) => feature.actions.map((action) => [action.action, action.label]))).entries()],
+    [catalog],
+  );
+  const permissionCodes = useMemo(
+    () => catalog.flatMap((feature) => feature.actions.map((action) => action.code)),
+    [catalog],
+  );
+
+  function selectPermissions(codes: Iterable<string>) {
+    const selected = new Set(codes);
+    setRoleForm((current) => ({
+      ...current,
+      permissions: permissionCodes.filter((code) => selected.has(code)),
+    }));
+  }
+
+  function togglePermissions(codes: string[], checked: boolean) {
+    const selected = new Set(roleForm.permissions);
+    for (const code of codes) checked ? selected.add(code) : selected.delete(code);
+    selectPermissions(selected);
+  }
 
   async function createRole(event: FormEvent) {
     event.preventDefault();
+    if (roleForm.permissions.length === 0) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -589,7 +649,7 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
         description="Nhập mã, tên và quyền nghiệp vụ cho vai trò mới."
         actions={<Link to="/admin/roles" className={secondaryButtonClass}>Quay lại</Link>}
       />
-      <ErrorNotice message={error} />
+      <ErrorNotice message={error || catalogError} />
       {notice && (
         <p role="status" className="rounded-lg bg-success-50 p-3 text-sm text-success-700 dark:bg-success-500/15 dark:text-success-400">
           {notice}
@@ -624,28 +684,69 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
             />
           </label>
         </div>
-        <fieldset aria-required="true" className="space-y-2">
+        <fieldset aria-required="true" className="space-y-3">
           <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Quyền (*)</legend>
-          {permissionOptions.map(([code, label]) => (
-            <label key={code} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input
-                type="checkbox"
-                checked={roleForm.permissions.includes(code)}
-                onChange={(event) =>
-                  setRoleForm({
-                    ...roleForm,
-                    permissions: event.target.checked
-                      ? [...roleForm.permissions, code]
-                      : roleForm.permissions.filter((value) => value !== code),
-                  })
-                }
-                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500 dark:border-gray-700"
-              />
-              {label}
-            </label>
-          ))}
+          {catalogLoading ? (
+            <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải quyền…</p>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <MatrixCheckbox
+                  label="Chọn tất cả quyền"
+                  checked={permissionCodes.length > 0 && roleForm.permissions.length === permissionCodes.length}
+                  indeterminate={roleForm.permissions.length > 0 && roleForm.permissions.length < permissionCodes.length}
+                  onChange={(checked) => selectPermissions(checked ? permissionCodes : [])}
+                />
+                Chọn tất cả quyền
+              </label>
+              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
+                <table aria-label="Ma trận quyền" className="min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
+                  <thead className={tableHeadClass}>
+                    <tr>
+                      <th scope="col" className="px-3 py-3">Tính năng</th>
+                      {actions.map(([action, label]) => <th key={action} scope="col" className="px-3 py-3 text-center">{label}</th>)}
+                      <th scope="col" className="px-3 py-3 text-center">Chọn tất cả</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {catalog.map((feature) => {
+                      const codes = feature.actions.map((action) => action.code);
+                      const selected = codes.filter((code) => roleForm.permissions.includes(code)).length;
+                      return (
+                        <tr key={feature.featureCode}>
+                          <th scope="row" className="px-3 py-3 text-left text-sm font-medium text-gray-800 dark:text-white/90">{feature.featureLabel}</th>
+                          {actions.map(([action]) => {
+                            const permission = feature.actions.find((item) => item.action === action);
+                            return (
+                              <td key={action} className="px-3 py-3 text-center">
+                                {permission ? (
+                                  <MatrixCheckbox
+                                    label={`${feature.featureLabel} — ${permission.label}`}
+                                    checked={roleForm.permissions.includes(permission.code)}
+                                    onChange={(checked) => togglePermissions([permission.code], checked)}
+                                  />
+                                ) : <span aria-label={`${feature.featureLabel} — Không áp dụng`} className="text-gray-300 dark:text-gray-700">—</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-3 text-center">
+                            <MatrixCheckbox
+                              label={`Chọn tất cả ${feature.featureLabel}`}
+                              checked={selected === codes.length}
+                              indeterminate={selected > 0 && selected < codes.length}
+                              onChange={(checked) => togglePermissions(codes, checked)}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </fieldset>
-        <button type="submit" disabled={busy || roleForm.permissions.length === 0} className={primaryButtonClass}>
+        <button type="submit" disabled={busy || catalogLoading || roleForm.permissions.length === 0} className={primaryButtonClass}>
           Tạo vai trò
         </button>
       </form>
@@ -653,10 +754,14 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
   );
 }
 
-export function PermissionsPage() {
+export function PermissionsPage({ api = adminApi }: { api?: AdminClient }) {
+  const { catalog, loading, error } = usePermissionCatalog(api);
   const permissions = useMemo(
-    () => permissionOptions.map(([code, label]) => ({ code, label })),
-    [],
+    () => catalog.flatMap((feature) => feature.actions.map((action) => ({
+      code: action.code,
+      label: `${feature.featureLabel} — ${action.label}`,
+    }))),
+    [catalog],
   );
   const [permissionPage, setPermissionPage] = useState(1);
   const pagedPermissions = paginate(permissions, permissionPage);
@@ -664,18 +769,20 @@ export function PermissionsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Permission"
+        title="Quyền hạn"
         description="Danh sách quyền nghiệp vụ dùng để gán cho vai trò."
       />
+      <ErrorNotice message={error} />
       <section className={panelClass}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Quyền hiện có</h2>
+        {loading && <p role="status" className="mt-3 text-sm text-gray-500 dark:text-gray-400">Đang tải quyền…</p>}
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
             <thead className={tableHeadClass}>
               <tr>
                 <th scope="col" className="px-4 py-3">Tên quyền</th>
                 <th scope="col" className="px-4 py-3">Mã quyền</th>
-                <th scope="col" className="px-4 py-3 text-right">Action</th>
+                <th scope="col" className="px-4 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">

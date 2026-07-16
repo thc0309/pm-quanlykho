@@ -20,7 +20,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 - [x] [T34 Permission catalog và migration reset](task-detail/task-34.md).
 - [x] [T35 Backend enforce quyền chi tiết cho admin và metadata](task-detail/task-35.md).
 - [x] [T36 Backend enforce quyền chi tiết cho chứng từ, stock, báo cáo và in](task-detail/task-36.md).
-- [ ] [T37 Role permission matrix UI](task-detail/task-37.md).
+- [x] [T37 Role permission matrix UI](task-detail/task-37.md).
 - [ ] [T38 Permission-based navigation/action UI](task-detail/task-38.md).
 - [ ] Checkpoint C reviewed.
 

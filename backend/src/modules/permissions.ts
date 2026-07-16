@@ -22,9 +22,53 @@ export const permissionCatalog = {
 } as const;
 
 type PermissionCatalog = typeof permissionCatalog;
+type PermissionAction = PermissionCatalog[keyof PermissionCatalog][number];
 export type PermissionCode = {
   [Feature in keyof PermissionCatalog]: `${Feature}.${PermissionCatalog[Feature][number]}`
 }[keyof PermissionCatalog];
+
+const featureLabels = {
+  "admin.users": "Người dùng",
+  "admin.roles": "Vai trò",
+  locations: "Vị trí kho",
+  "catalog.categories": "Danh mục",
+  "catalog.units": "Đơn vị",
+  products: "Sản phẩm",
+  partners: "Đối tác",
+  receipts: "Phiếu nhập",
+  outbounds: "Phiếu xuất",
+  picking: "Soạn hàng",
+  checking: "Kiểm hàng",
+  "outbound.exceptions": "Ngoại lệ xuất kho",
+  purchasing: "Mua hàng",
+  sales: "Bán hàng",
+  returns: "Trả hàng",
+  stockCounts: "Kiểm kê",
+  transfers: "Chuyển kho",
+  inventory: "Tồn kho",
+  reports: "Báo cáo",
+  print: "In",
+} satisfies Record<keyof PermissionCatalog, string>;
+
+const actionLabels = {
+  view: "Xem",
+  create: "Thêm",
+  update: "Sửa",
+  delete: "Vô hiệu hóa",
+  approve: "Duyệt",
+  print: "In",
+  export: "Xuất file",
+} satisfies Record<PermissionAction, string>;
+
+export const permissionMatrix = Object.entries(permissionCatalog).map(([featureCode, actions]) => ({
+  featureCode,
+  featureLabel: featureLabels[featureCode as keyof PermissionCatalog],
+  actions: actions.map((action) => ({
+    action,
+    label: actionLabels[action],
+    code: `${featureCode}.${action}` as PermissionCode,
+  })),
+}));
 
 export const routePermissionCatalog = {
   "GET /api/admin/users": "admin.users.view",
@@ -34,6 +78,7 @@ export const routePermissionCatalog = {
   "PATCH /api/admin/users/:id/status": "admin.users.delete",
   "PUT /api/admin/users/:id/roles": "admin.users.update",
   "GET /api/admin/roles": "admin.roles.view",
+  "GET /api/admin/permissions": "admin.roles.view",
   "POST /api/admin/roles": "admin.roles.create",
   "GET /api/locations": "locations.view",
   "POST /api/locations": "locations.create",

@@ -29,6 +29,11 @@ Use with `vibe-e2e`. Do not mark PASS without browser/runtime evidence in `tasks
 | E2E-012 Scanner devices | Keyboard scanner and Android camera | Scan shelf/product/lot/serial rapidly; disconnect network during scan | One scan produces one acknowledgement; phản hồi âm thanh/rung is clear; offline mutation is blocked visibly. |
 | E2E-013 Reports/print | Confirmed data | Filter/export report; print confirmed document/label; retry print | No warehouse leakage; export bounded; print does not mutate stock. |
 | E2E-014 Tauri optional | Approved Windows printer | Configure printer; silent-print confirmed document; trigger printer error | Only configured printer is used; error recoverable; no duplicate stock call. |
+| E2E-015 Required markers | Admin and stock forms | Open auth/admin/master-data/document forms; inspect required and optional labels at 320/768/1440 px | Every required field shows `(*)`; optional fields do not; labels are Vietnamese except terms like `SKU`, `barcode`, `ID`. |
+| E2E-016 Metadata actions | Admin with manage permissions | Edit and deactivate/reactivate category, unit, location, product, partner and role; try deleting an assigned role | Rows update without reload; unsafe delete is blocked with Vietnamese error; no disabled placeholder action remains. |
+| E2E-017 Multi-line documents | Products/partners/stock exist | Create purchase order with two lines; create return with two lines; inspect submitted payload/effects | Both documents persist all lines; last line cannot be removed; totals/status reflect all lines. |
+| E2E-018 User metadata/avatar | Warehouse admin | Create user with phone, employee code, department, job title and avatar image; edit metadata; reload list | Phone is required; avatar is resized and displayed; metadata persists and list shows avatar/phone/department/title. |
+| E2E-019 Granular permissions | Master admin | Create role with only `catalog.categories.view/create`; use that user in UI and direct API calls | User can view/create categories only; update/deactivate/export/admin actions are hidden in UI and return `403` through API. |
 
 ## API and Concurrency Coverage
 
@@ -46,3 +51,4 @@ Use with `vibe-e2e`. Do not mark PASS without browser/runtime evidence in `tasks
 - Checkpoint B: E2E-003–004 plus inventory reconciliation.
 - Checkpoint C: E2E-005–012; all are release blockers for outbound MVP.
 - Checkpoint D: E2E-013 and E2E-014 only if Tauri is approved.
+- Checkpoint G v4: E2E-015–019 for required markers, metadata actions, multi-line document forms, user metadata/avatar and granular permissions.

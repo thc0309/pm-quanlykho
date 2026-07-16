@@ -9,6 +9,7 @@ This repo is a Codex Vibe Coding template. Keep this file small because it is lo
 - Touch only files required by the requested phase or task.
 - Verify with real evidence before claiming done.
 - Do not commit unless the user explicitly asks.
+- Use Vietnamese for all user-facing UI text, docs, specs, task notes and final user-facing copy. Keep English only for highly specific technical terms or domain codes where translating would reduce clarity, such as API, SKU, barcode, FEFO, HTTP, database, migration, role and permission.
 
 ## Token Budget Mode
 

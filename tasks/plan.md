@@ -1,176 +1,621 @@
-# Implementation Plan: Hệ thống quản lý kho đa ngành
+# Implementation Plan: Hoàn thiện form, user metadata và phân quyền v4
 
-Status: draft v2 — Hono/PostgreSQL, chờ duyệt trước khi build
+Status: draft v4 — chờ xác nhận trước khi build
 
 ## Overview
 
-Ưu tiên một MVP chạy thật theo chiều dọc: đăng nhập → quản lý kho/vị trí/sản phẩm → nhận tồn → tạo phiếu xuất và reserve → soạn bằng quét → user khác kiểm → xác nhận xuất mới giảm tồn. Các module thương mại, báo cáo và in triển khai sau checkpoint MVP.
-
-Mặc định đã dùng để lập plan: người kiểm khác người soạn; quét kệ trước quét hàng; reservation chưa bắt đầu hết hạn sau 30 phút; thiếu hàng quay về `needs_repick`, supervisor mới được xuất thiếu; outbound là flow đầu tiên.
-
-## Architecture Decisions
-
-- Backend: Hono + Node.js + TypeScript strict + Zod + `pg`; SQL trực tiếp, migration cộng dồn, không ORM.
-- Frontend: React/Vite/Tailwind trong `frontend/`; tái sử dụng component template có ích, xóa demo theo từng màn hình thật.
-- Không tạo `packages/`, generic repository hay OpenAPI generator ở MVP. Zod schema và response type đặt gần route; chỉ tách khi có reuse thật.
-- `StockMovement` bất biến; `on_hand`, reservation và state transition thay đổi trong PostgreSQL transaction.
-- Một phiếu chỉ có một picker/checker active. Ship phải idempotent và khóa stock/reservation row liên quan.
-- Mỗi task build tối đa khoảng 5 file cụ thể. Nếu lúc build vượt giới hạn, tách task trước khi sửa code.
-
-## Global UI Rule
-
-- Áp dụng cho toàn bộ tính năng đã làm và sẽ làm.
-- Screen dạng danh sách chỉ hiển thị danh sách, filter/pagination và toolbar action.
-- Nút `Thêm` trên list screen điều hướng sang route form riêng; không nhúng form tạo/sửa trong list screen.
-- Mỗi dòng trong danh sách có cột `Action` riêng dùng icon button có `aria-label`.
-- Component đặc thù của một feature đặt trong `frontend/src/features/<feature>/components/`; component dùng chung từ hai feature trở lên mới đặt trong `frontend/src/components/`.
+Plan v4 gom các scope mới từ `SPEC.md`: trường bắt buộc có `(*)`, user metadata có avatar upload/resize và số điện thoại bắt buộc, phân quyền chi tiết theo ma trận tính năng x hành động, metadata CRUD/vô hiệu hóa dùng được, và form chứng từ nhiều dòng. Thứ tự ưu tiên: chuẩn hóa UI rule nhỏ trước, sau đó làm nền user/permission vì nó ảnh hưởng mọi API action, rồi mới nối metadata và form nhiều dòng.
 
 ## Dependency Order
 
 ```text
-T01 backend baseline ─┬─> T03 HTTP contract ─> T04 auth API ─> T05 login UI
-T02 frontend baseline ┘                               │
-                                                     └─> T06 permission API ─> T07 admin UI
-T07 ─> T08 locations ─> T09 catalog ─> T10 products ─┬─> T12 stock core
-T07 ─> T11 partners ──────────────────────────────────┘
-T12 ─> T13 receipt ─> T14 inventory/trace ─> T15 reserve/outbound
-T15 ─> T16 picking ─> T17 checking/shipping ─> T18 exceptions ─> T19 critical E2E
-T19 ─> T20..T26 extended modules ─> T28 launch review
-T27 Tauri is optional and starts only after T26 device evidence.
+Required label rule
+  └─> User metadata DB/API/avatar
+      └─> Granular permission catalog + role matrix
+          └─> Granular backend enforcement
+              ├─> Metadata API/client
+              │   └─> Metadata UI actions
+              └─> Multi-line document forms
+                  └─> E2E + review
 ```
 
 ## Skill Intake Summary
 
-### Detected stack and work domains
+### Stack và work domain
 
-- Hono API, raw PostgreSQL transactions/migrations, Zod validation and cookie sessions.
-- React 19, Vite 6, Tailwind 4, responsive mobile/PWA scanner UI.
-- Warehouse isolation, RBAC, immutable movement, lot/serial/FEFO, reservation and concurrency.
-- Browser/device validation, accessibility, security, reporting, print and optional Tauri.
+- Frontend: React/Vite/TypeScript/Tailwind, route/component theo `frontend/src/features`.
+- Backend: Hono + TypeScript + Zod + PostgreSQL SQL trực tiếp, migration versioned, auth cookie session.
+- Domains: form UX/accessibility, upload/resize ảnh, user profile metadata, RBAC chi tiết, API permission enforcement, metadata CRUD, chứng từ nhiều dòng, browser E2E.
 
 ### Applicable existing skills
 
-| Domain | Skills to use |
+| Nhóm việc | Skills nên dùng |
 |---|---|
-| Every build task | `vibe-build`, `incremental-implementation`, `test-driven-development` |
-| API/contracts/SQL | `api-and-interface-design`, `security-and-hardening`, `source-driven-development` |
-| Auth, permission, stock concurrency | add `doubt-driven-development` |
-| React/mobile UI | `frontend-ui-engineering`, `vibe-test` |
-| Browser/device checks | `browser-testing-with-devtools`, `vibe-e2e` |
-| Cleanup/review | `vibe-simplify`, `vibe-review`, `code-review-and-quality` |
-| Launch | `vibe-ship`, `shipping-and-launch`, `performance-optimization` |
-| Architecture decisions | `documentation-and-adrs` only for expensive-to-reverse decisions |
+| Plan/spec/task | `vibe-plan`, `planning-and-task-breakdown`, `spec-driven-development` |
+| Build từng task | `vibe-build`, `incremental-implementation`, `test-driven-development` |
+| UI form/role matrix | `frontend-ui-engineering`, `vibe-test` |
+| API contract/permission | `api-and-interface-design`, `security-and-hardening` |
+| Upload/avatar validation | `security-and-hardening`, `source-driven-development` |
+| Data migration/audit | `doubt-driven-development`, `test-driven-development` |
+| Debug | `debugging-and-error-recovery` |
+| Browser evidence | `vibe-e2e`, `browser-testing-with-devtools` |
+| Review/simplify | `vibe-review`, `code-review-and-quality`, `vibe-simplify` |
 
-### Missing useful skills — do not install/create automatically
+### Missing useful skill gaps
 
-- Hono + raw PostgreSQL transaction/concurrency recipes: create a local skill only if repeated implementation mistakes appear; official docs plus existing API/security skills are sufficient initially.
-- GS1/advanced barcode parsing: install/create only if GTIN/GS1 application identifiers enter scope; MVP treats barcode as validated identifiers.
-- Tauri Windows silent printing: find/create a dedicated skill after printer model, driver and protocol are confirmed.
+- Có thể cần thư viện resize ảnh server-side hoặc browser-side. Không thêm dependency trong plan; task build phải kiểm tra dependency hiện có trước. Nếu không có giải pháp chuẩn nhỏ gọn, hỏi trước khi thêm dependency.
+- Nếu role matrix lặp nhiều logic selection, cân nhắc tạo helper/component nhỏ sau 2 use case thật; không tạo component library sớm.
 
 ## Task Plan
 
-### Phase 1 — Reliable foundation and access
+### Phase 1 — Rule nền và nhãn bắt buộc
 
-- T01: Make the backend baseline truthful — [tasks/task-detail/task-01.md](task-detail/task-01.md)
-- T02: Stabilize the copied frontend template — [tasks/task-detail/task-02.md](task-detail/task-02.md)
-- T03: Establish the HTTP contract boundary — [tasks/task-detail/task-03.md](task-detail/task-03.md)
-- T04: Implement session authentication API — [tasks/task-detail/task-04.md](task-detail/task-04.md)
-- T05: Deliver the login and forced-password UI — [tasks/task-detail/task-05.md](task-detail/task-05.md)
-- T06: Enforce warehouse permissions in the API — [tasks/task-detail/task-06.md](task-detail/task-06.md)
-- T07: Deliver warehouse user and role administration — [tasks/task-detail/task-07.md](task-detail/task-07.md)
+#### T29: Chuẩn hóa label bắt buộc cho form lõi
 
-### Checkpoint A — Access foundation
+**Description:** Áp dụng `(*)` cho form auth, user/role, metadata nhỏ.
 
-- All T01–T07 commands pass.
-- Browser proves login, forced password change and picker/checker permission separation.
-- Human reviews password hashing choice and whether `admin_template/` can now be deleted.
-- Stop for review/context reset before inventory schema work.
+**Acceptance criteria:**
+- [ ] Field bắt buộc trong auth, admin user/role, category/unit, location, product, partner có `(*)`.
+- [ ] Field optional không có `(*)`.
+- [ ] Accessible label vẫn tìm được bằng tiếng Việt.
 
-**Review decision (2026-07-15):** approved to continue under the user's explicit uninterrupted-build instruction. Node `scrypt` parameters and session handling remain covered by authentication/security tests. `admin_template/` is retained because deletion was not required for the product path and would be destructive cleanup without measurable runtime benefit.
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run AccessPage CatalogPage LocationsPage ProductsPage PartnersPage AuthPage`
+- [ ] `npm run build --prefix frontend`
 
-### Phase 2 — Master data and real stock
+**Dependencies:** None
 
-- T08: Deliver warehouse locations — [tasks/task-detail/task-08.md](task-detail/task-08.md)
-- T09: Deliver the minimum catalog and unit slice — [tasks/task-detail/task-09.md](task-detail/task-09.md)
-- T10: Deliver products and barcode lookup — [tasks/task-detail/task-10.md](task-detail/task-10.md)
-- T11: Deliver partner management — [tasks/task-detail/task-11.md](task-detail/task-11.md)
-- T12: Build the stock ledger and balance core — [tasks/task-detail/task-12.md](task-detail/task-12.md)
-- T13: Deliver receiving with lot/serial — [tasks/task-detail/task-13.md](task-detail/task-13.md)
-  - Evidence (2026-07-15): backend 37/37 tests; frontend 22/22 tests; backend/frontend builds pass; migration `008_receipts.sql` applied. Browser created and confirmed `E2E-RCV-T13`; PostgreSQL verified `on_hand=5`, one movement, expiry `2027-12-31`, and idempotent retry. Responsive widths 320/768/1024/1440 had no document overflow; browser console had no warnings/errors.
-- T14: Deliver inventory and traceability views — [tasks/task-detail/task-14.md](task-detail/task-14.md)
-  - Evidence (2026-07-15): backend 40/40 tests and frontend 24/24 tests pass; backend/frontend production builds pass; lint has no errors (four pre-existing Fast Refresh warnings). Browser verified real on-hand/available data, loading, empty and bounded-validation error states, server filter, traceability history, and disabled pagination at the boundary. Checkpoint B review confirmed warehouse-scoped queries, immutable movement history, bounded page/filter inputs, and a schema path for reservation totals in T15.
+**Likely files:**
+- `frontend/src/features/auth/AuthPage.tsx`
+- `frontend/src/features/admin/AccessPage.tsx`
+- `frontend/src/features/catalog/CatalogPage.tsx`
+- `frontend/src/features/locations/LocationsPage.tsx`
+- `frontend/src/features/products/ProductsPage.tsx`
+- `frontend/src/features/partners/PartnersPage.tsx`
 
-### Checkpoint B — Stock foundation
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
 
-- Receive none/lot/serial products and reconcile movement totals to inventory.
-- Warehouse isolation, FEFO metadata and concurrent negative-stock checks pass.
-- Review schema/recovery notes before adding reservation state.
-- Stop for review/context reset.
+#### T30: Chuẩn hóa label bắt buộc cho form chứng từ
 
-### Phase 3 — Critical outbound MVP
+**Description:** Áp dụng `(*)` và tiếng Việt cho form đơn mua, nhập, xuất, bán, trả hàng, chuyển kho, kiểm kê.
 
-- T15: Deliver outbound draft and reservation release — [tasks/task-detail/task-15.md](task-detail/task-15.md)
-  - Evidence (2026-07-15): migration `009_outbound_reservations.sql` applied; backend 43/43 and frontend 26/26 tests pass; backend/frontend builds pass; lint has no errors. Tests cover insufficient stock, concurrent/idempotent release and 30-minute expiry. Browser created/released `E2E-OUT-T15`; inventory reconciled `on_hand=5`, `committed=2`, `available=3` without a stock movement.
-- T16: Deliver the picker workflow — [tasks/task-detail/task-16.md](task-detail/task-16.md)
-  - Evidence (2026-07-15): migration `010_picking.sql` applied; backend 46/46 tests and focused UI test pass; both builds pass. Tests cover shelf/item mismatch, FEFO denial and duplicate scan. Mobile browser claimed `E2E-OUT-T15`, persisted two scans (`1/2` then `2/2`) and confirmed `picked`; reservations changed to `picked` without changing `on_hand`.
-- T17: Deliver independent checking and shipping — [tasks/task-detail/task-17.md](task-detail/task-17.md)
-  - Evidence (2026-07-15): migration `011_checking.sql` applied; backend 48/48 tests and focused UI test pass; backend/frontend builds pass. Backend enforces independent checker, staging validation, version checks, idempotency and row locks. A second browser user checked two scans and shipped `E2E-OUT-T15`; inventory reconciled from `5/2/3` to `on_hand=3`, `committed=0`, `available=3` exactly once.
-- T18: Deliver discrepancy, re-pick, cancellation and reassignment — [tasks/task-detail/task-18.md](task-detail/task-18.md)
-  - Evidence (2026-07-15): backend 49/49 tests and focused exception UI test pass; backend/frontend builds pass. Explicit action APIs cover mismatch→`needs_repick`, reasoned short-ship approval, reservation release on unpicked cancellation, validated return-cancel for picked goods, and audited warehouse-scoped reassignment; invalid direct transitions are domain-tested. Browser created then cancelled `E2E-OUT-T18-CANCEL` from the exception list.
-- T19: Prove and harden the critical flow — [tasks/task-detail/task-19.md](task-detail/task-19.md)
-  - Evidence (2026-07-15): full backend 49/49 and frontend 29/29 tests pass; builds pass; lint has no errors (four pre-existing warnings). Browser and prior checkpoint data cover auth/master data/receipt plus reserve→pick→independent check→ship, cancellation and mismatch→re-pick. E2E found and T19 fixed the re-pick queue gap; rerun passed. `EXPLAIN ANALYZE` measured the indexed inventory/reservation hot path at 0.232 ms execution time on local data.
+**Acceptance criteria:**
+- [ ] Tất cả field required trong form chứng từ có `(*)`.
+- [ ] Label user-facing dùng tiếng Việt; giữ `SKU`, `barcode`, `ID` khi là thuật ngữ kỹ thuật.
+- [ ] Test cập nhật theo label mới.
 
-### Checkpoint C — Outbound MVP
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run PurchasingPage ReceiptPage OutboundPage SalesPage ReturnsPage TransfersPage StockCountsPage`
+- [ ] `npm run build --prefix frontend`
 
-- Critical workflow passes with two real roles and mobile viewport evidence.
-- `picked` leaves `on_hand` unchanged; `shipped` decrements exactly once.
-- Human decides whether this MVP is released internally before extended modules.
-- Decision (2026-07-15): GO for controlled internal pilot while extended modules continue; keep external/public release gated on T28 launch review and device-specific E2E-012/E2E-014.
-- Stop for review/context reset.
+**Dependencies:** T29
 
-### Phase 4 — Extended warehouse modules
+**Likely files:**
+- `frontend/src/features/purchasing/PurchasingPage.tsx`
+- `frontend/src/features/receipts/ReceiptPage.tsx`
+- `frontend/src/features/outbound/OutboundPage.tsx`
+- `frontend/src/features/sales/SalesPage.tsx`
+- `frontend/src/features/returns/ReturnsPage.tsx`
+- `frontend/src/features/transfers/TransfersPage.tsx`
+- `frontend/src/features/stock-counts/StockCountsPage.tsx`
 
-- T20: Add purchase orders — [tasks/task-detail/task-20.md](task-detail/task-20.md)
-  - Evidence (2026-07-15): migration `012_purchasing.sql` applied; backend 51/51 and focused purchasing UI test pass; both builds pass. Supplier/product/location scope, outstanding locks, over-receipt prevention and receipt document idempotency are enforced; PO approval alone never posts stock.
-- T21: Add quote, sales order and commercial invoice — [tasks/task-detail/task-21.md](task-detail/task-21.md)
-  - Evidence (2026-07-15): migration `013_sales.sql` applied; backend 53/53 and focused sales UI test pass; builds pass. Totals are deterministic, order approval creates only an outbound draft, and invoice creation requires a shipped outbound then stores an immutable order/line/shipment JSON snapshot.
-- T22: Add customer and supplier returns — [tasks/task-detail/task-22.md](task-detail/task-22.md)
-  - Evidence (2026-07-15): migration `014_returns.sql` applied; backend 55/55 and focused returns UI test pass; builds pass. Returns lock/reference original movements, enforce cumulative quantity, preserve lot/serial stock keys and confirm idempotently with the correct reverse movement direction.
-- T23: Add stock count and approved adjustment — [tasks/task-detail/task-23.md](task-detail/task-23.md)
-  - Evidence (2026-07-15): migration `015_stock_counts.sql` applied; backend 57/57 and focused count UI test pass; builds pass. Counts freeze scoped balance/timestamp snapshots, require complete actuals, reject concurrent movement conflicts, and post only approved positive/negative variance with audit.
-- T24: Add two-sided warehouse transfer — [tasks/task-detail/task-24.md](task-detail/task-24.md)
-  - Evidence (2026-07-15): migration `016_transfers.sql` applied; backend 59/59 and focused transfer UI test pass; builds pass. Dispatch/receive are separately scoped and idempotent, source stock moves to explicit in-transit state, destination maps product SKU/location before receipt, and draft cancellation cannot duplicate stock.
-- T25: Add dashboard, reports and bounded export — [tasks/task-detail/task-25.md](task-detail/task-25.md)
-  - Evidence (2026-07-15): backend 61/61 and focused reports UI test pass; builds pass. Dashboard/report queries are warehouse-scoped and paginated; CSV is permission-bound, capped at 5,000 rows and formula-safe. Browser verified live summary, filter, empty state, export URL and pagination boundary. Representative report query used the warehouse index and executed in 0.255 ms locally.
-- T26: Add web print, labels and PWA device evidence — [tasks/task-detail/task-26.md](task-detail/task-26.md)
-  - Evidence (2026-07-15): backend 63/63 and frontend 39/39 tests pass; both builds pass. Confirmed documents plus product/lot/serial labels have warehouse-scoped read-only print routes, system-print layouts and a reprint regression proving no stock mutation. Browser verified keyboard burst `E2E-T26` produced one acknowledgement, unsupported camera falls back visibly, print opened the native system dialog, the confirmed receipt rendered without horizontal overflow at 320/1440 px, and the console was clean. Manifest/service worker provide an installable shell while API and mutation requests are never cached or queued. Physical Android camera, offline device and printer output remain BLOCKED in RESULT-002/003 and gate external launch.
-- T27: Add optional Tauri silent printing — [tasks/task-detail/task-27.md](task-detail/task-27.md)
-  - Decision (2026-07-15): SKIPPED. The mandatory explicit printer approval and target Windows printer are absent, so no Tauri/Rust surface or silent-print permission was introduced. T26 web system-print remains the supported path; E2E-014 stays blocked until a future approved device-specific task.
-- T28: Final review and launch readiness — [tasks/task-detail/task-28.md](task-detail/task-28.md)
-  - Evidence (2026-07-15): review fixed four integrity/quality gaps before release: out-of-scope sales lines can no longer disappear silently, transfer requests aggregate duplicate source balances and destination receive requires every line exactly once, draft returns reserve the original movement quantity under a row lock, and purchase receipt replay must belong to the same PO. Migration `017_launch_hardening.sql` enforces one invoice per order. Security response headers, reproducible frontend lockfile, high-severity dependency audits, PWA asset caching and GitHub CI gates were added. Fresh locked dependencies pass backend 65/65 and frontend 39/39 tests, lint with zero errors (four template fast-refresh warnings), both production builds, migration 017 and 0 high/critical audit findings. `LAUNCH.md` documents secrets, logs, migration recovery, encrypted backup/restore, monitoring, staged rollout and rollback.
-  - Ship decision (2026-07-15): GO for the controlled internal pilot; NO-GO for external production. Blockers are physical Android E2E-012, printer E2E-013, production TLS/static-hosting policy, monitoring/alerts and a completed restore drill. No review subagents were spawned because the user did not request them.
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+### Checkpoint A — Required labels
+
+- [ ] T29-T30 pass.
+- [ ] Không còn form chính thiếu `(*)`.
+- [ ] Human review tiếng Việt/thuật ngữ.
+
+### Phase 2 — User metadata và avatar
+
+#### T31: Migration và API user metadata
+
+**Description:** Thêm metadata user vào DB/API, bắt buộc `phone`.
+
+**Acceptance criteria:**
+- [ ] Migration thêm `phone`, `avatar_url`, `employee_code`, `job_title`, `department`, `note`.
+- [ ] Create/update user nhận và validate metadata; `email`, `fullName`, `phone` bắt buộc.
+- [ ] List users trả metadata mới, warehouse scope và audit giữ nguyên.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern admin`
+- [ ] `npm run build --prefix backend`
+- [ ] `npm run db:migrate --prefix backend`
+
+**Dependencies:** None
+
+**Likely files:**
+- `backend/db/migrations/018_user_metadata_permissions.sql`
+- `backend/src/modules/admin.ts`
+- `backend/test/admin.test.ts`
+- `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `test-driven-development`
+
+#### T32: Avatar upload và resize
+
+**Description:** Thêm đường upload avatar an toàn, resize ảnh trước khi lưu, DB chỉ lưu URL/key.
+
+**Acceptance criteria:**
+- [ ] Chỉ nhận file hình hợp lệ, giới hạn size/type.
+- [ ] Avatar được resize về kích thước chuẩn trước khi lưu.
+- [ ] API trả `avatarUrl`, không lưu binary trong DB.
+- [ ] Lỗi file không hợp lệ trả tiếng Việt.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern avatar`
+- [ ] `npm run build --prefix backend`
+
+**Dependencies:** T31
+
+**Likely files:**
+- `backend/src/modules/admin.ts`
+- `backend/src/modules/avatar.ts` hoặc helper gần admin nếu cần
+- `backend/test/admin.test.ts`
+- `backend/uploads/` hoặc cấu hình static upload nếu được chọn
+
+**Recommended skills:** `vibe-build`, `security-and-hardening`, `source-driven-development`, `test-driven-development`
+
+#### T33: UI user metadata
+
+**Description:** User list/create/edit hiển thị và lưu avatar, phone, employeeCode, jobTitle, department, note.
+
+**Acceptance criteria:**
+- [ ] Form user có `phone (*)`; metadata khác optional.
+- [ ] Upload avatar preview được trước/sau lưu.
+- [ ] User list hiển thị avatar, họ tên, email, phone, bộ phận/chức danh, trạng thái.
+- [ ] Không hard delete user.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run AccessPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T31, T32
+
+**Likely files:**
+- `frontend/src/features/admin/AccessPage.tsx`
+- `frontend/src/features/admin/AccessPage.test.tsx`
+- `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `security-and-hardening`, `test-driven-development`
+
+### Checkpoint B — User metadata
+
+- [ ] T31-T33 pass.
+- [ ] Avatar upload không lưu binary trong DB.
+- [ ] Phone required được enforce ở UI và backend.
+
+### Phase 3 — Granular permission model
+
+#### T34: Permission catalog và migration compatibility
+
+**Description:** Định nghĩa permission `<feature>.<action>`, migrate/seed từ quyền `*.manage` cũ sang quyền chi tiết.
+
+**Acceptance criteria:**
+- [ ] Permission list có các feature/action tối thiểu trong `SPEC.md`.
+- [ ] Quyền `*.manage` cũ được map sang quyền chi tiết tương ứng trong seed/migration.
+- [ ] Master admin vẫn nhận `*`.
+- [ ] Role không được lưu permission rỗng.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern admin`
+- [ ] `npm run build --prefix backend`
+- [ ] `npm run db:migrate --prefix backend`
+
+**Dependencies:** T31
+
+**Likely files:**
+- `backend/db/migrations/018_user_metadata_permissions.sql`
+- `backend/src/modules/admin.ts`
+- `backend/src/modules/access.ts`
+- `backend/src/db/seed.ts`
+- `backend/test/admin.test.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `doubt-driven-development`
+
+#### T35: Backend enforce quyền chi tiết cho admin và metadata
+
+**Description:** Thay checks tổng quát bằng quyền action cụ thể cho users, roles, locations, catalog, products, partners.
+
+**Acceptance criteria:**
+- [ ] `view/create/update/delete` được kiểm tra theo endpoint/action.
+- [ ] User có `view` nhưng thiếu `create/update/delete` bị 403 khi gọi API tương ứng.
+- [ ] UI hiding không phải lớp bảo mật duy nhất; backend test cover trực tiếp.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern "access|admin|catalog|location|product|partner"`
+- [ ] `npm run build --prefix backend`
+
+**Dependencies:** T34
+
+**Likely files:**
+- `backend/src/modules/access.ts`
+- `backend/src/modules/admin.ts`
+- `backend/src/modules/catalog.ts`
+- `backend/src/modules/locations.ts`
+- `backend/src/modules/products.ts`
+- `backend/src/modules/partners.ts`
+- related backend tests
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `doubt-driven-development`
+
+#### T36: Backend enforce quyền chi tiết cho chứng từ, báo cáo và in
+
+**Description:** Áp dụng permission action cho receipt/outbound/purchase/sales/returns/stock-count/transfer/report/print.
+
+**Acceptance criteria:**
+- [ ] View/create/approve/print/export tách đúng endpoint.
+- [ ] Không còn dùng quyền tổng `stock.manage` cho mọi action.
+- [ ] Critical flow pick/check/ship giữ permission riêng hiện có.
+
+**Verification:**
+- [ ] `npm test --prefix backend`
+- [ ] `npm run build --prefix backend`
+
+**Dependencies:** T34
+
+**Likely files:**
+- `backend/src/modules/receipts.ts`
+- `backend/src/modules/outbound.ts`
+- `backend/src/modules/purchasing.ts`
+- `backend/src/modules/sales.ts`
+- `backend/src/modules/returns.ts`
+- `backend/src/modules/stock-counts.ts`
+- `backend/src/modules/transfers.ts`
+- `backend/src/modules/reports.ts`
+- `backend/src/modules/print.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `doubt-driven-development`
+
+#### T37: Role permission matrix UI
+
+**Description:** Thay checkbox phẳng bằng bảng quyền feature x action, có chọn tất cả toàn role và từng dòng.
+
+**Acceptance criteria:**
+- [ ] Role create/edit hiển thị ma trận quyền.
+- [ ] `Chọn tất cả quyền` bật/tắt toàn bộ checkbox hợp lệ.
+- [ ] `Chọn tất cả` từng dòng bật/tắt quyền của một feature.
+- [ ] Cell action không áp dụng bị disabled hoặc không có checkbox.
+- [ ] Không lưu role rỗng.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run AccessPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T34
+
+**Likely files:**
+- `frontend/src/features/admin/AccessPage.tsx`
+- `frontend/src/features/admin/AccessPage.test.tsx`
+- `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T38: Permission-based navigation/action UI
+
+**Description:** Frontend route/nav/action dùng quyền chi tiết thay vì `*.manage`.
+
+**Acceptance criteria:**
+- [ ] Menu hiển thị theo `.view`.
+- [ ] Nút thêm/sửa/vô hiệu hóa/duyệt/in/xuất file hiển thị theo action tương ứng.
+- [ ] Không còn logic `canCatalog = catalog.manage` làm nguồn mới.
+
+**Verification:**
+- [ ] `npm test --prefix frontend`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T35, T36, T37
+
+**Likely files:**
+- `frontend/src/App.tsx`
+- `frontend/src/layout/AppSidebar.tsx`
+- `frontend/src/features/**`
+- `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `security-and-hardening`, `test-driven-development`
+
+### Checkpoint C — Granular permissions
+
+- [ ] T34-T38 pass.
+- [ ] Role matrix usable.
+- [ ] User with partial permission is blocked by API, not only UI.
+
+### Phase 4 — Metadata API và client
+
+#### T39: Update/status cho danh mục và đơn vị
+
+**Description:** Backend hỗ trợ sửa tên và vô hiệu hóa/kích hoạt category/unit.
+
+**Acceptance criteria:**
+- [ ] Category/unit update/status scoped theo kho.
+- [ ] Delete action hiển thị/semantics là `Vô hiệu hóa`.
+- [ ] 403/404/409/422 có test.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern catalog`
+- [ ] `npm run build --prefix backend`
+
+**Dependencies:** T35
+
+**Likely files:** `backend/src/modules/catalog.ts`, `backend/test/catalog.test.ts`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `test-driven-development`
+
+#### T40: Update/status cho vị trí kho
+
+**Description:** Sửa tên/barcode/loại location và vô hiệu hóa an toàn.
+
+**Acceptance criteria:**
+- [ ] Duplicate code/barcode bị reject.
+- [ ] Không vô hiệu hóa location còn tồn.
+- [ ] Audit update/status.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern location`
+- [ ] `npm run build --prefix backend`
+
+**Dependencies:** T35
+
+**Likely files:** `backend/src/modules/locations.ts`, `backend/test/locations.test.ts`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `doubt-driven-development`
+
+#### T41: Update/status cho sản phẩm
+
+**Description:** Sửa thông tin an toàn và vô hiệu hóa product.
+
+**Acceptance criteria:**
+- [ ] Sửa name/barcodes/category/baseUnit/FEFO/expiry trong phạm vi an toàn.
+- [ ] Duplicate barcode bị reject.
+- [ ] Không sửa SKU/tracking mode trong task này.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern product`
+- [ ] `npm run build --prefix backend`
+
+**Dependencies:** T35, T39
+
+**Likely files:** `backend/src/modules/products.ts`, `backend/test/products.test.ts`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `doubt-driven-development`
+
+#### T42: Update/delete an toàn cho role
+
+**Description:** Role backend hỗ trợ sửa tên/quyền và xóa role chưa gán user.
+
+**Acceptance criteria:**
+- [ ] Update role không cho permission rỗng.
+- [ ] Delete role bị chặn khi đang gán user.
+- [ ] Audit update/delete.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern admin`
+- [ ] `npm run build --prefix backend`
+
+**Dependencies:** T34
+
+**Likely files:** `backend/src/modules/admin.ts`, `backend/test/admin.test.ts`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `test-driven-development`
+
+### Checkpoint D — Metadata APIs
+
+- [ ] T39-T42 pass.
+- [ ] API client expose update/status/delete methods.
+- [ ] Hard delete boundaries reviewed.
+
+### Phase 5 — Metadata UI actions
+
+#### T43: UI danh mục và đơn vị
+
+**Description:** Nối sửa/vô hiệu hóa category/unit, không còn nút disabled.
+
+**Acceptance criteria:**
+- [ ] Edit/status cập nhật row không reload.
+- [ ] Lỗi permission/constraint tiếng Việt.
+- [ ] Không dùng chữ `Xóa` cho dữ liệu nghiệp vụ.
+
+**Verification:** `npm test --prefix frontend -- --run CatalogPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T39, T38
+
+**Likely files:** `frontend/src/features/catalog/CatalogPage.tsx`, `frontend/src/features/catalog/CatalogPage.test.tsx`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T44: UI vị trí và sản phẩm
+
+**Description:** Nối sửa/vô hiệu hóa location/product.
+
+**Acceptance criteria:**
+- [ ] Location edit/status hoạt động.
+- [ ] Product edit/status hoạt động.
+- [ ] Action button hiện theo permission chi tiết.
+
+**Verification:** `npm test --prefix frontend -- --run LocationsPage ProductsPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T40, T41, T38
+
+**Likely files:** `frontend/src/features/locations/LocationsPage.tsx`, `frontend/src/features/products/ProductsPage.tsx`, related tests
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T45: UI đối tác và role
+
+**Description:** Nối sửa/vô hiệu hóa partner và sửa/xóa role.
+
+**Acceptance criteria:**
+- [ ] Partner update/status dùng API hiện có và permission chi tiết.
+- [ ] Role update/delete dùng API mới.
+- [ ] Delete role đang gán user hiển thị lỗi rõ ràng.
+
+**Verification:** `npm test --prefix frontend -- --run PartnersPage AccessPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T37, T38, T42
+
+**Likely files:** `frontend/src/features/partners/PartnersPage.tsx`, `frontend/src/features/admin/AccessPage.tsx`, related tests
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+### Checkpoint E — Metadata UX
+
+- [ ] T43-T45 pass.
+- [ ] Không còn nút metadata disabled vì chưa hỗ trợ.
+- [ ] Browser smoke cho category, product, partner, role.
+
+### Phase 6 — Multi-line document forms
+
+#### T46: Đơn mua nhiều dòng
+
+**Description:** PO create form nhập nhiều sản phẩm trong một đơn mua.
+
+**Acceptance criteria:** `Thêm dòng`, `Xóa dòng`, không xóa dòng cuối, submit nhiều `lines[]`, label `Nhà cung cấp (*)`.
+
+**Verification:** `npm test --prefix frontend -- --run PurchasingPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T30, T38
+
+**Likely files:** `frontend/src/features/purchasing/PurchasingPage.tsx`, `frontend/src/features/purchasing/PurchasingPage.test.tsx`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T47: Báo giá và đơn bán nhiều dòng
+
+**Description:** Sales create form nhiều dòng, có tổng tiền dòng và tổng chứng từ.
+
+**Acceptance criteria:** thêm/xóa nhiều dòng, submit nhiều line, tổng tiền hiển thị trước khi lưu.
+
+**Verification:** `npm test --prefix frontend -- --run SalesPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T30, T38
+
+**Likely files:** `frontend/src/features/sales/SalesPage.tsx`, `frontend/src/features/sales/SalesPage.test.tsx`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T48: Phiếu nhập nhiều dòng với tracking theo từng dòng
+
+**Description:** Receipt create form nhiều dòng, field lot/serial/expiry theo product từng dòng.
+
+**Acceptance criteria:** mỗi dòng có product/location/quantity, conditional required đúng dòng, submit đúng payload.
+
+**Verification:** `npm test --prefix frontend -- --run ReceiptPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T30, T38
+
+**Likely files:** `frontend/src/features/receipts/ReceiptPage.tsx`, `frontend/src/features/receipts/ReceiptPage.test.tsx`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T49: Phiếu xuất nhiều dòng
+
+**Description:** Outbound create form nhiều dòng product/quantity.
+
+**Acceptance criteria:** thêm/xóa dòng, submit nhiều `lines[]`, reset về một dòng trống sau khi tạo.
+
+**Verification:** `npm test --prefix frontend -- --run OutboundPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T30, T38
+
+**Likely files:** `frontend/src/features/outbound/OutboundPage.tsx`, `frontend/src/features/outbound/OutboundPage.test.tsx`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T50: Trả hàng nhiều dòng
+
+**Description:** Return create form nhiều dòng movement/quantity, sửa nhãn `Trả nhà cung cấp`.
+
+**Acceptance criteria:** thêm/xóa nhiều dòng, submit nhiều `lines[]`, không còn `Trả supplier`.
+
+**Verification:** `npm test --prefix frontend -- --run ReturnsPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T30, T38
+
+**Likely files:** `frontend/src/features/returns/ReturnsPage.tsx`, `frontend/src/features/returns/ReturnsPage.test.tsx`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T51: Chuyển kho và kiểm kê nhiều dòng
+
+**Description:** Transfer create và stock count create hỗ trợ nhiều dòng/tồn trong cùng chứng từ.
+
+**Acceptance criteria:** transfer gửi nhiều source balance/quantity; stock count chọn nhiều balance; không xóa dòng cuối.
+
+**Verification:** `npm test --prefix frontend -- --run TransfersPage StockCountsPage` và `npm run build --prefix frontend`
+
+**Dependencies:** T30, T38
+
+**Likely files:** `frontend/src/features/transfers/TransfersPage.tsx`, `frontend/src/features/stock-counts/StockCountsPage.tsx`, related tests
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+### Checkpoint F — Multi-line forms
+
+- [ ] T46-T51 pass.
+- [ ] Browser smoke tạo đơn mua hai dòng và trả hàng hai dòng.
+- [ ] Human review xem có cần form sửa chứng từ nháp ở phase sau không.
+
+### Phase 7 — E2E và review
+
+#### T52: Browser E2E cho rule mới
+
+**Description:** Chạy E2E-015 đến E2E-019 và ghi evidence.
+
+**Acceptance criteria:**
+- [ ] E2E-015 required markers pass.
+- [ ] E2E-016 metadata actions pass.
+- [ ] E2E-017 multi-line documents pass.
+- [ ] E2E-018 user metadata/avatar pass.
+- [ ] E2E-019 granular permissions pass.
+
+**Verification:**
+- [ ] `$vibe-e2e E2E-015`
+- [ ] `$vibe-e2e E2E-016`
+- [ ] `$vibe-e2e E2E-017`
+- [ ] `$vibe-e2e E2E-018`
+- [ ] `$vibe-e2e E2E-019`
+
+**Dependencies:** T43-T51
+
+**Likely files:** `tasks/test-result.md`
+
+**Recommended skills:** `vibe-e2e`, `browser-testing-with-devtools`
+
+#### T53: Review và cleanup trước merge
+
+**Description:** Review toàn bộ diff, đơn giản hóa lặp thừa, chạy regression rộng.
+
+**Acceptance criteria:**
+- [ ] Full lint/build/test pass hoặc blocker ghi rõ.
+- [ ] Review không còn high/medium finding chưa xử lý.
+- [ ] Không còn permission cũ `*.manage` làm source chính cho code mới.
+
+**Verification:**
+- [ ] `npm run lint`
+- [ ] `npm run build`
+- [ ] `npm test`
+- [ ] `$vibe-review`
+
+**Dependencies:** T52
+
+**Likely files:** all files changed by T29-T52
+
+**Recommended skills:** `vibe-review`, `code-review-and-quality`, `vibe-simplify`
 
 ## Phase Checkpoints
 
-1. **Checkpoint A after T07:** access model and template foundation; human review/context reset.
-2. **Checkpoint B after T14:** real stock can be received and traced; schema review/context reset.
-3. **Checkpoint C after T19:** critical outbound MVP works; internal-release decision/context reset.
-4. **Checkpoint D after T26:** extended web/PWA/device scope; decide whether Tauri is needed.
-5. **Checkpoint E after T28:** GO/NO-GO and rollback readiness.
-
-- Checkpoint D decision (2026-07-15): web print and keyboard scanner are sufficient for the approved scope; Tauri is not authorized or needed. Physical Android/printer evidence remains a release gate.
-- Checkpoint E decision (2026-07-15): internal pilot GO, external production NO-GO. Follow [launch readiness and rollback](../LAUNCH.md) and close RESULT-002/003/005 before expanding release.
-
-Do not start the next checkpoint's tasks in the same build session unless the human explicitly asks.
+1. **Checkpoint A after T30:** required marker and Vietnamese label baseline.
+2. **Checkpoint B after T33:** user metadata and avatar upload.
+3. **Checkpoint C after T38:** granular permission model and UI matrix.
+4. **Checkpoint D after T42:** metadata APIs ready.
+5. **Checkpoint E after T45:** metadata UI actions usable.
+6. **Checkpoint F after T51:** multi-line document forms.
+7. **Checkpoint G after T53:** E2E/review/regression complete.
 
 ## Tradeoffs and Open Questions
 
-- **Password hashing:** recommend Argon2id; fallback to Node `scrypt` if native dependency support is unacceptable. Decide before T04.
-- **`admin_template/`:** recommend delete after T02/T05 prove `frontend/` is stable; keeping two copies causes drift.
-- **Reservation TTL:** plan assumes 30 minutes before picking starts; picked stock never auto-expires.
-- **TTL implementation:** expire lazily during list/claim/release requests in MVP; add a background cleanup job only if stale rows measurably accumulate.
-- **Short shipment:** plan assumes `needs_repick`; only `outbound.resolveDiscrepancy` can approve short ship with reason.
-- **Email:** use a mock/no-op provider through MVP; choose production provider before launch.
-- **Offline:** out of scope. Every scan requires server acknowledgement; UI must show loss of connection clearly.
-- **Tauri vs TypeScript-only:** Tauri printing requires a small Rust adapter, which conflicts with “TypeScript toàn bộ”. Keep T27 out unless the user explicitly approves this exception; Electron is not added merely to avoid Rust.
-- **Performance starting budgets:** list APIs p95 < 500 ms on local representative data; scan acknowledgement p95 < 300 ms; revisit after T19 measurements.
+- Avatar resize may require a dependency if browser/server native APIs are insufficient. Ask before adding one.
+- Permission migration should preserve existing warehouse admin roles by expanding old `*.manage` codes into detailed rights.
+- `delete` remains permission code for compatibility, but UI wording is `Vô hiệu hóa` for nghiệp vụ data.
+- Form edit for draft documents remains out of first multi-line pass unless user explicitly prioritizes it.

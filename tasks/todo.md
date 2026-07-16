@@ -1,47 +1,56 @@
-# Todo: Hệ thống quản lý kho đa ngành
+# Todo: Hoàn thiện form, user metadata và phân quyền v4
 
-Status: đang triển khai toàn bộ plan v2
+Status: draft v4 — chờ xác nhận trước khi build
 
-## Phase 1 — Foundation and access
+## Phase 1 — Rule nền và nhãn bắt buộc
 
-- [x] T01 Backend baseline truthful.
-- [x] T02 Frontend template lint/build stable.
-- [x] T03 HTTP contract boundary.
-- [x] T04 Session authentication API.
-- [x] T05 Login and forced-password UI.
-- [x] T06 Warehouse permission enforcement.
-- [x] T07 User/role administration.
-- [x] Checkpoint A reviewed.
+- [ ] T29 Chuẩn hóa label bắt buộc cho form lõi.
+- [ ] T30 Chuẩn hóa label bắt buộc cho form chứng từ.
+- [ ] Checkpoint A reviewed.
 
-## Phase 2 — Master data and stock
+## Phase 2 — User metadata và avatar
 
-- [x] T08 Warehouse locations.
-- [x] T09 Minimum catalog and units.
-- [x] T10 Products and barcode lookup.
-- [x] T11 Partners.
-- [x] T12 Stock ledger and balance core.
-- [x] T13 Receiving with lot/serial.
-- [x] T14 Inventory and traceability views.
-- [x] Checkpoint B reviewed.
+- [ ] T31 Migration và API user metadata.
+- [ ] T32 Avatar upload và resize.
+- [ ] T33 UI user metadata.
+- [ ] Checkpoint B reviewed.
 
-## Phase 3 — Critical outbound MVP
+## Phase 3 — Granular permission model
 
-- [x] T15 Outbound draft and reservation release.
-- [x] T16 Picker workflow.
-- [x] T17 Independent checking and shipping.
-- [x] T18 Discrepancy, re-pick, cancellation and reassignment.
-- [x] T19 Critical E2E and hardening.
-- [x] Checkpoint C reviewed; internal-release decision recorded.
+- [ ] T34 Permission catalog và migration compatibility.
+- [ ] T35 Backend enforce quyền chi tiết cho admin và metadata.
+- [ ] T36 Backend enforce quyền chi tiết cho chứng từ, báo cáo và in.
+- [ ] T37 Role permission matrix UI.
+- [ ] T38 Permission-based navigation/action UI.
+- [ ] Checkpoint C reviewed.
 
-## Phase 4 — Extended scope
+## Phase 4 — Metadata API và client
 
-- [x] T20 Purchase orders.
-- [x] T21 Quote, sales order and invoice.
-- [x] T22 Returns.
-- [x] T23 Stock count and adjustment.
-- [x] T24 Warehouse transfer.
-- [x] T25 Dashboard, reports and export.
-- [x] T26 Web print, labels and PWA device evidence.
-- [x] T27 Optional Tauri silent printing after approval — skipped; approval prerequisite absent.
-- [x] T28 Final review and launch readiness.
-- [x] Checkpoints D/E reviewed.
+- [ ] T39 Update/status cho danh mục và đơn vị.
+- [ ] T40 Update/status cho vị trí kho.
+- [ ] T41 Update/status cho sản phẩm.
+- [ ] T42 Update/delete an toàn cho role.
+- [ ] Checkpoint D reviewed.
+
+## Phase 5 — Metadata UI actions
+
+- [ ] T43 UI danh mục và đơn vị.
+- [ ] T44 UI vị trí và sản phẩm.
+- [ ] T45 UI đối tác và role.
+- [ ] Checkpoint E reviewed.
+
+## Phase 6 — Multi-line document forms
+
+- [ ] T46 Đơn mua nhiều dòng.
+- [ ] T47 Báo giá và đơn bán nhiều dòng.
+- [ ] T48 Phiếu nhập nhiều dòng với tracking theo từng dòng.
+- [ ] T49 Phiếu xuất nhiều dòng.
+- [ ] T50 Trả hàng nhiều dòng.
+- [ ] T51 Chuyển kho và kiểm kê nhiều dòng.
+- [ ] Checkpoint F reviewed.
+
+## Phase 7 — E2E và review
+
+- [ ] T52 Browser E2E cho rule mới.
+- [ ] T53 Review và cleanup trước merge.
+- [ ] Checkpoint G reviewed.

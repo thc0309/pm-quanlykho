@@ -2,7 +2,6 @@
 
 > Generated from verified evidence in `tasks/plan.md` and `tasks/task-detail/`. Do not edit by hand.
 
-- Checkpoint A — Access foundation: approved to continue under the user's explicit uninterrupted-build instruction. Node `scrypt` parameters and session handling remain covered by authentication/security tests. `admin_template/` is retained because deletion was not required for the product path and would be destructive cleanup without measurable runtime benefit.
 - T01: Make the backend baseline truthful: 2026-07-15: `npm test --prefix backend` passed 1/1 TypeScript health test; `npm run build --prefix backend` passed. Removed the unusable emitted-file `start` script.
 - T02: Stabilize the copied frontend template: 2026-07-15: frontend lint passed with 0 errors (2 existing Fast Refresh warnings); production build passed. Removed explicit `any` and CommonJS type import errors.
 - T03: Establish the HTTP contract boundary: 2026-07-15: `http-contract.test.ts` passed 4/4; full backend suite passed 5/5 and TypeScript build passed. Boundary now provides request IDs, stable errors, JSON validation and pagination capped at 100 rows.

@@ -2,17 +2,17 @@
 
 > Generated from `tasks/todo.md`. Do not edit by hand.
 
-- Active: No pending task
-- Progress: 32/32 checklist items complete
+- Active: T29 Chuẩn hóa label bắt buộc cho form lõi.
+- Progress: 0/32 checklist items complete
 
 ## Next queue
 
-- Empty
+- T29 Chuẩn hóa label bắt buộc cho form lõi.
+- T30 Chuẩn hóa label bắt buộc cho form chứng từ.
+- Checkpoint A reviewed.
+- T31 Migration và API user metadata.
+- T32 Avatar upload và resize.
 
 ## Recently completed
 
-- Checkpoints D/E reviewed.
-- T28 Final review and launch readiness.
-- T27 Optional Tauri silent printing after approval — skipped; approval prerequisite absent.
-- T26 Web print, labels and PWA device evidence.
-- T25 Dashboard, reports and export.
+- Empty

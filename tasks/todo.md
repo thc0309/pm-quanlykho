@@ -42,7 +42,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 ## Phase 6 — Multi-line document forms
 
 - [x] [T46 Đơn mua nhiều dòng](task-detail/task-46.md).
-- [ ] [T47 Báo giá và đơn bán nhiều dòng](task-detail/task-47.md).
+- [x] [T47 Báo giá và đơn bán nhiều dòng](task-detail/task-47.md).
 - [ ] [T48 Phiếu nhập nhiều dòng với tracking theo từng dòng](task-detail/task-48.md).
 - [ ] [T49 Phiếu xuất nhiều dòng](task-detail/task-49.md).
 - [ ] [T50 Trả hàng nhiều dòng](task-detail/task-50.md).

@@ -521,9 +521,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 **Description:** Sales create form nhiều dòng, có tổng tiền dòng và tổng chứng từ.
 
-**Acceptance criteria:** thêm/xóa nhiều dòng, submit nhiều line, tổng tiền hiển thị trước khi lưu.
+**Acceptance criteria:**
+- [x] Thêm/xóa nhiều dòng, không xóa dòng cuối và giữ dữ liệu khi xóa dòng giữa.
+- [x] Submit đầy đủ `lines[]` cho báo giá/đơn bán.
+- [x] Tổng dòng và tổng chứng từ hiển thị trước khi lưu theo quy tắc làm tròn backend.
 
-**Verification:** `npm test --prefix frontend -- --run SalesPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run SalesPage` — 3/3 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T30, T38
 

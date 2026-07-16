@@ -22,7 +22,7 @@ const views: Array<{ id: View; label: string }> = [
 const emptyPagination: PaginationInfo = { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 };
 const panelClass = "rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]";
 const inputClass = "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
-const buttonClass = "inline-flex h-10 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:text-gray-300";
+const buttonClass = "inline-flex h-10 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.03]";
 const cellClass = "px-4 py-3 text-sm text-gray-700 dark:text-gray-300";
 
 function columns(view: View) {
@@ -108,18 +108,18 @@ export default function InventoryPage({ api = inventoryApi }: { api?: InventoryC
       {error && <p role="alert" className="rounded-lg bg-error-50 p-3 text-sm text-error-700 dark:bg-error-500/15 dark:text-error-400">{error}</p>}
       <section className={panelClass}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">{views.find((item) => item.id === view)?.label}</h2>
-        {loading ? <p role="status" className="mt-3 text-sm text-gray-500">Đang tải tồn kho…</p> : (
+        {loading ? <p role="status" className="mt-3 text-sm text-gray-500 dark:text-gray-400">Đang tải tồn kho…</p> : (
           <>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
                 <thead className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-white/[0.03] dark:text-gray-400"><tr>{columns(view).map((column) => <th key={column} className="px-4 py-3">{column}</th>)}</tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {rows.length === 0 ? <tr><td colSpan={columns(view).length} className={`${cellClass} text-center text-gray-500`}>Không có dữ liệu tồn kho.</td></tr>
+                  {rows.length === 0 ? <tr><td colSpan={columns(view).length} className={`${cellClass} text-center text-gray-500 dark:text-gray-400`}>Không có dữ liệu tồn kho.</td></tr>
                     : rows.map((row) => <tr key={"id" in row ? row.id : `${row.locationId}:${row.productId}:${row.lotCode}:${row.serialCode}`}><Cells view={view} row={row} /></tr>)}
                 </tbody>
               </table>
             </div>
-            <div className="mt-4 flex items-center justify-between gap-3 text-sm text-gray-500">
+            <div className="mt-4 flex items-center justify-between gap-3 text-sm text-gray-500 dark:text-gray-400">
               <span>Trang {pagination.page} / {Math.max(1, pagination.totalPages)}</span>
               <div className="flex gap-2"><button type="button" className={buttonClass} disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Trang trước</button><button type="button" className={buttonClass} disabled={page >= pagination.totalPages} onClick={() => setPage((value) => value + 1)}>Trang sau</button></div>
             </div>

@@ -1,2 +1,54 @@
-import{useEffect,useState,type FormEvent}from"react";import{Link}from"react-router";import{salesApi,type SalesClient}from"../../lib/api";const btn="inline-flex h-10 items-center rounded-lg bg-brand-600 px-3 text-sm text-white disabled:opacity-40",input="mt-1 h-11 w-full rounded-lg border px-3";export default function SalesPage({api=salesApi}:{api?:SalesClient}){const[rows,setRows]=useState<Awaited<ReturnType<SalesClient["list"]>>>([]),[error,setError]=useState("");useEffect(()=>{api.list().then(setRows).catch(()=>setError("Không thể tải bán hàng."))},[api]);async function approve(id:string){try{await api.approve(id);setRows(x=>x.map(r=>r.id===id?{...r,status:"approved"}:r))}catch{setError("Không thể duyệt chứng từ.")}}return<div className="space-y-5"><div className="flex justify-between"><h1 className="text-2xl font-semibold">Báo giá và đơn bán</h1><Link to="/sales/create" className={btn}>Tạo chứng từ</Link></div>{error&&<p role="alert">{error}</p>}<div className="overflow-x-auto rounded-2xl border"><table className="min-w-full"><thead><tr><th className="p-3 text-left">Số</th><th>Loại</th><th>Khách hàng</th><th>Tổng</th><th>Action</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td className="p-3">{r.documentNo}</td><td>{r.kind}</td><td>{r.customerName}</td><td>{r.total.toLocaleString("vi-VN")}</td><td><button disabled={r.status!=="draft"} onClick={()=>approve(r.id)}>Duyệt</button></td></tr>)}</tbody></table></div></div>}
-export function SalesCreatePage({api=salesApi}:{api?:SalesClient}){const[c,setC]=useState<Awaited<ReturnType<SalesClient["listCustomers"]>>>([]),[p,setP]=useState<Awaited<ReturnType<SalesClient["listProducts"]>>>([]),[ok,setOk]=useState(false);useEffect(()=>{Promise.all([api.listCustomers(),api.listProducts()]).then(([a,b])=>{setC(a);setP(b)})},[api]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const d=new FormData(e.currentTarget);await api.create({documentNo:String(d.get("documentNo")),kind:String(d.get("kind"))as"quote"|"order",customerId:String(d.get("customerId")),lines:[{productId:String(d.get("productId")),quantity:Number(d.get("quantity")),unitPrice:Number(d.get("unitPrice")),taxRate:Number(d.get("taxRate"))}]});setOk(true)}return<form onSubmit={submit} className="grid max-w-2xl gap-4 sm:grid-cols-2"><h1 className="sm:col-span-2 text-2xl font-semibold">Tạo báo giá / đơn bán</h1>{ok&&<p role="status">Đã tạo chứng từ</p>}<label>Số chứng từ<input name="documentNo" required className={input}/></label><label>Loại<select name="kind" className={input}><option value="quote">Báo giá</option><option value="order">Đơn bán</option></select></label><label>Khách hàng<select name="customerId" required className={input}><option value="">Chọn khách</option>{c.map(x=><option key={x.id} value={x.id}>{x.code} - {x.name}</option>)}</select></label><label>Sản phẩm<select name="productId" required className={input}><option value="">Chọn sản phẩm</option>{p.map(x=><option key={x.id} value={x.id}>{x.sku} - {x.name}</option>)}</select></label><label>Số lượng<input name="quantity" type="number" defaultValue="1" required className={input}/></label><label>Đơn giá<input name="unitPrice" type="number" defaultValue="0" required className={input}/></label><label>Thuế %<input name="taxRate" type="number" defaultValue="0" required className={input}/></label><button className={btn}>Tạo chứng từ</button></form>}
+import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router";
+
+import { salesApi, type SalesClient } from "../../lib/api";
+import { errorClass, inputClass, labelClass, pageTitleClass, panelClass, primaryButtonClass, secondaryButtonClass, successClass, tableClass } from "../themeStyles";
+
+export default function SalesPage({ api = salesApi }: { api?: SalesClient }) {
+  const [rows, setRows] = useState<Awaited<ReturnType<SalesClient["list"]>>>([]);
+  const [error, setError] = useState("");
+  useEffect(() => { api.list().then(setRows).catch(() => setError("Không thể tải bán hàng.")); }, [api]);
+
+  async function approve(id: string) {
+    try {
+      await api.approve(id);
+      setRows((items) => items.map((item) => item.id === id ? { ...item, status: "approved" } : item));
+    } catch { setError("Không thể duyệt chứng từ."); }
+  }
+
+  return <div className="space-y-5">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><h1 className={pageTitleClass}>Báo giá và đơn bán</h1><Link to="/sales/create" className={primaryButtonClass}>Tạo chứng từ</Link></div>
+    {error && <p role="alert" className={errorClass}>{error}</p>}
+    <div className={panelClass}><div className="overflow-x-auto"><table className={tableClass}>
+      <thead><tr><th>Số</th><th>Loại</th><th>Khách hàng</th><th>Tổng</th><th>Action</th></tr></thead>
+      <tbody>{rows.map((row) => <tr key={row.id}><td>{row.documentNo}</td><td>{row.kind}</td><td>{row.customerName}</td><td>{row.total.toLocaleString("vi-VN")}</td><td><button className={secondaryButtonClass} disabled={row.status !== "draft"} onClick={() => approve(row.id)}>Duyệt</button></td></tr>)}</tbody>
+    </table></div></div>
+  </div>;
+}
+
+export function SalesCreatePage({ api = salesApi }: { api?: SalesClient }) {
+  const [customers, setCustomers] = useState<Awaited<ReturnType<SalesClient["listCustomers"]>>>([]);
+  const [products, setProducts] = useState<Awaited<ReturnType<SalesClient["listProducts"]>>>([]);
+  const [created, setCreated] = useState(false);
+  useEffect(() => { Promise.all([api.listCustomers(), api.listProducts()]).then(([nextCustomers, nextProducts]) => { setCustomers(nextCustomers); setProducts(nextProducts); }); }, [api]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    await api.create({ documentNo: String(data.get("documentNo")), kind: String(data.get("kind")) as "quote" | "order", customerId: String(data.get("customerId")), lines: [{ productId: String(data.get("productId")), quantity: Number(data.get("quantity")), unitPrice: Number(data.get("unitPrice")), taxRate: Number(data.get("taxRate")) }] });
+    setCreated(true);
+  }
+
+  return <form onSubmit={submit} className={`grid max-w-2xl gap-4 sm:grid-cols-2 ${panelClass} p-5`}>
+    <h1 className={`sm:col-span-2 ${pageTitleClass}`}>Tạo báo giá / đơn bán</h1>
+    {created && <p role="status" className={`sm:col-span-2 ${successClass}`}>Đã tạo chứng từ</p>}
+    <label className={labelClass}>Số chứng từ<input name="documentNo" required className={inputClass} /></label>
+    <label className={labelClass}>Loại<select name="kind" className={inputClass}><option value="quote">Báo giá</option><option value="order">Đơn bán</option></select></label>
+    <label className={labelClass}>Khách hàng<select name="customerId" required className={inputClass}><option value="">Chọn khách</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
+    <label className={labelClass}>Sản phẩm<select name="productId" required className={inputClass}><option value="">Chọn sản phẩm</option>{products.map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
+    <label className={labelClass}>Số lượng<input name="quantity" type="number" defaultValue="1" required className={inputClass} /></label>
+    <label className={labelClass}>Đơn giá<input name="unitPrice" type="number" defaultValue="0" required className={inputClass} /></label>
+    <label className={labelClass}>Thuế %<input name="taxRate" type="number" defaultValue="0" required className={inputClass} /></label>
+    <button className={primaryButtonClass}>Tạo chứng từ</button>
+  </form>;
+}

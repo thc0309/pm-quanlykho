@@ -289,7 +289,7 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
                       : assignment.roleIds.filter((id) => id !== role.id),
                   })
                 }
-                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500"
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500 dark:border-gray-700"
               />
               Gán {role.name}
             </label>
@@ -450,7 +450,7 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
                       : roleForm.permissions.filter((value) => value !== code),
                   })
                 }
-                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500"
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500 dark:border-gray-700"
               />
               {label}
             </label>

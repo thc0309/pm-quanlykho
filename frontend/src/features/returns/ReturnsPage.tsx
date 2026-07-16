@@ -1,2 +1,44 @@
-import{useEffect,useState,type FormEvent}from"react";import{Link}from"react-router";import{returnApi,type ReturnClient}from"../../lib/api";const btn="inline-flex h-10 items-center rounded-lg bg-brand-600 px-3 text-sm text-white disabled:opacity-40",input="mt-1 h-11 w-full rounded-lg border px-3";export default function ReturnsPage({api=returnApi}:{api?:ReturnClient}){const[rows,setRows]=useState<Awaited<ReturnType<ReturnClient["list"]>>>([]);useEffect(()=>{api.list().then(setRows)},[api]);async function confirm(id:string){await api.confirm(id);setRows(x=>x.map(r=>r.id===id?{...r,status:"confirmed"}:r))}return<div className="space-y-5"><div className="flex justify-between"><h1 className="text-2xl font-semibold">Phiếu trả hàng</h1><Link to="/returns/create" className={btn}>Tạo phiếu trả</Link></div><div className="overflow-x-auto rounded-2xl border"><table className="min-w-full"><thead><tr><th className="p-3 text-left">Số phiếu</th><th>Loại</th><th>Chứng từ gốc</th><th>Action</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td className="p-3">{r.returnNo}</td><td>{r.kind}</td><td>{r.originalDocumentNo}</td><td><button disabled={r.status!=="draft"} onClick={()=>confirm(r.id)}>Xác nhận trả</button></td></tr>)}</tbody></table></div></div>}
-export function ReturnCreatePage({api=returnApi}:{api?:ReturnClient}){const[ok,setOk]=useState(false);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const d=new FormData(e.currentTarget);await api.create({returnNo:String(d.get("returnNo")),kind:String(d.get("kind"))as"customer"|"supplier",originalDocumentId:String(d.get("originalDocumentId")),lines:[{originalMovementId:String(d.get("originalMovementId")),quantity:Number(d.get("quantity"))}]});setOk(true)}return<form onSubmit={submit} className="grid max-w-2xl gap-4 sm:grid-cols-2"><h1 className="sm:col-span-2 text-2xl font-semibold">Tạo phiếu trả</h1>{ok&&<p role="status">Đã tạo phiếu trả</p>}<label>Số phiếu<input name="returnNo" required className={input}/></label><label>Loại<select name="kind" className={input}><option value="customer">Khách trả</option><option value="supplier">Trả supplier</option></select></label><label>Document ID gốc<input name="originalDocumentId" required className={input}/></label><label>Movement ID gốc<input name="originalMovementId" required className={input}/></label><label>Số lượng<input name="quantity" type="number" min="0.0001" required className={input}/></label><button className={btn}>Tạo phiếu trả</button></form>}
+import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router";
+
+import { returnApi, type ReturnClient } from "../../lib/api";
+import { inputClass, labelClass, pageTitleClass, panelClass, primaryButtonClass, secondaryButtonClass, successClass, tableClass } from "../themeStyles";
+
+export default function ReturnsPage({ api = returnApi }: { api?: ReturnClient }) {
+  const [rows, setRows] = useState<Awaited<ReturnType<ReturnClient["list"]>>>([]);
+  useEffect(() => { api.list().then(setRows); }, [api]);
+
+  async function confirm(id: string) {
+    await api.confirm(id);
+    setRows((items) => items.map((item) => item.id === id ? { ...item, status: "confirmed" } : item));
+  }
+
+  return <div className="space-y-5">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><h1 className={pageTitleClass}>Phiếu trả hàng</h1><Link to="/returns/create" className={primaryButtonClass}>Tạo phiếu trả</Link></div>
+    <div className={panelClass}><div className="overflow-x-auto"><table className={tableClass}>
+      <thead><tr><th>Số phiếu</th><th>Loại</th><th>Chứng từ gốc</th><th>Action</th></tr></thead>
+      <tbody>{rows.map((row) => <tr key={row.id}><td>{row.returnNo}</td><td>{row.kind}</td><td>{row.originalDocumentNo}</td><td><button className={secondaryButtonClass} disabled={row.status !== "draft"} onClick={() => confirm(row.id)}>Xác nhận trả</button></td></tr>)}</tbody>
+    </table></div></div>
+  </div>;
+}
+
+export function ReturnCreatePage({ api = returnApi }: { api?: ReturnClient }) {
+  const [created, setCreated] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    await api.create({ returnNo: String(data.get("returnNo")), kind: String(data.get("kind")) as "customer" | "supplier", originalDocumentId: String(data.get("originalDocumentId")), lines: [{ originalMovementId: String(data.get("originalMovementId")), quantity: Number(data.get("quantity")) }] });
+    setCreated(true);
+  }
+
+  return <form onSubmit={submit} className={`grid max-w-2xl gap-4 sm:grid-cols-2 ${panelClass} p-5`}>
+    <h1 className={`sm:col-span-2 ${pageTitleClass}`}>Tạo phiếu trả</h1>
+    {created && <p role="status" className={`sm:col-span-2 ${successClass}`}>Đã tạo phiếu trả</p>}
+    <label className={labelClass}>Số phiếu<input name="returnNo" required className={inputClass} /></label>
+    <label className={labelClass}>Loại<select name="kind" className={inputClass}><option value="customer">Khách trả</option><option value="supplier">Trả supplier</option></select></label>
+    <label className={labelClass}>Document ID gốc<input name="originalDocumentId" required className={inputClass} /></label>
+    <label className={labelClass}>Movement ID gốc<input name="originalMovementId" required className={inputClass} /></label>
+    <label className={labelClass}>Số lượng<input name="quantity" type="number" min="0.0001" required className={inputClass} /></label>
+    <button className={primaryButtonClass}>Tạo phiếu trả</button>
+  </form>;
+}

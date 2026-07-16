@@ -1,1 +1,79 @@
-import{useEffect,useState}from"react";import{outboundExceptionApi,type OutboundExceptionClient,type OutboundExceptionItem}from"../../lib/api";const btn="rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-40";export default function OutboundExceptions({api=outboundExceptionApi}:{api?:OutboundExceptionClient}){const[items,setItems]=useState<OutboundExceptionItem[]>([]),[reason,setReason]=useState("Xử lý ngoại lệ theo xác nhận"),[error,setError]=useState("");useEffect(()=>{api.list().then(setItems).catch(()=>setError("Không thể tải ngoại lệ."));},[api]);async function act(item:OutboundExceptionItem,type:"cancel"|"mismatch"|"short"){try{if(type==="cancel")await api.cancel(item.id,reason);if(type==="mismatch")await api.mismatch(item.id);if(type==="short")await api.approveShort(item.id,reason);setItems(rows=>type==="cancel"?rows.filter(r=>r.id!==item.id):rows.map(r=>r.id===item.id?{...r,status:type==="mismatch"?"needs_repick":r.status}:r));}catch{setError("Không thể xử lý ngoại lệ ở trạng thái hiện tại.");}}return<div className="space-y-5"><h1 className="text-2xl font-semibold">Ngoại lệ phiếu xuất</h1>{error&&<p role="alert">{error}</p>}<label className="block max-w-xl text-sm">Lý do<input aria-label="Lý do" value={reason} onChange={e=>setReason(e.target.value)} className="mt-1 h-11 w-full rounded-lg border px-3"/></label><div className="overflow-x-auto rounded-2xl border bg-white"><table className="min-w-full"><thead><tr><th className="p-3 text-left">Số phiếu</th><th className="p-3 text-left">Trạng thái</th><th className="p-3 text-right">Action</th></tr></thead><tbody>{items.map(i=><tr key={i.id}><td className="p-3">{i.documentNo}</td><td className="p-3">{i.status}</td><td className="flex justify-end gap-2 p-3"><button className={btn} disabled={i.status!=="checking"} onClick={()=>act(i,"mismatch")}>Cần soạn lại</button><button className={btn} disabled={i.status!=="checking"} onClick={()=>act(i,"short")}>Duyệt xuất thiếu</button><button className={btn} disabled={i.status==="picked"||i.status==="checking"} onClick={()=>act(i,"cancel")}>Hủy phiếu</button></td></tr>)}</tbody></table></div></div>}
+import { useEffect, useState } from "react";
+
+import {
+  outboundExceptionApi,
+  type OutboundExceptionClient,
+  type OutboundExceptionItem,
+} from "../../lib/api";
+import {
+  errorClass,
+  inputClass,
+  labelClass,
+  pageTitleClass,
+  panelClass,
+  secondaryButtonClass,
+  tableClass,
+} from "../themeStyles";
+
+export default function OutboundExceptions({
+  api = outboundExceptionApi,
+}: {
+  api?: OutboundExceptionClient;
+}) {
+  const [items, setItems] = useState<OutboundExceptionItem[]>([]);
+  const [reason, setReason] = useState("Xử lý ngoại lệ theo xác nhận");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.list().then(setItems).catch(() => setError("Không thể tải ngoại lệ."));
+  }, [api]);
+
+  async function act(item: OutboundExceptionItem, type: "cancel" | "mismatch" | "short") {
+    try {
+      if (type === "cancel") await api.cancel(item.id, reason);
+      if (type === "mismatch") await api.mismatch(item.id);
+      if (type === "short") await api.approveShort(item.id, reason);
+      setItems((rows) => type === "cancel"
+        ? rows.filter((row) => row.id !== item.id)
+        : rows.map((row) => row.id === item.id
+          ? { ...row, status: type === "mismatch" ? "needs_repick" : row.status }
+          : row));
+    } catch {
+      setError("Không thể xử lý ngoại lệ ở trạng thái hiện tại.");
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <h1 className={pageTitleClass}>Ngoại lệ phiếu xuất</h1>
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      <label className={`${labelClass} max-w-xl`}>
+        Lý do
+        <input
+          aria-label="Lý do"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          className={inputClass}
+        />
+      </label>
+      <div className={`${panelClass} overflow-x-auto`}>
+        <table className={tableClass}>
+          <thead><tr><th>Số phiếu</th><th>Trạng thái</th><th className="text-right!">Action</th></tr></thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                <td>{item.documentNo}</td>
+                <td>{item.status}</td>
+                <td className="flex justify-end gap-2">
+                  <button className={secondaryButtonClass} disabled={item.status !== "checking"} onClick={() => act(item, "mismatch")}>Cần soạn lại</button>
+                  <button className={secondaryButtonClass} disabled={item.status !== "checking"} onClick={() => act(item, "short")}>Duyệt xuất thiếu</button>
+                  <button className={secondaryButtonClass} disabled={item.status === "picked" || item.status === "checking"} onClick={() => act(item, "cancel")}>Hủy phiếu</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

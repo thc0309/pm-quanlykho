@@ -28,7 +28,7 @@ const LayoutContent: React.FC<AppLayoutProps> = ({ access, user, onLogout }) => 
       >
         <AppHeader user={user} onLogout={onLogout} />
         <OfflineStatus />
-        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
+        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) text-gray-900 md:p-6 dark:text-white/90">
           <Outlet />
         </div>
       </div>

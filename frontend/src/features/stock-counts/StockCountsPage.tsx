@@ -1,2 +1,44 @@
-import{useEffect,useState,type FormEvent}from"react";import{Link}from"react-router";import{stockCountApi,type StockCountClient}from"../../lib/api";const btn="inline-flex h-10 items-center rounded-lg bg-brand-600 px-3 text-sm text-white disabled:opacity-40",input="mt-1 h-11 w-full rounded-lg border px-3";export default function StockCountsPage({api=stockCountApi}:{api?:StockCountClient}){const[rows,setRows]=useState<Awaited<ReturnType<StockCountClient["list"]>>>([]);useEffect(()=>{api.list().then(setRows)},[api]);async function action(id:string,status:"submitted"|"confirmed"){if(status==="submitted")await api.submit(id);else await api.approve(id);setRows(x=>x.map(r=>r.id===id?{...r,status}:r))}return<div className="space-y-5"><div className="flex justify-between"><h1 className="text-2xl font-semibold">Kiểm kê kho</h1><Link to="/stock-counts/create" className={btn}>Tạo kiểm kê</Link></div><div className="overflow-x-auto rounded-2xl border"><table className="min-w-full"><thead><tr><th className="p-3 text-left">Số</th><th>Tiến độ</th><th>Trạng thái</th><th>Action</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td className="p-3">{r.countNo}</td><td>{r.countedLines}/{r.lineCount}</td><td>{r.status}</td><td>{r.status==="draft"?<button onClick={()=>action(r.id,"submitted")}>Gửi duyệt</button>:r.status==="submitted"?<button onClick={()=>action(r.id,"confirmed")}>Duyệt điều chỉnh</button>:null}</td></tr>)}</tbody></table></div></div>}
-export function StockCountCreatePage({api=stockCountApi}:{api?:StockCountClient}){const[balances,setBalances]=useState<Awaited<ReturnType<StockCountClient["listBalances"]>>>([]),[ok,setOk]=useState(false);useEffect(()=>{api.listBalances().then(setBalances)},[api]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const d=new FormData(e.currentTarget);await api.create({countNo:String(d.get("countNo")),stockBalanceIds:[String(d.get("stockBalanceId"))]});setOk(true)}return<form onSubmit={submit} className="max-w-xl space-y-4"><h1 className="text-2xl font-semibold">Tạo kiểm kê</h1>{ok&&<p role="status">Đã freeze snapshot kiểm kê</p>}<label className="block">Số kiểm kê<input name="countNo" required className={input}/></label><label className="block">Tồn cần đếm<select name="stockBalanceId" required className={input}><option value="">Chọn stock key</option>{balances.filter(x=>x.id).map(x=><option key={x.id} value={x.id}>{x.sku} / {x.locationCode} / {x.onHand}</option>)}</select></label><button className={btn}>Freeze snapshot</button></form>}
+import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router";
+
+import { stockCountApi, type StockCountClient } from "../../lib/api";
+import { inputClass, labelClass, pageTitleClass, panelClass, primaryButtonClass, secondaryButtonClass, successClass, tableClass } from "../themeStyles";
+
+export default function StockCountsPage({ api = stockCountApi }: { api?: StockCountClient }) {
+  const [rows, setRows] = useState<Awaited<ReturnType<StockCountClient["list"]>>>([]);
+  useEffect(() => { api.list().then(setRows); }, [api]);
+
+  async function action(id: string, status: "submitted" | "confirmed") {
+    if (status === "submitted") await api.submit(id); else await api.approve(id);
+    setRows((items) => items.map((item) => item.id === id ? { ...item, status } : item));
+  }
+
+  return <div className="space-y-5">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><h1 className={pageTitleClass}>Kiểm kê kho</h1><Link to="/stock-counts/create" className={primaryButtonClass}>Tạo kiểm kê</Link></div>
+    <div className={panelClass}><div className="overflow-x-auto"><table className={tableClass}>
+      <thead><tr><th>Số</th><th>Tiến độ</th><th>Trạng thái</th><th>Action</th></tr></thead>
+      <tbody>{rows.map((row) => <tr key={row.id}><td>{row.countNo}</td><td>{row.countedLines}/{row.lineCount}</td><td>{row.status}</td><td>{row.status === "draft" ? <button className={secondaryButtonClass} onClick={() => action(row.id, "submitted")}>Gửi duyệt</button> : row.status === "submitted" ? <button className={secondaryButtonClass} onClick={() => action(row.id, "confirmed")}>Duyệt điều chỉnh</button> : null}</td></tr>)}</tbody>
+    </table></div></div>
+  </div>;
+}
+
+export function StockCountCreatePage({ api = stockCountApi }: { api?: StockCountClient }) {
+  const [balances, setBalances] = useState<Awaited<ReturnType<StockCountClient["listBalances"]>>>([]);
+  const [created, setCreated] = useState(false);
+  useEffect(() => { api.listBalances().then(setBalances); }, [api]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    await api.create({ countNo: String(data.get("countNo")), stockBalanceIds: [String(data.get("stockBalanceId"))] });
+    setCreated(true);
+  }
+
+  return <form onSubmit={submit} className={`max-w-xl space-y-4 ${panelClass} p-5`}>
+    <h1 className={pageTitleClass}>Tạo kiểm kê</h1>
+    {created && <p role="status" className={successClass}>Đã freeze snapshot kiểm kê</p>}
+    <label className={labelClass}>Số kiểm kê<input name="countNo" required className={inputClass} /></label>
+    <label className={labelClass}>Tồn cần đếm<select name="stockBalanceId" required className={inputClass}><option value="">Chọn stock key</option>{balances.filter((item) => item.id).map((item) => <option key={item.id} value={item.id}>{item.sku} / {item.locationCode} / {item.onHand}</option>)}</select></label>
+    <button className={primaryButtonClass}>Freeze snapshot</button>
+  </form>;
+}

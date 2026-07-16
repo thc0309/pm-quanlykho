@@ -1,0 +1,9 @@
+export const pageTitleClass = "text-2xl font-semibold text-gray-900 dark:text-white/90";
+export const panelClass = "overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]";
+export const labelClass = "block text-sm font-medium text-gray-700 dark:text-gray-400";
+export const inputClass = "mt-1 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800";
+export const tableClass = "min-w-full text-sm text-gray-700 dark:text-gray-300 [&_thead]:border-b [&_thead]:border-gray-100 dark:[&_thead]:border-white/[0.05] [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-gray-500 dark:[&_th]:text-gray-400 [&_td]:px-4 [&_td]:py-3 [&_tbody]:divide-y [&_tbody]:divide-gray-100 dark:[&_tbody]:divide-white/[0.05]";
+export const primaryButtonClass = "inline-flex h-11 items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50";
+export const secondaryButtonClass = "inline-flex min-h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-300";
+export const errorClass = "rounded-lg bg-error-50 p-3 text-sm text-error-700 dark:bg-error-500/15 dark:text-error-400";
+export const successClass = "rounded-lg bg-success-50 p-3 text-sm text-success-700 dark:bg-success-500/15 dark:text-success-400";

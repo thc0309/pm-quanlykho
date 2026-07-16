@@ -6,9 +6,19 @@ import {
   type ReportClient,
   type ReportRow,
 } from "../../lib/api";
+import {
+  errorClass,
+  inputClass,
+  labelClass,
+  pageTitleClass,
+  panelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  tableClass,
+} from "../themeStyles";
 
-const cardClass = "rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]";
-const buttonClass = "inline-flex h-10 items-center rounded-lg bg-brand-600 px-3 text-sm text-white disabled:opacity-40";
+const cardClass = `${panelClass} p-5`;
+const buttonClass = primaryButtonClass;
 
 export function DashboardPage({ api = reportApi }: { api?: ReportClient }) {
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -18,8 +28,8 @@ export function DashboardPage({ api = reportApi }: { api?: ReportClient }) {
     api.dashboard().then(setData).catch(() => setError("Không thể tải dashboard."));
   }, [api]);
 
-  if (error) return <p role="alert">{error}</p>;
-  if (!data) return <p role="status">Đang tải dashboard…</p>;
+  if (error) return <p role="alert" className={errorClass}>{error}</p>;
+  if (!data) return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải dashboard…</p>;
 
   const cards = [
     ["On hand", data.onHand],
@@ -30,11 +40,11 @@ export function DashboardPage({ api = reportApi }: { api?: ReportClient }) {
   ];
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Tổng quan kho</h1>
+      <h1 className={pageTitleClass}>Tổng quan kho</h1>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {cards.map(([label, value]) => (
           <section key={label} className={cardClass}>
-            <p className="text-sm text-gray-500">{label}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
             <p className="mt-2 text-2xl font-semibold">{value}</p>
           </section>
         ))}
@@ -83,25 +93,25 @@ export default function ReportsPage({ api = reportApi }: { api?: ReportClient })
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Báo cáo tồn kho</h1>
-      <form onSubmit={filter} className="flex flex-wrap gap-3">
-        <label className="flex-1">
+      <h1 className={pageTitleClass}>Báo cáo tồn kho</h1>
+      <form onSubmit={filter} className={`${panelClass} flex flex-wrap items-end gap-3 p-5`}>
+        <label className={`${labelClass} flex-1`}>
           Tìm báo cáo
           <input
             aria-label="Tìm báo cáo"
             value={query}
             maxLength={80}
             onChange={(event) => setQuery(event.target.value)}
-            className="ml-2 h-10 rounded-lg border px-3"
+            className={inputClass}
           />
         </label>
         <button className={buttonClass}>Lọc</button>
         <a className={buttonClass} href={api.exportUrl(appliedQuery)}>Export CSV</a>
       </form>
-      {error && <p role="alert">{error}</p>}
-      {loading ? <p role="status">Đang tải báo cáo…</p> : (
-        <div className="overflow-x-auto rounded-2xl border">
-          <table className="min-w-full">
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      {loading ? <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải báo cáo…</p> : (
+        <div className={`${panelClass} overflow-x-auto`}>
+          <table className={tableClass}>
             <thead>
               <tr>
                 <th className="p-3 text-left">SKU</th>
@@ -127,10 +137,10 @@ export default function ReportsPage({ api = reportApi }: { api?: ReportClient })
           </table>
         </div>
       )}
-      <div className="flex gap-3">
-        <button disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Trang trước</button>
+      <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+        <button className={secondaryButtonClass} disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Trang trước</button>
         <span>Trang {page}/{totalPages}</span>
-        <button disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>Trang sau</button>
+        <button className={secondaryButtonClass} disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>Trang sau</button>
       </div>
     </div>
   );

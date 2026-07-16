@@ -76,8 +76,10 @@ DATABASE_URL=postgres://postgres:<password>@localhost:5433/warehouse_suite
 SESSION_SECRET=<chuoi-ngau-nhien-toi-thieu-32-ky-tu>
 MASTER_EMAIL=master@example.com
 MASTER_PASSWORD=<mat-khau-tam-toi-thieu-12-ky-tu>
+MASTER_PHONE=0900000000
 WAREHOUSE_ADMIN_EMAIL=admin@example.com
 WAREHOUSE_ADMIN_PASSWORD=<mat-khau-tam-toi-thieu-12-ky-tu>
+WAREHOUSE_ADMIN_PHONE=0900000001
 ```
 
 Tạo database nếu chưa có, sau đó chạy migration và seed:

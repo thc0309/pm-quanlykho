@@ -57,6 +57,12 @@ export interface AdminUser {
   id: string;
   email: string;
   fullName: string;
+  phone: string;
+  avatarUrl: string | null;
+  employeeCode: string | null;
+  jobTitle: string | null;
+  department: string | null;
+  note: string | null;
   kind: "warehouse_admin" | "warehouse_user";
   warehouseId: string;
   status: "active" | "inactive";
@@ -72,10 +78,11 @@ export interface AdminRole {
 
 export interface AdminClient {
   listUsers(): Promise<AdminUser[]>;
-  createUser(input: { email: string; fullName: string }): Promise<{
+  createUser(input: Pick<AdminUser, "email" | "fullName" | "phone"> & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "department" | "note">>): Promise<{
     user: AdminUser;
     temporaryPassword: string;
-  }>;
+  }>; 
+  updateUser(id: string, input: Partial<Pick<AdminUser, "email" | "fullName" | "phone" | "employeeCode" | "jobTitle" | "department" | "note">>): Promise<AdminUser>;
   setUserStatus(id: string, status: AdminUser["status"]): Promise<AdminUser>;
   listRoles(): Promise<AdminRole[]>;
   createRole(input: {
@@ -365,6 +372,14 @@ export const adminApi: AdminClient = {
       method: "POST",
       body: JSON.stringify(input),
     });
+  },
+  async updateUser(id, input) {
+    return (
+      await request<{ user: AdminUser }>(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+    ).user;
   },
   async setUserStatus(id, status) {
     return (

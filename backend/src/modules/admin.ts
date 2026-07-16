@@ -36,6 +36,12 @@ export interface AdminUser {
   id: string;
   email: string;
   fullName: string;
+  phone: string;
+  avatarUrl: string | null;
+  employeeCode: string | null;
+  jobTitle: string | null;
+  department: string | null;
+  note: string | null;
   kind: "warehouse_admin" | "warehouse_user";
   warehouseId: string;
   status: "active" | "inactive";
@@ -50,13 +56,16 @@ export interface AdminRole {
 }
 
 type Page<T> = { data: T[]; total: number };
+type AdminUserWrite = Pick<AdminUser, "email" | "fullName" | "phone">
+  & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "department" | "note">>;
 
 export interface AdminStore {
   defaultWarehouseId(): Promise<string | null>;
   listUsers(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminUser>>;
   createUser(
-    input: Omit<AdminUser, "id" | "status"> & { passwordHash: string },
+    input: AdminUserWrite & Pick<AdminUser, "kind" | "warehouseId"> & { passwordHash: string },
   ): Promise<AdminUser>;
+  updateUser(userId: string, input: Partial<AdminUserWrite>): Promise<AdminUser | null>;
   findUserWarehouse(userId: string): Promise<string | null>;
   setUserStatus(userId: string, status: "active" | "inactive"): Promise<AdminUser | null>;
   listRoles(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminRole>>;
@@ -65,10 +74,23 @@ export interface AdminStore {
   setUserRoles(userId: string, roleIds: string[]): Promise<void>;
 }
 
-const userSchema = z.object({
+const phoneSchema = z.string().trim()
+  .transform((value) => value.replace(/[\s().-]/g, ""))
+  .pipe(z.string().regex(/^\+?[0-9]{8,15}$/, "Số điện thoại không hợp lệ"));
+const userFields = {
   email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
   fullName: z.string().trim().min(2).max(120),
-});
+  phone: phoneSchema,
+  employeeCode: z.string().trim().min(1).max(50).nullable().optional(),
+  jobTitle: z.string().trim().min(1).max(100).nullable().optional(),
+  department: z.string().trim().min(1).max(100).nullable().optional(),
+  note: z.string().trim().min(1).max(500).nullable().optional(),
+};
+const userSchema = z.object(userFields).strict();
+const userUpdateSchema = z.object(userFields).partial().strict().refine(
+  (value) => Object.keys(value).length > 0,
+  "Phải có ít nhất một trường cần cập nhật",
+);
 const statusSchema = z.object({ status: z.enum(["active", "inactive"]) });
 const roleSchema = z.object({
   code: z.string().trim().min(2).max(50).regex(/^[a-z][a-z0-9_-]*$/),
@@ -203,6 +225,29 @@ export function registerAdminRoutes(
     return c.json({ user });
   });
 
+  app.patch("/api/admin/users/:id", async (c) => {
+    const current = await actor(c);
+    const targetId = c.req.param("id");
+    const warehouseId = await adminStore.findUserWarehouse(targetId);
+    assertWarehouse(current, warehouseId);
+    const input = await parseJson(c, userUpdateSchema);
+    let user: AdminUser | null = null;
+    try {
+      user = await adminStore.updateUser(targetId, input);
+    } catch (error) {
+      conflict(error);
+    }
+    if (!user) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy người dùng");
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "admin.user.update",
+      entityType: "user",
+      entityId: targetId,
+      metadata: { fields: Object.keys(input) },
+    });
+    return c.json({ user });
+  });
+
   app.get("/api/admin/roles", async (c) => {
     const current = await actor(c);
     const warehouseId = warehouseScopeFor(c, current);
@@ -265,7 +310,9 @@ export function registerAdminRoutes(
 }
 
 export function createPostgresAdminStore(pool: Pool): AdminStore {
-  const userColumns = `id, email, full_name AS "fullName", kind,
+  const userColumns = `id, email, full_name AS "fullName", phone,
+    avatar_url AS "avatarUrl", employee_code AS "employeeCode",
+    job_title AS "jobTitle", department, note, kind,
     warehouse_id AS "warehouseId", status`;
   return {
     async defaultWarehouseId() {
@@ -292,14 +339,45 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
     async createUser(input) {
       const result = await pool.query<AdminUser>(
         `INSERT INTO users
-          (email, password_hash, full_name, kind, warehouse_id)
-         VALUES ($1, $2, $3, $4, $5)
+          (email, password_hash, full_name, phone, employee_code, job_title,
+           department, note, kind, warehouse_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING ${userColumns}`,
-        [input.email, input.passwordHash, input.fullName, input.kind, input.warehouseId],
+        [
+          input.email,
+          input.passwordHash,
+          input.fullName,
+          input.phone,
+          input.employeeCode ?? null,
+          input.jobTitle ?? null,
+          input.department ?? null,
+          input.note ?? null,
+          input.kind,
+          input.warehouseId,
+        ],
       );
       const user = result.rows[0];
       if (!user) throw new Error("User insert returned no row");
       return user;
+    },
+    async updateUser(userId, input) {
+      const columns: Record<keyof AdminUserWrite, string> = {
+        email: "email",
+        fullName: "full_name",
+        phone: "phone",
+        employeeCode: "employee_code",
+        jobTitle: "job_title",
+        department: "department",
+        note: "note",
+      };
+      const entries = Object.entries(input).filter((entry) => entry[1] !== undefined);
+      const updates = entries.map(([key], index) => `${columns[key as keyof AdminUserWrite]} = $${index + 2}`);
+      const result = await pool.query<AdminUser>(
+        `UPDATE users SET ${updates.join(", ")}, updated_at = now() WHERE id = $1
+         RETURNING ${userColumns}`,
+        [userId, ...entries.map((entry) => entry[1])],
+      );
+      return result.rows[0] ?? null;
     },
     async findUserWarehouse(userId) {
       const result = await pool.query<{ warehouseId: string }>(

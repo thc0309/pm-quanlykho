@@ -18,6 +18,13 @@ import {
 } from "../src/modules/auth.js";
 
 const secret = "test-session-secret-that-is-at-least-32-characters";
+const emptyMetadata = {
+  avatarUrl: null,
+  employeeCode: null,
+  jobTitle: null,
+  department: null,
+  note: null,
+};
 
 class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
   authUsers: AuthUser[] = [];
@@ -58,9 +65,23 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
     const data = warehouseId ? this.users.filter((user) => user.warehouseId === warehouseId) : this.users;
     return { data, total: data.length };
   }
-  async createUser(input: Omit<AdminUser, "id" | "status"> & { passwordHash: string }) {
-    const user: AdminUser = { ...input, id: `user-${this.users.length + 1}`, status: "active" };
+  async createUser(input: Pick<AdminUser, "email" | "fullName" | "phone" | "kind" | "warehouseId">
+    & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "department" | "note">>
+    & { passwordHash: string }) {
+    const { passwordHash: _passwordHash, ...profile } = input;
+    const user: AdminUser = {
+      ...emptyMetadata,
+      ...profile,
+      id: `user-${this.users.length + 1}`,
+      status: "active",
+    };
     this.users.push(user);
+    return user;
+  }
+  async updateUser(userId: string, input: Partial<AdminUser>) {
+    const user = this.users.find((candidate) => candidate.id === userId);
+    if (!user) return null;
+    Object.assign(user, input);
     return user;
   }
   async findUserWarehouse(userId: string) {
@@ -129,6 +150,8 @@ async function setup() {
     id: "outside-user",
     email: "outside@example.test",
     fullName: "Outside",
+    phone: "0900000002",
+    ...emptyMetadata,
     kind: "warehouse_user",
     warehouseId: "warehouse-b",
     status: "active",
@@ -171,11 +194,19 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
   const created = await app.request("/api/admin/users", {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
-    body: JSON.stringify({ email: "picker@example.test", fullName: "Picker One" }),
+    body: JSON.stringify({
+      email: "picker@example.test",
+      fullName: "Picker One",
+      phone: "+84 901-234-567",
+      employeeCode: "NV-001",
+      jobTitle: "Nhân viên soạn",
+    }),
   });
   assert.equal(created.status, 201);
   const body = await created.json();
   assert.equal(body.user.warehouseId, "warehouse-a");
+  assert.equal(body.user.phone, "+84901234567");
+  assert.equal(body.user.employeeCode, "NV-001");
   assert.equal(typeof body.temporaryPassword, "string");
   assert.equal("passwordHash" in body.user, false);
 
@@ -188,6 +219,53 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
   assert.equal(store.audits.length, 4);
 });
 
+test("admin user requires phone and supports scoped metadata updates", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+
+  const missingPhone = await app.request("/api/admin/users", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ email: "missing@example.test", fullName: "Thiếu Phone" }),
+  });
+  assert.equal(missingPhone.status, 422);
+
+  const target = store.users.find((user) => user.id === "outside-user")!;
+  const forbidden = await app.request(`/api/admin/users/${target.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ phone: "0901234567" }),
+  });
+  assert.equal(forbidden.status, 403);
+
+  store.users.push({
+    id: "inside-user",
+    email: "inside@example.test",
+    fullName: "Inside",
+    phone: "0900000003",
+    ...emptyMetadata,
+    kind: "warehouse_user",
+    warehouseId: "warehouse-a",
+    status: "active",
+  });
+  const updated = await app.request("/api/admin/users/inside-user", {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      phone: "090 123 4567",
+      department: "Vận hành kho",
+      note: "Ca sáng",
+    }),
+  });
+  assert.equal(updated.status, 200);
+  const body = await updated.json();
+  assert.equal(body.user.phone, "0901234567");
+  assert.equal(body.user.department, "Vận hành kho");
+  assert.equal(body.user.note, "Ca sáng");
+  assert.equal(store.audits.at(-1)?.action, "admin.user.update");
+  assert.equal(store.audits.at(-1)?.warehouseId, "warehouse-a");
+});
+
 test("master can list admin data across warehouses", async () => {
   const { app, store } = await setup();
   const cookie = await login(app, "master@example.test");
@@ -195,6 +273,8 @@ test("master can list admin data across warehouses", async () => {
     id: "inside-user",
     email: "inside@example.test",
     fullName: "Inside",
+    phone: "0900000003",
+    ...emptyMetadata,
     kind: "warehouse_user",
     warehouseId: "warehouse-a",
     status: "active",

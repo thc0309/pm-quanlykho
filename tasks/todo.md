@@ -10,7 +10,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 
 ## Phase 2 — User metadata và avatar
 
-- [ ] [T31 Migration và API user metadata](task-detail/task-31.md).
+- [x] [T31 Migration và API user metadata](task-detail/task-31.md).
 - [ ] [T32 Avatar upload và resize](task-detail/task-32.md).
 - [ ] [T33 UI user metadata](task-detail/task-33.md).
 - [ ] Checkpoint B reviewed.

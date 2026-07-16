@@ -163,7 +163,7 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
-  const [userForm, setUserForm] = useState({ fullName: "", email: "" });
+  const [userForm, setUserForm] = useState({ fullName: "", email: "", phone: "" });
   const [assignment, setAssignment] = useState({ userId: "", roleIds: [] as string[] });
 
   async function createUser(event: FormEvent) {
@@ -175,7 +175,7 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
       setUsers((current) => [result.user, ...current]);
       setAssignment((current) => ({ ...current, userId: result.user.id }));
       setTemporaryPassword(result.temporaryPassword);
-      setUserForm({ fullName: "", email: "" });
+      setUserForm({ fullName: "", email: "", phone: "" });
     } catch {
       setError("Không thể tạo người dùng. Kiểm tra email đã tồn tại hay chưa.");
     } finally {
@@ -246,6 +246,18 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
               spellCheck={false}
               value={userForm.email}
               onChange={(event) => setUserForm({ ...userForm, email: event.target.value })}
+              className={inputClass}
+            />
+          </label>
+          <label className={labelClass}>
+            Số điện thoại (*)
+            <input
+              name="phone"
+              type="tel"
+              required
+              autoComplete="tel"
+              value={userForm.phone}
+              onChange={(event) => setUserForm({ ...userForm, phone: event.target.value })}
               className={inputClass}
             />
           </label>

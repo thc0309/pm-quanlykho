@@ -125,15 +125,17 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Thêm metadata user vào DB/API, bắt buộc `phone`.
 
 **Acceptance criteria:**
-- [ ] Migration thêm `phone`, `avatar_url`, `employee_code`, `job_title`, `department`, `note`.
-- [ ] Reset/reseed dữ liệu dev; `phone` là `NOT NULL`; seed master/warehouse admin có số điện thoại cấu hình rõ ràng.
-- [ ] Create/update user nhận và validate metadata; `email`, `fullName`, `phone` bắt buộc.
-- [ ] List users trả metadata mới, warehouse scope và audit giữ nguyên.
+- [x] Migration thêm `phone`, `avatar_url`, `employee_code`, `job_title`, `department`, `note`.
+- [x] Reset/reseed dữ liệu dev; `phone` là `NOT NULL`; seed master/warehouse admin có số điện thoại cấu hình rõ ràng.
+- [x] Create/update user nhận và validate metadata; `email`, `fullName`, `phone` bắt buộc.
+- [x] List users trả metadata mới, warehouse scope và audit giữ nguyên.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern admin`
-- [ ] `npm run build --prefix backend`
-- [ ] `npm run db:migrate --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern admin` — 66 test pass, gồm create/update/scope/audit metadata.
+- [x] `npm run build --prefix backend` — TypeScript pass.
+- [x] `npm run db:migrate --prefix backend` — reset DB dev, migration 001–018 pass; seed master/warehouse admin pass.
+- [x] `npm test --prefix frontend -- --run AccessPage` và frontend build pass; form hiện hữu thêm phone tối thiểu để giữ contract.
+- [x] `npm audit --prefix backend --audit-level=high` — 0 lỗ hổng.
 
 **Dependencies:** None
 

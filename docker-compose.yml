@@ -30,8 +30,10 @@ services:
       SESSION_SECRET: docker-dev-session-secret-change-before-production
       MASTER_EMAIL: master@example.com
       MASTER_PASSWORD: master-password-123
+      MASTER_PHONE: "0900000000"
       WAREHOUSE_ADMIN_EMAIL: admin@example.com
       WAREHOUSE_ADMIN_PASSWORD: admin-password-123
+      WAREHOUSE_ADMIN_PHONE: "0900000001"
     ports:
       - "4000:4000"
     volumes:

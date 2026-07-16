@@ -22,12 +22,19 @@ function client(): AdminClient {
         id: "user-1",
         email: "picker@example.test",
         fullName: "Picker One",
+        phone: "0901234567",
+        avatarUrl: null,
+        employeeCode: null,
+        jobTitle: null,
+        department: null,
+        note: null,
         kind: "warehouse_user",
         warehouseId: "warehouse-a",
         status: "active",
       },
       temporaryPassword: "temporary-pass",
     }),
+    updateUser: vi.fn(),
     setUserStatus: vi.fn(),
     listRoles: vi.fn().mockResolvedValue([]),
     createRole: vi.fn().mockResolvedValue({
@@ -68,12 +75,14 @@ describe("AccessPage", () => {
 
     await user.type(await screen.findByLabelText("Họ tên (*)"), "Picker One");
     await user.type(screen.getByLabelText("Email người dùng (*)"), "picker@example.test");
+    await user.type(screen.getByLabelText("Số điện thoại (*)"), "0901234567");
     await user.click(screen.getByRole("button", { name: "Tạo người dùng" }));
 
     expect(await screen.findByText("temporary-pass")).toBeVisible();
     expect(api.createUser).toHaveBeenCalledWith({
       fullName: "Picker One",
       email: "picker@example.test",
+      phone: "0901234567",
     });
   });
 
@@ -91,6 +100,12 @@ describe("AccessPage", () => {
         id: "user-1",
         email: "picker@example.test",
         fullName: "Picker One",
+        phone: "0901234567",
+        avatarUrl: null,
+        employeeCode: null,
+        jobTitle: null,
+        department: null,
+        note: null,
         kind: "warehouse_user",
         warehouseId: "warehouse-a",
         status: "active",
@@ -124,6 +139,12 @@ describe("AccessPage", () => {
         id: "user-1",
         email: "picker@example.test",
         fullName: "Picker One",
+        phone: "0901234567",
+        avatarUrl: null,
+        employeeCode: null,
+        jobTitle: null,
+        department: null,
+        note: null,
         kind: "warehouse_user",
         warehouseId: "warehouse-a",
         status: "active",

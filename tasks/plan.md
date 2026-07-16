@@ -540,9 +540,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 **Description:** Receipt create form nhiều dòng, field lot/serial/expiry theo product từng dòng.
 
-**Acceptance criteria:** mỗi dòng có product/location/quantity, conditional required đúng dòng, submit đúng payload.
+**Acceptance criteria:**
+- [x] Mỗi dòng có product/location/quantity độc lập.
+- [x] Lot/serial/expiry conditional required đúng tracking của từng dòng.
+- [x] Đổi sản phẩm xóa field tracking stale và submit đủ payload nhiều dòng.
 
-**Verification:** `npm test --prefix frontend -- --run ReceiptPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run ReceiptPage` — 3/3 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T30, T38
 

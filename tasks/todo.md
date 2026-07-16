@@ -17,7 +17,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 
 ## Phase 3 — Granular permission model
 
-- [ ] [T34 Permission catalog và migration reset](task-detail/task-34.md).
+- [x] [T34 Permission catalog và migration reset](task-detail/task-34.md).
 - [ ] [T35 Backend enforce quyền chi tiết cho admin và metadata](task-detail/task-35.md).
 - [ ] [T36 Backend enforce quyền chi tiết cho chứng từ, stock, báo cáo và in](task-detail/task-36.md).
 - [ ] [T37 Role permission matrix UI](task-detail/task-37.md).

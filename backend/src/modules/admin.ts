@@ -21,24 +21,7 @@ import {
   MAX_AVATAR_INPUT_BYTES,
   processAvatar,
 } from "./avatar.js";
-
-export const permissionCodes = [
-  "admin.access.manage",
-  "locations.manage",
-  "catalog.manage",
-  "products.manage",
-  "partners.manage",
-  "stock.receive",
-  "stock.view",
-  "outbound.create",
-  "outbound.release",
-  "outbound.pick",
-  "outbound.check",
-  "outbound.ship",
-  "outbound.resolveDiscrepancy",
-  "reports.view",
-  "reports.export",
-] as const;
+import { isPermissionCode, permissionCodes } from "./permissions.js";
 
 export interface AdminUser {
   id: string;
@@ -107,7 +90,12 @@ const statusSchema = z.object({ status: z.enum(["active", "inactive"]) });
 const roleSchema = z.object({
   code: z.string().trim().min(2).max(50).regex(/^[a-z][a-z0-9_-]*$/),
   name: z.string().trim().min(2).max(100),
-  permissions: z.array(z.enum(permissionCodes)).min(1).max(permissionCodes.length),
+  permissions: z.array(
+    z.string().refine(isPermissionCode, "Mã quyền không hợp lệ"),
+  ).min(1).max(permissionCodes.length).refine(
+    (codes) => new Set(codes).size === codes.length,
+    "Danh sách quyền không được trùng lặp",
+  ),
 });
 const assignmentSchema = z.object({ roleIds: z.array(z.string().min(1)).max(20) });
 

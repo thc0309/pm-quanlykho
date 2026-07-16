@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { hashPassword } from "../domain/password.js";
+import { permissionCodes } from "../modules/permissions.js";
 import { pool, closePool } from "./pool.js";
 
 const seedsDir = join(process.cwd(), "db", "seeds");
@@ -64,7 +65,7 @@ async function seed() {
       await client.query(
         `INSERT INTO role_permission_codes (role_id, permission_code)
          SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING`,
-        [roleId, ["admin.access.manage", "locations.manage", "catalog.manage", "products.manage", "partners.manage", "stock.manage"]],
+        [roleId, permissionCodes],
       );
       const admin = await client.query<{ id: string }>(
         `INSERT INTO users

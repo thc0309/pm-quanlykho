@@ -210,16 +210,16 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Định nghĩa permission `<feature>.<action>`, reset/reseed toàn bộ role development và loại bỏ permission cũ khỏi runtime.
 
 **Acceptance criteria:**
-- [ ] Permission list có các feature/action tối thiểu trong `SPEC.md`.
-- [ ] Permission cũ không còn trong catalog, seed, backend check hoặc frontend gating.
-- [ ] Reset/reseed role development tạo warehouse admin với toàn bộ quyền chi tiết phù hợp.
-- [ ] Master admin vẫn nhận `*`.
-- [ ] Role không được lưu permission rỗng.
+- [x] Permission list có các feature/action tối thiểu trong `SPEC.md` và ma trận route hiện tại.
+- [x] Permission cũ không còn trong catalog/seed; route enforcement được chuyển theo T35-T36 đúng task detail.
+- [x] Reset/reseed role development tạo warehouse admin với toàn bộ quyền chi tiết phù hợp.
+- [x] Master admin vẫn nhận `*`.
+- [x] Role rỗng, code lạ hoặc code trùng đều bị từ chối.
 
 **Verification:**
-- [ ] `npm test --prefix backend -- --test-name-pattern admin`
-- [ ] `npm run build --prefix backend`
-- [ ] `npm run db:migrate --prefix backend`
+- [x] `npm test --prefix backend -- --test-name-pattern admin` — 72/72 test pass.
+- [x] `npm run build --prefix backend`
+- [x] `npm run db:migrate --prefix backend` — đã áp dụng `019_granular_permissions.sql`.
 
 **Dependencies:** T31
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readdir, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -20,6 +20,11 @@ import {
   type AuthStore,
   type AuthUser,
 } from "../src/modules/auth.js";
+import {
+  permissionCatalog,
+  permissionCodes,
+  routePermissionCatalog,
+} from "../src/modules/permissions.js";
 
 const secret = "test-session-secret-that-is-at-least-32-characters";
 const emptyMetadata = {
@@ -189,8 +194,8 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
   const cookie = await login(app, "admin@example.test");
 
   for (const role of [
-    { code: "picker", name: "Nhân viên soạn", permissions: ["outbound.pick"] },
-    { code: "checker", name: "Nhân viên kiểm", permissions: ["outbound.check", "outbound.ship"] },
+    { code: "picker", name: "Nhân viên soạn", permissions: ["picking.view", "picking.update"] },
+    { code: "checker", name: "Nhân viên kiểm", permissions: ["checking.view", "checking.approve"] },
   ]) {
     assert.equal(
       (await app.request("/api/admin/roles", {
@@ -228,6 +233,51 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
   });
   assert.equal(assign.status, 204);
   assert.equal(store.audits.length, 4);
+});
+
+test("permission catalog exposes only granular feature actions", () => {
+  assert.deepEqual(Object.keys(permissionCatalog), [
+    "admin.users", "admin.roles", "locations", "catalog.categories", "catalog.units",
+    "products", "partners", "receipts", "outbounds", "picking", "checking",
+    "outbound.exceptions", "purchasing", "sales", "returns", "stockCounts",
+    "transfers", "inventory", "reports", "print",
+  ]);
+  assert.equal(new Set(permissionCodes).size, permissionCodes.length);
+  assert.equal(
+    Object.values(routePermissionCatalog).every((code) => permissionCodes.includes(code)),
+    true,
+  );
+  assert.equal(permissionCodes.some((code) => /\.manage$|^outbound\.(pick|check|ship|resolveDiscrepancy)$/.test(code)), false);
+  assert.deepEqual(
+    [...new Set(permissionCodes.map((code) => code.slice(code.lastIndexOf(".") + 1)))].sort(),
+    ["approve", "create", "delete", "export", "print", "update", "view"],
+  );
+});
+
+test("granular permission migration stays synchronized with the runtime catalog", async () => {
+  const migration = await readFile(
+    new URL("../db/migrations/019_granular_permissions.sql", import.meta.url),
+    "utf8",
+  );
+  const permissionArray = migration.match(/unnest\(ARRAY\[(.*?)\]\)/s)?.[1] ?? "";
+  const migrationCodes = [...permissionArray.matchAll(/'([^']+)'/g)].map((match) => match[1]!);
+  assert.deepEqual(migrationCodes.sort(), [...permissionCodes].sort());
+  assert.match(migration, /DELETE FROM roles;/);
+  assert.match(migration, /WHERE users\.kind = 'warehouse_admin';/);
+});
+
+test("role validation rejects empty, unknown and duplicate permission codes", async () => {
+  const { app } = await setup();
+  const cookie = await login(app, "admin@example.test");
+
+  for (const permissions of [[], ["stock.manage"], ["inventory.view", "inventory.view"]]) {
+    const response = await app.request("/api/admin/roles", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ code: `invalid-${permissions.length}`, name: "Role không hợp lệ", permissions }),
+    });
+    assert.equal(response.status, 422);
+  }
 });
 
 test("admin user requires phone and supports scoped metadata updates", async () => {

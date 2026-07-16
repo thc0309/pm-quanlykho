@@ -1,6 +1,6 @@
 # Test Plan: Hệ thống quản lý kho đa ngành
 
-Status: draft v2 — aligned with Hono outbound MVP
+Status: draft v4.1 — bổ sung required markers, metadata, multi-line forms, avatar và granular permissions
 
 Use with `vibe-e2e`. Do not mark PASS without browser/runtime evidence in `tasks/test-result.md`.
 
@@ -30,7 +30,7 @@ Use with `vibe-e2e`. Do not mark PASS without browser/runtime evidence in `tasks
 | E2E-013 Reports/print | Confirmed data | Filter/export report; print confirmed document/label; retry print | No warehouse leakage; export bounded; print does not mutate stock. |
 | E2E-014 Tauri optional | Approved Windows printer | Configure printer; silent-print confirmed document; trigger printer error | Only configured printer is used; error recoverable; no duplicate stock call. |
 | E2E-015 Required markers | Admin and stock forms | Open auth/admin/master-data/document forms; inspect required and optional labels at 320/768/1440 px | Every required field shows `(*)`; optional fields do not; labels are Vietnamese except terms like `SKU`, `barcode`, `ID`. |
-| E2E-016 Metadata actions | Admin with manage permissions | Edit and deactivate/reactivate category, unit, location, product, partner and role; try deleting an assigned role | Rows update without reload; unsafe delete is blocked with Vietnamese error; no disabled placeholder action remains. |
+| E2E-016 Metadata actions | Admin có permission granular tương ứng | Edit và deactivate/reactivate category, unit, location, product, partner; sửa role; xóa role chưa từng gán và thử xóa role đã gán | Rows update without reload; role chưa gán bị xóa; unsafe delete bị chặn với lỗi tiếng Việt; không còn disabled placeholder action. |
 | E2E-017 Multi-line documents | Products/partners/stock exist | Create purchase order with two lines; create return with two lines; inspect submitted payload/effects | Both documents persist all lines; last line cannot be removed; totals/status reflect all lines. |
 | E2E-018 User metadata/avatar | Warehouse admin | Create user with phone, employee code, department, job title and avatar image; edit metadata; reload list | Phone is required; avatar is resized and displayed; metadata persists and list shows avatar/phone/department/title. |
 | E2E-019 Granular permissions | Master admin | Create role with only `catalog.categories.view/create`; use that user in UI and direct API calls | User can view/create categories only; update/deactivate/export/admin actions are hidden in UI and return `403` through API. |

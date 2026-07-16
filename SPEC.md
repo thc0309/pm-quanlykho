@@ -1,6 +1,6 @@
 # Spec: Hệ thống quản lý kho đa ngành
 
-Status: draft v2 — đã bổ sung luồng soạn → kiểm → xuất, chờ xác nhận trước khi lập kế hoạch chi tiết
+Status: draft v4 — đã chốt user metadata, avatar, granular permission và metadata CRUD; chờ duyệt task chi tiết trước khi build
 
 ## Objective
 
@@ -190,6 +190,8 @@ Quy tắc:
 - Không lưu dữ liệu nhạy cảm không cần thiết như số căn cước, tài khoản ngân hàng hoặc thông tin sức khỏe.
 - User list hiển thị tối thiểu avatar, họ tên, email, số điện thoại, bộ phận/chức danh và trạng thái.
 - User create/edit phải có dấu `(*)` cho field bắt buộc theo `Form Required Field Rule`.
+- Vì hệ thống còn ở giai đoạn development, migration user metadata được phép reset/reseed dữ liệu dev để đặt `phone` là `NOT NULL`; không sinh số điện thoại ngẫu nhiên cho dữ liệu cũ.
+- Avatar chỉ nhận JPEG/PNG/WebP hợp lệ theo nội dung file, được xoay đúng orientation, crop vuông, resize 256x256, bỏ metadata và lưu WebP tối ưu. Giới hạn file đầu vào 5 MB và file sau xử lý 200 KB.
 
 ### Granular Permission Model
 
@@ -248,7 +250,7 @@ Ví dụ quyền danh mục:
 
 - API phải kiểm tra đúng action, không chỉ dựa vào UI.
 - UI ẩn hoặc disable action không có quyền, nhưng backend vẫn là lớp bảo mật chính.
-- Backward compatibility: các quyền `*.manage` hiện tại chỉ dùng trong migration/seed để chuyển sang bộ quyền chi tiết tương ứng, không dùng làm quyền mới lâu dài.
+- Dự án còn ở giai đoạn development nên thay toàn bộ quyền cũ bằng catalog `<feature>.<action>` mới và reset/reseed role dev; không duy trì compatibility runtime cho `*.manage` hoặc tên quyền nghiệp vụ cũ.
 - Master admin tiếp tục có quyền `*`.
 
 ### Testing Strategy
@@ -304,6 +306,7 @@ Hoàn thiện các màn hình metadata/master data đang có nút thêm, sửa h
    - Sửa tên role và danh sách permission.
    - Xóa role chỉ khi chưa được gán cho user; nếu đã gán thì chặn bằng lỗi rõ ràng.
    - Không cho role mất toàn bộ permission.
+   - Hard delete chỉ áp dụng khi role chưa từng được gán cho user; role đã hoặc đang được tham chiếu phải bị chặn để bảo toàn lịch sử.
 
 7. User metadata
    - Giữ hành vi hiện có: tạo user, gán role, vô hiệu hóa/kích hoạt.

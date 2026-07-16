@@ -1,10 +1,19 @@
 # Implementation Plan: Hoàn thiện form, user metadata và phân quyền v4
 
-Status: draft v4 — chờ xác nhận trước khi build
+Status: draft v4.1 — đã chi tiết hóa T29-T53, chờ xác nhận trước khi build
 
 ## Overview
 
 Plan v4 gom các scope mới từ `SPEC.md`: trường bắt buộc có `(*)`, user metadata có avatar upload/resize và số điện thoại bắt buộc, phân quyền chi tiết theo ma trận tính năng x hành động, metadata CRUD/vô hiệu hóa dùng được, và form chứng từ nhiều dòng. Thứ tự ưu tiên: chuẩn hóa UI rule nhỏ trước, sau đó làm nền user/permission vì nó ảnh hưởng mọi API action, rồi mới nối metadata và form nhiều dòng.
+
+## Architecture Decisions
+
+- Reset/reseed dữ liệu development khi chạy migration user metadata; `phone` là `NOT NULL`, không backfill số ngẫu nhiên.
+- Tách migration `018_user_metadata.sql` và `019_granular_permissions.sql`; migration đã chạy không bị sửa lại.
+- Avatar được xác thực theo nội dung, crop 256x256, bỏ metadata và lưu WebP tối đa 200 KB; file đầu vào tối đa 5 MB.
+- Thay toàn bộ permission cũ bằng `<feature>.<action>`; không giữ compatibility runtime vì dự án chưa production.
+- Hard delete role chỉ khi chưa từng gán user; role đã/đang tham chiếu bị chặn.
+- Chi tiết thực thi từng task nằm trong `tasks/task-detail/task-29.md` đến `task-53.md`.
 
 ## Dependency Order
 
@@ -47,6 +56,8 @@ Required label rule
 - Nếu role matrix lặp nhiều logic selection, cân nhắc tạo helper/component nhỏ sau 2 use case thật; không tạo component library sớm.
 
 ## Task Plan
+
+Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng tại `tasks/task-detail/`. `tasks/todo.md` là index có liên kết trực tiếp; khi build chỉ đọc task đang active và các dependency được trích dẫn.
 
 ### Phase 1 — Rule nền và nhãn bắt buộc
 
@@ -115,6 +126,7 @@ Required label rule
 
 **Acceptance criteria:**
 - [ ] Migration thêm `phone`, `avatar_url`, `employee_code`, `job_title`, `department`, `note`.
+- [ ] Reset/reseed dữ liệu dev; `phone` là `NOT NULL`; seed master/warehouse admin có số điện thoại cấu hình rõ ràng.
 - [ ] Create/update user nhận và validate metadata; `email`, `fullName`, `phone` bắt buộc.
 - [ ] List users trả metadata mới, warehouse scope và audit giữ nguyên.
 
@@ -126,8 +138,9 @@ Required label rule
 **Dependencies:** None
 
 **Likely files:**
-- `backend/db/migrations/018_user_metadata_permissions.sql`
+- `backend/db/migrations/018_user_metadata.sql`
 - `backend/src/modules/admin.ts`
+- `backend/src/db/seed.ts`
 - `backend/test/admin.test.ts`
 - `frontend/src/lib/api.ts`
 
@@ -139,9 +152,9 @@ Required label rule
 
 **Acceptance criteria:**
 - [ ] Chỉ nhận file hình hợp lệ, giới hạn size/type.
-- [ ] Avatar được resize về kích thước chuẩn trước khi lưu.
+- [ ] Kiểm tra magic bytes; crop 256x256, bỏ metadata, lưu WebP không quá 200 KB từ file đầu vào không quá 5 MB.
 - [ ] API trả `avatarUrl`, không lưu binary trong DB.
-- [ ] Lỗi file không hợp lệ trả tiếng Việt.
+- [ ] Upload/update kiểm tra permission và warehouse scope, audit thành công, dọn file cũ; lỗi trả tiếng Việt.
 
 **Verification:**
 - [ ] `npm test --prefix backend -- --test-name-pattern avatar`
@@ -188,13 +201,14 @@ Required label rule
 
 ### Phase 3 — Granular permission model
 
-#### T34: Permission catalog và migration compatibility
+#### T34: Permission catalog và migration reset
 
-**Description:** Định nghĩa permission `<feature>.<action>`, migrate/seed từ quyền `*.manage` cũ sang quyền chi tiết.
+**Description:** Định nghĩa permission `<feature>.<action>`, reset/reseed toàn bộ role development và loại bỏ permission cũ khỏi runtime.
 
 **Acceptance criteria:**
 - [ ] Permission list có các feature/action tối thiểu trong `SPEC.md`.
-- [ ] Quyền `*.manage` cũ được map sang quyền chi tiết tương ứng trong seed/migration.
+- [ ] Permission cũ không còn trong catalog, seed, backend check hoặc frontend gating.
+- [ ] Reset/reseed role development tạo warehouse admin với toàn bộ quyền chi tiết phù hợp.
 - [ ] Master admin vẫn nhận `*`.
 - [ ] Role không được lưu permission rỗng.
 
@@ -206,7 +220,7 @@ Required label rule
 **Dependencies:** T31
 
 **Likely files:**
-- `backend/db/migrations/018_user_metadata_permissions.sql`
+- `backend/db/migrations/019_granular_permissions.sql`
 - `backend/src/modules/admin.ts`
 - `backend/src/modules/access.ts`
 - `backend/src/db/seed.ts`
@@ -246,8 +260,8 @@ Required label rule
 
 **Acceptance criteria:**
 - [ ] View/create/approve/print/export tách đúng endpoint.
-- [ ] Không còn dùng quyền tổng `stock.manage` cho mọi action.
-- [ ] Critical flow pick/check/ship giữ permission riêng hiện có.
+- [ ] Inventory và stock routes dùng `inventory.view/create` phù hợp; không còn `stock.manage`.
+- [ ] Pick/check/ship và exception dùng catalog `<feature>.<action>` mới, không giữ tên quyền cũ.
 
 **Verification:**
 - [ ] `npm test --prefix backend`
@@ -263,6 +277,8 @@ Required label rule
 - `backend/src/modules/returns.ts`
 - `backend/src/modules/stock-counts.ts`
 - `backend/src/modules/transfers.ts`
+- `backend/src/modules/inventory.ts`
+- `backend/src/modules/stock.ts`
 - `backend/src/modules/reports.ts`
 - `backend/src/modules/print.ts`
 
@@ -273,7 +289,7 @@ Required label rule
 **Description:** Thay checkbox phẳng bằng bảng quyền feature x action, có chọn tất cả toàn role và từng dòng.
 
 **Acceptance criteria:**
-- [ ] Role create/edit hiển thị ma trận quyền.
+- [ ] Role create hiển thị ma trận quyền; dữ liệu edit được mô tả bằng cùng catalog nhưng chỉ nối API ở T45.
 - [ ] `Chọn tất cả quyền` bật/tắt toàn bộ checkbox hợp lệ.
 - [ ] `Chọn tất cả` từng dòng bật/tắt quyền của một feature.
 - [ ] Cell action không áp dụng bị disabled hoặc không có checkbox.
@@ -294,11 +310,12 @@ Required label rule
 
 #### T38: Permission-based navigation/action UI
 
-**Description:** Frontend route/nav/action dùng quyền chi tiết thay vì `*.manage`.
+**Description:** Frontend access state, route và navigation dùng permission chi tiết; action theo domain được nối trong T43-T51.
 
 **Acceptance criteria:**
 - [ ] Menu hiển thị theo `.view`.
-- [ ] Nút thêm/sửa/vô hiệu hóa/duyệt/in/xuất file hiển thị theo action tương ứng.
+- [ ] Shared permission lookup hỗ trợ action cụ thể; route/menu dùng `.view` và không còn `*.manage`.
+- [ ] T43-T51 dùng lookup này để gate action theo domain, tránh sửa toàn bộ `features/**` trong một task.
 - [ ] Không còn logic `canCatalog = catalog.manage` làm nguồn mới.
 
 **Verification:**
@@ -331,6 +348,7 @@ Required label rule
 - [ ] Category/unit update/status scoped theo kho.
 - [ ] Delete action hiển thị/semantics là `Vô hiệu hóa`.
 - [ ] 403/404/409/422 có test.
+- [ ] Audit update/status cho category và unit.
 
 **Verification:**
 - [ ] `npm test --prefix backend -- --test-name-pattern catalog`
@@ -348,7 +366,7 @@ Required label rule
 
 **Acceptance criteria:**
 - [ ] Duplicate code/barcode bị reject.
-- [ ] Không vô hiệu hóa location còn tồn.
+- [ ] Không vô hiệu hóa location còn tồn hoặc đang được chứng từ/picking/checking tham chiếu.
 - [ ] Audit update/status.
 
 **Verification:**
@@ -369,6 +387,7 @@ Required label rule
 - [ ] Sửa name/barcodes/category/baseUnit/FEFO/expiry trong phạm vi an toàn.
 - [ ] Duplicate barcode bị reject.
 - [ ] Không sửa SKU/tracking mode trong task này.
+- [ ] Audit update/status và chặn thay đổi nguy hiểm khi sản phẩm đã có tồn/chứng từ.
 
 **Verification:**
 - [ ] `npm test --prefix backend -- --test-name-pattern product`
@@ -576,7 +595,7 @@ Required label rule
 - [ ] `$vibe-e2e E2E-018`
 - [ ] `$vibe-e2e E2E-019`
 
-**Dependencies:** T43-T51
+**Dependencies:** T33, T43-T51
 
 **Likely files:** `tasks/test-result.md`
 
@@ -615,7 +634,6 @@ Required label rule
 
 ## Tradeoffs and Open Questions
 
-- Avatar resize may require a dependency if browser/server native APIs are insufficient. Ask before adding one.
-- Permission migration should preserve existing warehouse admin roles by expanding old `*.manage` codes into detailed rights.
-- `delete` remains permission code for compatibility, but UI wording is `Vô hiệu hóa` for nghiệp vụ data.
-- Form edit for draft documents remains out of first multi-line pass unless user explicitly prioritizes it.
+- Resize ảnh có thể cần dependency server-side nhỏ, được duyệt nếu dependency hiện tại không hỗ trợ; ưu tiên `sharp`, không xây pipeline ảnh riêng.
+- `delete` vẫn là action code chuẩn, nhưng UI dùng `Vô hiệu hóa` cho dữ liệu nghiệp vụ.
+- Form edit cho chứng từ nháp nằm ngoài đợt multi-line đầu tiên; chỉ create form được triển khai trong T46-T51.

@@ -502,9 +502,14 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 **Description:** PO create form nhập nhiều sản phẩm trong một đơn mua.
 
-**Acceptance criteria:** `Thêm dòng`, `Xóa dòng`, không xóa dòng cuối, submit nhiều `lines[]`, label `Nhà cung cấp (*)`.
+**Acceptance criteria:**
+- [x] `Thêm dòng`, `Xóa dòng` và không xóa dòng cuối.
+- [x] Submit nhiều `lines[]` và giữ dòng khi API lỗi.
+- [x] Label `Nhà cung cấp (*)` cùng label bắt buộc theo từng dòng.
 
-**Verification:** `npm test --prefix frontend -- --run PurchasingPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run PurchasingPage` — 3/3 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T30, T38
 

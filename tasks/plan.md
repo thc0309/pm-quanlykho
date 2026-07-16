@@ -457,11 +457,13 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 **Description:** Nối sửa/vô hiệu hóa location/product.
 
 **Acceptance criteria:**
-- [ ] Location edit/status hoạt động.
-- [ ] Product edit/status hoạt động.
-- [ ] Action button hiện theo permission chi tiết.
+- [x] Location edit/status hoạt động.
+- [x] Product edit/status hoạt động.
+- [x] Action button hiện theo permission chi tiết.
 
-**Verification:** `npm test --prefix frontend -- --run LocationsPage ProductsPage` và `npm run build --prefix frontend`
+**Verification:**
+- [x] `npm test --prefix frontend -- --run LocationsPage ProductsPage` — 8/8 test pass.
+- [x] `npm run build --prefix frontend`
 
 **Dependencies:** T40, T41, T38
 

@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
 import { locationApi, type LocationClient, type WarehouseLocation } from "../../lib/api";
-import { PencilIcon, PlusIcon, TrashBinIcon } from "../../icons";
+import { hasPermission } from "../../lib/permissions";
+import { PencilIcon, PlusIcon } from "../../icons";
 
 const typeLabels: Record<WarehouseLocation["type"], string> = {
   storage: "Lưu trữ",
@@ -25,13 +26,63 @@ const iconButtonClass =
 const tableHeadClass =
   "bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-white/[0.03] dark:text-gray-400";
 const tableCellClass = "px-4 py-3 text-sm text-gray-700 dark:text-gray-300";
+const rowActionClass =
+  "inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5";
 
-export default function LocationsPage({ api = locationApi }: { api?: LocationClient }) {
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export default function LocationsPage({ api = locationApi, permissions = ["*"] }: { api?: LocationClient; permissions?: readonly string[] }) {
   const [locations, setLocations] = useState<WarehouseLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [locationPage, setLocationPage] = useState(1);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Pick<WarehouseLocation, "name" | "barcode" | "type">>({ name: "", barcode: "", type: "storage" });
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const pagedLocations = paginate(locations, locationPage);
+  const canCreate = hasPermission(permissions, "locations.create");
+  const canUpdate = hasPermission(permissions, "locations.update");
+  const canChangeStatus = hasPermission(permissions, "locations.delete");
+
+  function startEdit(location: WarehouseLocation) {
+    setEditingId(location.id);
+    setDraft({ name: location.name, barcode: location.barcode, type: location.type });
+    setRowError(null);
+  }
+
+  async function saveLocation(event: FormEvent<HTMLFormElement>, location: WarehouseLocation) {
+    event.preventDefault();
+    setBusyId(location.id);
+    setRowError(null);
+    try {
+      const updated = await api.updateLocation(location.id, { name: draft.name.trim(), barcode: draft.barcode.trim(), type: draft.type });
+      setLocations((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingId(null);
+    } catch (caught) {
+      setRowError({ id: location.id, message: errorMessage(caught, "Không thể cập nhật vị trí kho") });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeStatus(location: WarehouseLocation) {
+    const nextStatus = location.status === "active" ? "inactive" : "active";
+    const action = nextStatus === "inactive" ? "vô hiệu hóa" : "kích hoạt";
+    if (!window.confirm(`Bạn có chắc muốn ${action} vị trí ${location.name}?`)) return;
+    setBusyId(location.id);
+    setRowError(null);
+    try {
+      const updated = await api.setLocationStatus(location.id, nextStatus);
+      setLocations((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (caught) {
+      setRowError({ id: location.id, message: errorMessage(caught, `Không thể ${action} vị trí`) });
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   useEffect(() => {
     api.listLocations()
@@ -54,10 +105,12 @@ export default function LocationsPage({ api = locationApi }: { api?: LocationCli
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/locations/create" className={primaryButtonClass}>
-            <PlusIcon className="h-4 w-4" />
-            Thêm vị trí
-          </Link>
+          {canCreate && (
+            <Link to="/locations/create" className={primaryButtonClass}>
+              <PlusIcon className="h-4 w-4" />
+              Thêm vị trí
+            </Link>
+          )}
         </div>
       </div>
 
@@ -77,33 +130,67 @@ export default function LocationsPage({ api = locationApi }: { api?: LocationCli
                 <th scope="col" className="px-4 py-3">Mã</th>
                 <th scope="col" className="px-4 py-3">Barcode</th>
                 <th scope="col" className="px-4 py-3">Loại</th>
+                <th scope="col" className="px-4 py-3">Trạng thái</th>
                 <th scope="col" className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {locations.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
+                  <td colSpan={6} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
                     Chưa có vị trí.
                   </td>
                 </tr>
               ) : pagedLocations.map((location) => (
-                <tr key={location.id}>
+                <Fragment key={location.id}>
+                <tr>
                   <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{location.name}</td>
                   <td className={tableCellClass}>{location.code}</td>
                   <td className={tableCellClass}>{location.barcode}</td>
                   <td className={tableCellClass}>{typeLabels[location.type]}</td>
+                  <td className={tableCellClass}>{location.status === "active" ? "Đang dùng" : "Tạm ngưng"}</td>
                   <td className={`${tableCellClass} text-right`}>
-                    <div className="inline-flex gap-2">
-                      <button type="button" disabled aria-label={`Sửa vị trí ${location.name}`} title="Chưa hỗ trợ sửa vị trí" className={iconButtonClass}>
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button type="button" disabled aria-label={`Xóa vị trí ${location.name}`} title="Chưa hỗ trợ xóa vị trí" className={iconButtonClass}>
-                        <TrashBinIcon className="h-4 w-4" />
-                      </button>
+                    <div className="inline-flex items-center gap-2">
+                      {canUpdate && editingId !== location.id && (
+                        <button type="button" disabled={busyId === location.id} aria-label={`Sửa vị trí ${location.name}`} title="Sửa vị trí" className={iconButtonClass} onClick={() => startEdit(location)}>
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canChangeStatus && (
+                        <button type="button" disabled={busyId === location.id} aria-label={`${location.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} vị trí ${location.name}`} className={rowActionClass} onClick={() => changeStatus(location)}>
+                          {busyId === location.id ? "Đang xử lý…" : location.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
+                {(editingId === location.id || rowError?.id === location.id) && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-4">
+                      {editingId === location.id && (
+                        <form className="grid gap-3 rounded-xl bg-gray-50 p-3 sm:grid-cols-2 lg:grid-cols-4 dark:bg-white/[0.03]" onSubmit={(event) => saveLocation(event, location)}>
+                          <label className={labelClass}>Tên vị trí
+                            <input autoFocus required aria-label={`Tên vị trí ${location.name}`} className={inputClass} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+                          </label>
+                          <label className={labelClass}>Barcode
+                            <input required aria-label={`Barcode vị trí ${location.name}`} className={inputClass} value={draft.barcode} onChange={(event) => setDraft((current) => ({ ...current, barcode: event.target.value }))} />
+                          </label>
+                          <label className={labelClass}>Loại vị trí
+                            <select aria-label={`Loại vị trí ${location.name}`} className={inputClass} value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as WarehouseLocation["type"] }))}>
+                              <option value="storage">Lưu trữ</option><option value="staging">Chờ kiểm</option><option value="shipping">Xuất hàng</option>
+                            </select>
+                          </label>
+                          <div className="flex items-end gap-2">
+                            <button type="submit" disabled={busyId === location.id} className={primaryButtonClass} aria-label={`Lưu vị trí ${location.name}`}>{busyId === location.id ? "Đang lưu…" : "Lưu"}</button>
+                            <button type="button" disabled={busyId === location.id} className={secondaryButtonClass} onClick={() => setEditingId(null)}>Hủy</button>
+                          </div>
+                        </form>
+                      )}
+                      {rowError?.id === location.id && <p role="alert" className="mt-2 text-sm text-error-600">{rowError.message}</p>}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
-import { PencilIcon, PlusIcon, TrashBinIcon } from "../../icons";
+import { PencilIcon, PlusIcon } from "../../icons";
 import { productApi, type Product, type ProductClient } from "../../lib/api";
+import { hasPermission } from "../../lib/permissions";
 
 const trackingLabels: Record<Product["trackingMode"], string> = {
   none: "Không tracking",
@@ -25,19 +26,77 @@ const iconButtonClass =
 const tableHeadClass =
   "bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:bg-white/[0.03] dark:text-gray-400";
 const tableCellClass = "px-4 py-3 text-sm text-gray-700 dark:text-gray-300";
+const rowActionClass =
+  "inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-3 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5";
 
 function parseBarcodes(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-export default function ProductsPage({ api = productApi }: { api?: ProductClient }) {
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export default function ProductsPage({ api = productApi, permissions = ["*"] }: { api?: ProductClient; permissions?: readonly string[] }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
   const [barcode, setBarcode] = useState("");
   const [lookupResult, setLookupResult] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", barcodes: "", expiryManaged: false, fefoEnabled: false });
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const pagedProducts = paginate(products, page);
+  const canCreate = hasPermission(permissions, "products.create");
+  const canUpdate = hasPermission(permissions, "products.update");
+  const canChangeStatus = hasPermission(permissions, "products.delete");
+
+  function startEdit(product: Product) {
+    setEditingId(product.id);
+    setEditDraft({ name: product.name, barcodes: product.barcodes.join(", "), expiryManaged: product.expiryManaged, fefoEnabled: product.fefoEnabled });
+    setRowError(null);
+  }
+
+  async function saveProduct(event: FormEvent<HTMLFormElement>, product: Product) {
+    event.preventDefault();
+    setBusyId(product.id);
+    setRowError(null);
+    const input: Parameters<ProductClient["updateProduct"]>[1] = {
+      name: editDraft.name.trim(),
+      barcodes: parseBarcodes(editDraft.barcodes),
+    };
+    if (product.trackingMode === "lot") {
+      input.expiryManaged = editDraft.expiryManaged;
+      input.fefoEnabled = editDraft.fefoEnabled;
+    }
+    try {
+      const updated = await api.updateProduct(product.id, input);
+      setProducts((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setEditingId(null);
+    } catch (caught) {
+      setRowError({ id: product.id, message: errorMessage(caught, "Không thể cập nhật sản phẩm") });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeStatus(product: Product) {
+    const nextStatus = product.status === "active" ? "inactive" : "active";
+    const action = nextStatus === "inactive" ? "vô hiệu hóa" : "kích hoạt";
+    if (!window.confirm(`Bạn có chắc muốn ${action} sản phẩm ${product.name}?`)) return;
+    setBusyId(product.id);
+    setRowError(null);
+    try {
+      const updated = await api.setProductStatus(product.id, nextStatus);
+      setProducts((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (caught) {
+      setRowError({ id: product.id, message: errorMessage(caught, `Không thể ${action} sản phẩm`) });
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   useEffect(() => {
     api.listProducts()
@@ -71,10 +130,12 @@ export default function ProductsPage({ api = productApi }: { api?: ProductClient
             Quản lý SKU, barcode và chính sách tracking.
           </p>
         </div>
-        <Link to="/products/create" className={primaryButtonClass}>
-          <PlusIcon className="h-4 w-4" />
-          Thêm sản phẩm
-        </Link>
+        {canCreate && (
+          <Link to="/products/create" className={primaryButtonClass}>
+            <PlusIcon className="h-4 w-4" />
+            Thêm sản phẩm
+          </Link>
+        )}
       </div>
 
       <form onSubmit={lookup} className={`flex flex-col gap-3 sm:flex-row sm:items-end ${panelClass}`}>
@@ -106,33 +167,68 @@ export default function ProductsPage({ api = productApi }: { api?: ProductClient
                 <th scope="col" className="px-4 py-3">SKU</th>
                 <th scope="col" className="px-4 py-3">Barcode</th>
                 <th scope="col" className="px-4 py-3">Tracking</th>
+                <th scope="col" className="px-4 py-3">Trạng thái</th>
                 <th scope="col" className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {products.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
+                  <td colSpan={6} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
                     Chưa có sản phẩm.
                   </td>
                 </tr>
               ) : pagedProducts.map((product) => (
-                <tr key={product.id}>
+                <Fragment key={product.id}>
+                <tr>
                   <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{product.name}</td>
                   <td className={tableCellClass}>{product.sku}</td>
                   <td className={tableCellClass}>{product.barcodes.join(", ")}</td>
                   <td className={tableCellClass}>{trackingLabels[product.trackingMode]}</td>
+                  <td className={tableCellClass}>{product.status === "active" ? "Đang dùng" : "Tạm ngưng"}</td>
                   <td className={`${tableCellClass} text-right`}>
-                    <div className="inline-flex gap-2">
-                      <button type="button" disabled aria-label={`Sửa sản phẩm ${product.name}`} title="Chưa hỗ trợ sửa sản phẩm" className={iconButtonClass}>
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button type="button" disabled aria-label={`Xóa sản phẩm ${product.name}`} title="Chưa hỗ trợ xóa sản phẩm" className={iconButtonClass}>
-                        <TrashBinIcon className="h-4 w-4" />
-                      </button>
+                    <div className="inline-flex items-center gap-2">
+                      {canUpdate && editingId !== product.id && (
+                        <button type="button" disabled={busyId === product.id} aria-label={`Sửa sản phẩm ${product.name}`} title="Sửa sản phẩm" className={iconButtonClass} onClick={() => startEdit(product)}>
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canChangeStatus && (
+                        <button type="button" disabled={busyId === product.id} aria-label={`${product.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} sản phẩm ${product.name}`} className={rowActionClass} onClick={() => changeStatus(product)}>
+                          {busyId === product.id ? "Đang xử lý…" : product.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
+                {(editingId === product.id || rowError?.id === product.id) && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-4">
+                      {editingId === product.id && (
+                        <form className="grid gap-3 rounded-xl bg-gray-50 p-3 sm:grid-cols-2 lg:grid-cols-4 dark:bg-white/[0.03]" onSubmit={(event) => saveProduct(event, product)}>
+                          <label className={labelClass}>Tên sản phẩm
+                            <input autoFocus required aria-label={`Tên sản phẩm ${product.name}`} className={inputClass} value={editDraft.name} onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))} />
+                          </label>
+                          <label className={labelClass}>Barcode
+                            <input required aria-label={`Barcode sản phẩm ${product.name}`} className={inputClass} value={editDraft.barcodes} onChange={(event) => setEditDraft((current) => ({ ...current, barcodes: event.target.value }))} />
+                          </label>
+                          {product.trackingMode === "lot" && (
+                            <div className="flex flex-col justify-end gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
+                              <label className="flex items-center gap-2"><input type="checkbox" aria-label={`Quản lý hạn dùng ${product.name}`} checked={editDraft.expiryManaged} onChange={(event) => setEditDraft((current) => ({ ...current, expiryManaged: event.target.checked }))} /> Quản lý hạn dùng</label>
+                              <label className="flex items-center gap-2"><input type="checkbox" aria-label={`FEFO ${product.name}`} checked={editDraft.fefoEnabled} onChange={(event) => setEditDraft((current) => ({ ...current, fefoEnabled: event.target.checked }))} /> FEFO</label>
+                            </div>
+                          )}
+                          <div className="flex items-end gap-2">
+                            <button type="submit" disabled={busyId === product.id} className={primaryButtonClass} aria-label={`Lưu sản phẩm ${product.name}`}>{busyId === product.id ? "Đang lưu…" : "Lưu"}</button>
+                            <button type="button" disabled={busyId === product.id} className={secondaryButtonClass} onClick={() => setEditingId(null)}>Hủy</button>
+                          </div>
+                        </form>
+                      )}
+                      {rowError?.id === product.id && <p role="alert" className="mt-2 text-sm text-error-600">{rowError.message}</p>}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

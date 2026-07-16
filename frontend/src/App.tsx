@@ -66,15 +66,15 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route path="admin/roles" element={allow("admin.roles.view", <RolesPage />)} />
         <Route path="admin/roles/create" element={allow("admin.roles.view", <RoleCreatePage />)} />
         <Route path="admin/permissions" element={allow("admin.roles.view", <PermissionsPage />)} />
-        <Route path="locations" element={allow("locations.view", <LocationsPage />)} />
-        <Route path="locations/create" element={allow("locations.view", <LocationCreatePage />)} />
+        <Route path="locations" element={allow("locations.view", <LocationsPage permissions={access.permissions} />)} />
+        <Route path="locations/create" element={allow("locations.create", <LocationCreatePage />)} />
         <Route path="catalog" element={catalogHome} />
         <Route path="catalog/categories" element={allow("catalog.categories.view", <CategoriesPage permissions={access.permissions} />)} />
         <Route path="catalog/categories/create" element={allow("catalog.categories.create", <CategoryCreatePage />)} />
         <Route path="catalog/units" element={allow("catalog.units.view", <UnitsPage permissions={access.permissions} />)} />
         <Route path="catalog/units/create" element={allow("catalog.units.create", <UnitCreatePage />)} />
-        <Route path="products" element={allow("products.view", <ProductsPage />)} />
-        <Route path="products/create" element={allow("products.view", <ProductCreatePage />)} />
+        <Route path="products" element={allow("products.view", <ProductsPage permissions={access.permissions} />)} />
+        <Route path="products/create" element={allow("products.create", <ProductCreatePage />)} />
         <Route path="partners" element={allow("partners.view", <PartnersPage />)} />
         <Route path="partners/create" element={allow("partners.view", <PartnerCreatePage />)} />
         <Route path="receipts" element={allow("receipts.view", <ReceiptPage />)} />

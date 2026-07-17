@@ -1,9 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 
 import { errorBody, HttpError } from "./http/errors.js";
 
-export function createApp() {
+interface CreateAppOptions {
+  corsOrigins?: string[];
+}
+
+export function createApp(options: CreateAppOptions = {}) {
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -18,6 +23,20 @@ export function createApp() {
     c.header("permissions-policy", "camera=(), microphone=(), geolocation=()");
     await next();
   });
+
+  if (options.corsOrigins?.length) {
+    const allowedOrigins = new Set(options.corsOrigins);
+    app.use(
+      "*",
+      cors({
+        origin: (origin) => (allowedOrigins.has(origin) ? origin : null),
+        allowHeaders: ["content-type", "x-request-id"],
+        exposeHeaders: ["x-request-id"],
+        credentials: true,
+        maxAge: 600,
+      }),
+    );
+  }
 
   app.get("/health", (c) =>
     c.json({

@@ -74,6 +74,7 @@ NODE_ENV=development
 PORT=4000
 DATABASE_URL=postgres://postgres:<password>@localhost:5433/warehouse_suite
 SESSION_SECRET=<chuoi-ngau-nhien-toi-thieu-32-ky-tu>
+CORS_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
 MASTER_EMAIL=master@example.com
 MASTER_PASSWORD=<mat-khau-tam-toi-thieu-12-ky-tu>
 MASTER_PHONE=0900000000
@@ -105,7 +106,7 @@ npm run dev:frontend
 - Web: <http://127.0.0.1:5173>
 - API health: <http://127.0.0.1:4000/health>
 
-Vite proxy `/api` sang API local tại cổng `4000` theo mặc định. Khi chạy trong Docker, Compose đặt `VITE_API_PROXY_TARGET=http://backend:4000` để proxy sang backend container.
+Vite proxy `/api` sang API local tại cổng `4000` theo mặc định. Khi chạy trong Docker, Compose đặt `VITE_API_BASE_URL=http://127.0.0.1:4000` để browser gọi trực tiếp backend origin thay vì frontend origin; `VITE_API_PROXY_TARGET=http://backend:4000` vẫn là fallback khi bỏ base URL. Nếu chạy thủ công và muốn gọi trực tiếp backend, đặt `VITE_API_BASE_URL=http://127.0.0.1:4000` ở frontend và bảo đảm backend có `CORS_ORIGINS=http://127.0.0.1:5173,http://localhost:5173`.
 
 ## Lệnh thường dùng
 

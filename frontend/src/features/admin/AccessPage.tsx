@@ -418,9 +418,8 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
       )}
 
       <section className={panelClass}>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Người dùng hiện có</h2>
         <div className="mt-3 overflow-x-auto">
-          <table className="min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
+          <table className="w-full min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
             <thead className={tableHeadClass}>
               <tr>
                 <th scope="col" className="px-4 py-3">Người dùng</th>

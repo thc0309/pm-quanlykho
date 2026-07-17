@@ -18,8 +18,15 @@ export class ApiError extends Error {
   }
 }
 
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+function apiUrl(path: string) {
+  if (!apiBaseUrl || /^https?:\/\//.test(path)) return path;
+  return `${apiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     credentials: "include",
     headers: {
@@ -585,5 +592,5 @@ export const salesApi:SalesClient={async list(){return(await request<{data:Sales
 export const returnApi:ReturnClient={async list(){return(await request<{data:StockReturn[]}>("/api/returns?pageSize=50")).data;},async create(input){return(await request<{return:{id:string}}>("/api/returns",{method:"POST",body:JSON.stringify(input)})).return;},async confirm(id){return(await request<{result:{alreadyConfirmed:boolean}}>(`/api/returns/${id}/confirm`,{method:"POST"})).result;}};
 export const stockCountApi:StockCountClient={async list(){return(await request<{data:StockCount[]}>("/api/stock-counts?pageSize=50")).data;},async create(input){return(await request<{stockCount:{id:string}}>("/api/stock-counts",{method:"POST",body:JSON.stringify(input)})).stockCount;},async submit(id){await request(`/api/stock-counts/${id}/submit`,{method:"POST"});},async approve(id){await request(`/api/stock-counts/${id}/approve`,{method:"POST"});},async listBalances(){return(await request<{data:InventoryBalance[]}>("/api/inventory/balances?pageSize=100")).data;}};
 export const transferApi:TransferClient={async list(){return(await request<{data:Transfer[]}>("/api/transfers?pageSize=50")).data;},async create(input){return(await request<{transfer:{id:string}}>("/api/transfers",{method:"POST",body:JSON.stringify(input)})).transfer;},async dispatch(id){await request(`/api/transfers/${id}/dispatch`,{method:"POST"});},async receive(id,input){await request(`/api/transfers/${id}/receive`,{method:"POST",body:JSON.stringify(input)});},async cancel(id){await request(`/api/transfers/${id}/cancel`,{method:"POST"});},async listBalances(){return(await request<{data:InventoryBalance[]}>("/api/inventory/balances?pageSize=100")).data;}};
-export const reportApi:ReportClient={async dashboard(){return(await request<{summary:DashboardSummary}>("/api/reports/dashboard")).summary;},inventory({page,q}){const p=new URLSearchParams({page:String(page),pageSize:"20"});if(q)p.set("q",q);return request(`/api/reports/inventory?${p}`);},exportUrl(q){const p=new URLSearchParams({limit:"5000"});if(q)p.set("q",q);return `/api/reports/inventory.csv?${p}`;}};
+export const reportApi:ReportClient={async dashboard(){return(await request<{summary:DashboardSummary}>("/api/reports/dashboard")).summary;},inventory({page,q}){const p=new URLSearchParams({page:String(page),pageSize:"20"});if(q)p.set("q",q);return request(`/api/reports/inventory?${p}`);},exportUrl(q){const p=new URLSearchParams({limit:"5000"});if(q)p.set("q",q);return apiUrl(`/api/reports/inventory.csv?${p}`);}};
 export const printApi:PrintClient={document(id){return request(`/api/print/documents/${id}`);},async label(kind,id){return(await request<{label:{code:string;name:string;kind:string;expiresAt?:string}}>(`/api/print/labels/${kind}/${id}`)).label;}};

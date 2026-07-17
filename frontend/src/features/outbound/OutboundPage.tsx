@@ -126,7 +126,7 @@ export function OutboundCreatePage({ api = outboundApi }: { api?: OutboundClient
     <div><h1 className={pageTitleClass}>Tạo phiếu xuất</h1><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Tạo nháp, sau đó release tại danh sách.</p></div>
     {error && <p role="alert" className={errorClass}>{error}</p>}
     {message && <p role="status" className={successClass}>{message}</p>}
-    <form noValidate onSubmit={submit} className={`${panelClass} max-w-4xl space-y-5 p-5`}>
+    <form noValidate onSubmit={submit} className={`${panelClass} w-full  space-y-5 p-5`}>
       <label className={`${labelClass} block max-w-md`}>Số phiếu (*)<input required maxLength={80} className={inputClass} value={documentNo} onChange={(event) => setDocumentNo(event.target.value)} /></label>
       <div className="space-y-3">
         {lines.map((line, index) => <fieldset key={line.key} className="grid gap-3 rounded-xl border border-gray-200 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,0.35fr)_auto] sm:items-end dark:border-gray-800">

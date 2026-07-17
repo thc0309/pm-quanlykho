@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 
-import { app } from "../src/app.js";
+import { app, createApp } from "../src/app.js";
 import { parseJson, parsePagination } from "../src/http/validation.js";
 
 app.get("/__contract/pagination", (c) =>
@@ -68,4 +68,32 @@ test("unexpected errors never leak internal details", async () => {
   assert.deepEqual(await response.json(), {
     error: { code: "INTERNAL_ERROR", message: "Lỗi hệ thống" },
   });
+});
+
+test("CORS allows configured frontend origins with credentials", async () => {
+  const corsApp = createApp({ corsOrigins: ["http://127.0.0.1:5173"] });
+  const response = await corsApp.request("/api/auth/login", {
+    method: "OPTIONS",
+    headers: {
+      origin: "http://127.0.0.1:5173",
+      "access-control-request-method": "POST",
+      "access-control-request-headers": "content-type",
+    },
+  });
+
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("access-control-allow-origin"), "http://127.0.0.1:5173");
+  assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+  assert.match(response.headers.get("access-control-allow-methods") ?? "", /POST/);
+  assert.match(response.headers.get("access-control-allow-headers") ?? "", /content-type/i);
+});
+
+test("CORS does not allow unknown origins", async () => {
+  const corsApp = createApp({ corsOrigins: ["http://127.0.0.1:5173"] });
+  const response = await corsApp.request("/health", {
+    headers: { origin: "http://example.test" },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("access-control-allow-origin"), null);
 });

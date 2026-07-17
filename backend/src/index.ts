@@ -27,7 +27,7 @@ import { createPostgresProductStore, registerProductRoutes } from "./modules/pro
 import { createPostgresReceiptStore, registerReceiptRoutes } from "./modules/receipts.js";
 import { createPostgresStockStore, registerStockRoutes } from "./modules/stock.js";
 
-const app = createApp();
+const app = createApp({ corsOrigins: config.CORS_ORIGINS });
 const authStore = createPostgresAuthStore(pool);
 registerAuthRoutes(app, authStore, {
   sessionSecret: config.SESSION_SECRET,

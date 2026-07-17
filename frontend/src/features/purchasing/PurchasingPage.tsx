@@ -118,7 +118,7 @@ export function PurchaseCreatePage({ api = purchasingApi }: { api?: PurchasingCl
   }
 
   return (
-    <form noValidate onSubmit={submit} className={`max-w-4xl space-y-5 ${panelClass} p-5`}>
+    <form noValidate onSubmit={submit} className={`w-full space-y-5 ${panelClass} p-5`}>
       <h1 className={pageTitleClass}>Tạo PO</h1>
       {created && <p role="status" className={successClass}>Đã tạo PO</p>}
       {error && <p role="alert" className="text-sm text-error-600">{error}</p>}

@@ -12,6 +12,8 @@ FROM roles role
 CROSS JOIN unnest(ARRAY[
   'admin.users.view', 'admin.users.create', 'admin.users.update', 'admin.users.delete',
   'admin.roles.view', 'admin.roles.create', 'admin.roles.update', 'admin.roles.delete',
+  'warehouse.metadata.view', 'warehouse.metadata.create', 'warehouse.metadata.update', 'warehouse.metadata.delete',
+  'warehouse.operations.view', 'warehouse.operations.create', 'warehouse.operations.update', 'warehouse.operations.approve', 'warehouse.operations.print', 'warehouse.operations.export',
   'locations.view', 'locations.create', 'locations.update', 'locations.delete',
   'catalog.categories.view', 'catalog.categories.create', 'catalog.categories.update', 'catalog.categories.delete',
   'catalog.units.view', 'catalog.units.create', 'catalog.units.update', 'catalog.units.delete',

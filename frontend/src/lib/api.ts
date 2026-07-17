@@ -65,6 +65,8 @@ export interface AdminUser {
   email: string;
   fullName: string;
   phone: string;
+  roleIds: string[];
+  departmentId: string | null;
   avatarUrl: string | null;
   employeeCode: string | null;
   jobTitle: string | null;
@@ -83,6 +85,15 @@ export interface AdminRole {
   permissions: string[];
 }
 
+export interface AdminDepartment {
+  id: string;
+  warehouseId: string;
+  code: string;
+  name: string;
+  roleIds: string[];
+  status: "active" | "inactive";
+}
+
 export interface PermissionFeature {
   featureCode: string;
   featureLabel: string;
@@ -91,14 +102,21 @@ export interface PermissionFeature {
 
 export interface AdminClient {
   listUsers(): Promise<AdminUser[]>;
-  createUser(input: Pick<AdminUser, "email" | "fullName" | "phone"> & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "department" | "note">>): Promise<{
+  getUser(id: string): Promise<AdminUser>;
+  createUser(input: Pick<AdminUser, "email" | "fullName" | "phone"> & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "departmentId" | "note">>): Promise<{
     user: AdminUser;
     temporaryPassword: string;
   }>; 
-  updateUser(id: string, input: Partial<Pick<AdminUser, "email" | "fullName" | "phone" | "employeeCode" | "jobTitle" | "department" | "note">>): Promise<AdminUser>;
+  updateUser(id: string, input: Partial<Pick<AdminUser, "email" | "fullName" | "phone" | "employeeCode" | "jobTitle" | "departmentId" | "note">>): Promise<AdminUser>;
   uploadUserAvatar(id: string, file: File): Promise<AdminUser>;
   setUserStatus(id: string, status: AdminUser["status"]): Promise<AdminUser>;
+  listDepartments(): Promise<AdminDepartment[]>;
+  getDepartment(id: string): Promise<AdminDepartment>;
+  createDepartment(input: Pick<AdminDepartment, "code" | "name" | "roleIds">): Promise<AdminDepartment>;
+  updateDepartment(id: string, input: Pick<AdminDepartment, "name" | "roleIds">): Promise<AdminDepartment>;
+  setDepartmentStatus(id: string, status: AdminDepartment["status"]): Promise<AdminDepartment>;
   listRoles(): Promise<AdminRole[]>;
+  getRole(id: string): Promise<AdminRole>;
   listPermissionCatalog(): Promise<PermissionFeature[]>;
   createRole(input: {
     code: string;
@@ -122,6 +140,7 @@ export interface WarehouseLocation {
 
 export interface LocationClient {
   listLocations(): Promise<WarehouseLocation[]>;
+  getLocation(id: string): Promise<WarehouseLocation>;
   createLocation(input: Pick<WarehouseLocation, "code" | "barcode" | "name" | "type">): Promise<WarehouseLocation>;
   updateLocation(id: string, input: Partial<Pick<WarehouseLocation, "barcode" | "name" | "type">>): Promise<WarehouseLocation>;
   setLocationStatus(id: string, status: WarehouseLocation["status"]): Promise<WarehouseLocation>;
@@ -146,12 +165,106 @@ export interface CatalogUnit {
   status: "active" | "inactive";
 }
 
+export type CategorySpecType = "text" | "number" | "boolean" | "select";
+
+export interface CategorySpecOption {
+  id: string;
+  definitionId: string;
+  value: string;
+  label: string;
+  sortOrder: number;
+  status: "active" | "inactive";
+}
+
+interface CategorySpecDefinitionBase {
+  id: string;
+  warehouseId: string;
+  categoryId: string;
+  code: string;
+  name: string;
+  required: boolean;
+  sortOrder: number;
+  status: "active" | "inactive";
+}
+
+export interface TextCategorySpecDefinition extends CategorySpecDefinitionBase {
+  type: "text";
+  unit: null;
+  minValue: null;
+  maxValue: null;
+  options: CategorySpecOption[];
+}
+
+export interface NumberCategorySpecDefinition extends CategorySpecDefinitionBase {
+  type: "number";
+  unit: string | null;
+  minValue: string | null;
+  maxValue: string | null;
+  options: CategorySpecOption[];
+}
+
+export interface BooleanCategorySpecDefinition extends CategorySpecDefinitionBase {
+  type: "boolean";
+  unit: null;
+  minValue: null;
+  maxValue: null;
+  options: CategorySpecOption[];
+}
+
+export interface SelectCategorySpecDefinition extends CategorySpecDefinitionBase {
+  type: "select";
+  unit: null;
+  minValue: null;
+  maxValue: null;
+  options: CategorySpecOption[];
+}
+
+export type CategorySpecDefinition =
+  | TextCategorySpecDefinition
+  | NumberCategorySpecDefinition
+  | BooleanCategorySpecDefinition
+  | SelectCategorySpecDefinition;
+
+export interface CategorySpecDefinitionCreateInput {
+  code: string;
+  name: string;
+  type: CategorySpecType;
+  required: boolean;
+  unit?: string;
+  minValue?: number;
+  maxValue?: number;
+  sortOrder?: number;
+  options?: Array<Pick<CategorySpecOption, "value" | "label" | "sortOrder">>;
+}
+
+export interface CategorySpecDefinitionUpdateInput {
+  name: string;
+  required: boolean;
+  unit?: string | null;
+  minValue?: number | null;
+  maxValue?: number | null;
+  sortOrder?: number;
+}
+
+export interface CategorySpecOptionCreateInput {
+  value: string;
+  label: string;
+  sortOrder?: number;
+}
+
+export interface CategorySpecOptionUpdateInput {
+  label: string;
+  sortOrder?: number;
+}
+
 export interface CatalogClient {
   listCategories(): Promise<CatalogCategory[]>;
+  getCategory(id: string): Promise<CatalogCategory>;
   createCategory(input: Pick<CatalogCategory, "code" | "name">): Promise<CatalogCategory>;
   updateCategory(id: string, input: Pick<CatalogCategory, "name">): Promise<CatalogCategory>;
   setCategoryStatus(id: string, status: CatalogCategory["status"]): Promise<CatalogCategory>;
   listUnits(): Promise<CatalogUnit[]>;
+  getUnit(id: string): Promise<CatalogUnit>;
   createUnit(input: {
     code: string;
     name: string;
@@ -160,6 +273,61 @@ export interface CatalogClient {
   }): Promise<CatalogUnit>;
   updateUnit(id: string, input: Pick<CatalogUnit, "name">): Promise<CatalogUnit>;
   setUnitStatus(id: string, status: CatalogUnit["status"]): Promise<CatalogUnit>;
+  listCategorySpecDefinitions(categoryId: string): Promise<CategorySpecDefinition[]>;
+  createCategorySpecDefinition(categoryId: string, input: CategorySpecDefinitionCreateInput): Promise<CategorySpecDefinition>;
+  updateCategorySpecDefinition(id: string, input: CategorySpecDefinitionUpdateInput): Promise<CategorySpecDefinition>;
+  setCategorySpecDefinitionStatus(id: string, status: CategorySpecDefinition["status"]): Promise<CategorySpecDefinition>;
+  createCategorySpecOption(definitionId: string, input: CategorySpecOptionCreateInput): Promise<CategorySpecOption>;
+  updateCategorySpecOption(id: string, input: CategorySpecOptionUpdateInput): Promise<CategorySpecOption>;
+  setCategorySpecOptionStatus(id: string, status: CategorySpecOption["status"]): Promise<CategorySpecOption>;
+}
+
+interface ProductSpecValueBase {
+  definitionId: string;
+  code: string;
+  name: string;
+  required: boolean;
+  unit: string | null;
+  sortOrder: number;
+  status: "active" | "inactive";
+}
+
+export interface ProductTextSpecValue extends ProductSpecValueBase {
+  type: "text";
+  value: string;
+  optionLabel: null;
+}
+
+export interface ProductNumberSpecValue extends ProductSpecValueBase {
+  type: "number";
+  value: number;
+  optionLabel: null;
+}
+
+export interface ProductBooleanSpecValue extends ProductSpecValueBase {
+  type: "boolean";
+  value: boolean;
+  optionLabel: null;
+}
+
+export interface ProductSelectSpecValue extends ProductSpecValueBase {
+  type: "select";
+  value: string;
+  optionLabel: string | null;
+}
+
+export type ProductSpecValue =
+  | ProductTextSpecValue
+  | ProductNumberSpecValue
+  | ProductBooleanSpecValue
+  | ProductSelectSpecValue;
+
+export interface ProductSpecValueInput {
+  definitionId: string;
+  textValue?: string;
+  numberValue?: number;
+  booleanValue?: boolean;
+  optionValue?: string;
 }
 
 export interface Product {
@@ -175,20 +343,37 @@ export interface Product {
   fefoEnabled: boolean;
   status: "active" | "inactive";
   barcodes: string[];
+  specValues: ProductSpecValue[];
+}
+
+export interface ProductCreateInput {
+  sku: string;
+  name: string;
+  productType: Product["productType"];
+  trackingMode: Product["trackingMode"];
+  expiryManaged: boolean;
+  fefoEnabled: boolean;
+  categoryId?: string | null;
+  baseUnitId?: string | null;
+  barcodes: string[];
+  specValues?: ProductSpecValueInput[];
+}
+
+export interface ProductUpdateInput {
+  name?: string;
+  categoryId?: string | null;
+  baseUnitId?: string | null;
+  expiryManaged?: boolean;
+  fefoEnabled?: boolean;
+  barcodes?: string[];
+  specValues?: ProductSpecValueInput[];
 }
 
 export interface ProductClient {
   listProducts(): Promise<Product[]>;
-  createProduct(input: {
-    sku: string;
-    name: string;
-    productType: Product["productType"];
-    trackingMode: Product["trackingMode"];
-    expiryManaged: boolean;
-    fefoEnabled: boolean;
-    barcodes: string[];
-  }): Promise<Product>;
-  updateProduct(id: string, input: Partial<Pick<Product, "name" | "barcodes" | "categoryId" | "baseUnitId" | "expiryManaged" | "fefoEnabled">>): Promise<Product>;
+  getProduct(id: string): Promise<Product>;
+  createProduct(input: ProductCreateInput): Promise<Product>;
+  updateProduct(id: string, input: ProductUpdateInput): Promise<Product>;
   setProductStatus(id: string, status: Product["status"]): Promise<Product>;
   findProductByBarcode(barcode: string): Promise<Product>;
 }
@@ -208,6 +393,7 @@ export interface Partner {
 
 export interface PartnerClient {
   listPartners(): Promise<Partner[]>;
+  getPartner(id: string): Promise<Partner>;
   createPartner(input: Omit<Partner, "id" | "warehouseId" | "status">): Promise<Partner>;
   updatePartner(id: string, input: Partial<Pick<Partner, "name" | "taxCode" | "phone" | "email" | "address">>): Promise<Partner>;
   setPartnerStatus(id: string, status: Partner["status"]): Promise<Partner>;
@@ -348,7 +534,9 @@ export interface PurchasingClient{list():Promise<PurchaseOrder[]>;create(input:{
 export interface SalesDocument{id:string;documentNo:string;kind:"quote"|"order"|"invoice";status:string;customerName:string;total:number}
 export interface SalesClient{list():Promise<SalesDocument[]>;create(input:{documentNo:string;kind:"quote"|"order";customerId:string;lines:Array<{productId:string;quantity:number;unitPrice:number;taxRate:number}>}):Promise<{id:string}>;approve(id:string):Promise<{outboundId:string|null}>;invoice(id:string,documentNo:string):Promise<{id:string}>;listCustomers():Promise<Array<{id:string;code:string;name:string}>>;listProducts():Promise<Array<{id:string;sku:string;name:string}>>}
 export interface StockReturn{id:string;returnNo:string;kind:"customer"|"supplier";status:"draft"|"confirmed"|"cancelled";originalDocumentNo:string;lineCount:number}
-export interface ReturnClient{list():Promise<StockReturn[]>;create(input:{returnNo:string;kind:"customer"|"supplier";originalDocumentId:string;lines:Array<{originalMovementId:string;quantity:number}>}):Promise<{id:string}>;confirm(id:string):Promise<{alreadyConfirmed:boolean}>}
+export interface ReturnSourceDocument{id:string;documentNo:string;partnerName:string|null;confirmedAt:string|null}
+export interface ReturnSourceLine{originalMovementId:string;productId:string;sku:string;productName:string;locationCode:string|null;lotCode:string|null;serialCode:string|null;quantity:number;claimedQuantity:number;remainingQuantity:number}
+export interface ReturnClient{list():Promise<StockReturn[]>;listSourceDocuments(kind:"customer"|"supplier"):Promise<ReturnSourceDocument[]>;listSourceLines(documentId:string):Promise<ReturnSourceLine[]>;create(input:{returnNo:string;kind:"customer"|"supplier";originalDocumentId:string;lines:Array<{originalMovementId:string;quantity:number}>}):Promise<{id:string}>;confirm(id:string):Promise<{alreadyConfirmed:boolean}>}
 export interface StockCount{id:string;countNo:string;status:"draft"|"submitted"|"confirmed"|"cancelled";lineCount:number;countedLines:number}
 export interface StockCountClient{list():Promise<StockCount[]>;create(input:{countNo:string;stockBalanceIds:string[]}):Promise<{id:string}>;submit(id:string):Promise<void>;approve(id:string):Promise<void>;listBalances():Promise<InventoryBalance[]>}
 export interface Transfer{id:string;transferNo:string;status:"draft"|"in_transit"|"received"|"cancelled"|"reversed";sourceWarehouse:string;targetWarehouse:string;lineCount:number;quantity:number}
@@ -392,6 +580,9 @@ export const adminApi: AdminClient = {
   async listUsers() {
     return (await request<{ data: AdminUser[] }>("/api/admin/users")).data;
   },
+  async getUser(id) {
+    return (await request<{ user: AdminUser }>(`/api/admin/users/${id}`)).user;
+  },
   async createUser(input) {
     return request("/api/admin/users", {
       method: "POST",
@@ -424,8 +615,41 @@ export const adminApi: AdminClient = {
       })
     ).user;
   },
+  async listDepartments() {
+    return (await request<{ data: AdminDepartment[] }>("/api/admin/departments")).data;
+  },
+  async getDepartment(id) {
+    return (await request<{ department: AdminDepartment }>(`/api/admin/departments/${id}`)).department;
+  },
+  async createDepartment(input) {
+    return (
+      await request<{ department: AdminDepartment }>("/api/admin/departments", {
+        method: "POST",
+        body: JSON.stringify(input),
+      })
+    ).department;
+  },
+  async updateDepartment(id, input) {
+    return (
+      await request<{ department: AdminDepartment }>(`/api/admin/departments/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+    ).department;
+  },
+  async setDepartmentStatus(id, status) {
+    return (
+      await request<{ department: AdminDepartment }>(`/api/admin/departments/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      })
+    ).department;
+  },
   async listRoles() {
     return (await request<{ data: AdminRole[] }>("/api/admin/roles")).data;
+  },
+  async getRole(id) {
+    return (await request<{ role: AdminRole }>(`/api/admin/roles/${id}`)).role;
   },
   async listPermissionCatalog() {
     return (await request<{ data: PermissionFeature[] }>("/api/admin/permissions")).data;
@@ -461,6 +685,9 @@ export const locationApi: LocationClient = {
   async listLocations() {
     return (await request<{ data: WarehouseLocation[] }>("/api/locations")).data;
   },
+  async getLocation(id) {
+    return (await request<{ location: WarehouseLocation }>(`/api/locations/${id}`)).location;
+  },
   async createLocation(input) {
     return (await request<{ location: WarehouseLocation }>("/api/locations", { method: "POST", body: JSON.stringify(input) })).location;
   },
@@ -479,6 +706,9 @@ export const catalogApi: CatalogClient = {
   async listCategories() {
     return (await request<{ data: CatalogCategory[] }>("/api/catalog/categories")).data;
   },
+  async getCategory(id) {
+    return (await request<{ category: CatalogCategory }>(`/api/catalog/categories/${id}`)).category;
+  },
   async createCategory(input) {
     return (await request<{ category: CatalogCategory }>("/api/catalog/categories", { method: "POST", body: JSON.stringify(input) })).category;
   },
@@ -491,6 +721,9 @@ export const catalogApi: CatalogClient = {
   async listUnits() {
     return (await request<{ data: CatalogUnit[] }>("/api/catalog/units")).data;
   },
+  async getUnit(id) {
+    return (await request<{ unit: CatalogUnit }>(`/api/catalog/units/${id}`)).unit;
+  },
   async createUnit(input) {
     return (await request<{ unit: CatalogUnit }>("/api/catalog/units", { method: "POST", body: JSON.stringify(input) })).unit;
   },
@@ -500,11 +733,65 @@ export const catalogApi: CatalogClient = {
   async setUnitStatus(id, status) {
     return (await request<{ unit: CatalogUnit }>(`/api/catalog/units/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) })).unit;
   },
+  async listCategorySpecDefinitions(categoryId) {
+    return (await request<{ data: CategorySpecDefinition[] }>(`/api/catalog/categories/${categoryId}/spec-definitions`)).data;
+  },
+  async createCategorySpecDefinition(categoryId, input) {
+    return (
+      await request<{ definition: CategorySpecDefinition }>(`/api/catalog/categories/${categoryId}/spec-definitions`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      })
+    ).definition;
+  },
+  async updateCategorySpecDefinition(id, input) {
+    return (
+      await request<{ definition: CategorySpecDefinition }>(`/api/catalog/spec-definitions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+    ).definition;
+  },
+  async setCategorySpecDefinitionStatus(id, status) {
+    return (
+      await request<{ definition: CategorySpecDefinition }>(`/api/catalog/spec-definitions/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      })
+    ).definition;
+  },
+  async createCategorySpecOption(definitionId, input) {
+    return (
+      await request<{ option: CategorySpecOption }>(`/api/catalog/spec-definitions/${definitionId}/options`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      })
+    ).option;
+  },
+  async updateCategorySpecOption(id, input) {
+    return (
+      await request<{ option: CategorySpecOption }>(`/api/catalog/spec-options/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+    ).option;
+  },
+  async setCategorySpecOptionStatus(id, status) {
+    return (
+      await request<{ option: CategorySpecOption }>(`/api/catalog/spec-options/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      })
+    ).option;
+  },
 };
 
 export const productApi: ProductClient = {
   async listProducts() {
     return (await request<{ data: Product[] }>("/api/products")).data;
+  },
+  async getProduct(id) {
+    return (await request<{ product: Product }>(`/api/products/${id}`)).product;
   },
   async createProduct(input) {
     return (await request<{ product: Product }>("/api/products", { method: "POST", body: JSON.stringify(input) })).product;
@@ -523,6 +810,9 @@ export const productApi: ProductClient = {
 export const partnerApi: PartnerClient = {
   async listPartners() {
     return (await request<{ data: Partner[] }>("/api/partners")).data;
+  },
+  async getPartner(id) {
+    return (await request<{ partner: Partner }>(`/api/partners/${id}`)).partner;
   },
   async createPartner(input) {
     return (await request<{ partner: Partner }>("/api/partners", { method: "POST", body: JSON.stringify(input) })).partner;
@@ -589,7 +879,7 @@ export const checkingApi:CheckingClient={async list(){return(await request<{data
 export const outboundExceptionApi:OutboundExceptionClient={async list(){return(await request<{data:OutboundExceptionItem[]}>("/api/outbound-exceptions?pageSize=50")).data;},async mismatch(id){await request(`/api/outbound-exceptions/${id}/mismatch`,{method:"POST"});},async approveShort(id,reason){await request(`/api/outbound-exceptions/${id}/approve-short`,{method:"POST",body:JSON.stringify({reason})});},async cancel(id,reason){await request(`/api/outbound-exceptions/${id}/cancel`,{method:"POST",body:JSON.stringify({reason})});},async reassign(id,input){await request(`/api/outbound-exceptions/${id}/reassign`,{method:"POST",body:JSON.stringify(input)});}};
 export const purchasingApi:PurchasingClient={async list(){return(await request<{data:PurchaseOrder[]}>("/api/purchase-orders?pageSize=50")).data;},async create(input){return(await request<{purchaseOrder:{id:string}}>("/api/purchase-orders",{method:"POST",body:JSON.stringify(input)})).purchaseOrder;},async approve(id){await request(`/api/purchase-orders/${id}/approve`,{method:"POST"});},async listSuppliers(){return(await request<{data:Partner[]}>("/api/partners?pageSize=100")).data.filter(p=>p.kind==="supplier");},async listProducts(){return(await request<{data:Product[]}>("/api/products?pageSize=100")).data;}};
 export const salesApi:SalesClient={async list(){return(await request<{data:SalesDocument[]}>("/api/sales?pageSize=50")).data;},async create(input){return(await request<{document:{id:string}}>("/api/sales",{method:"POST",body:JSON.stringify(input)})).document;},async approve(id){return(await request<{result:{outboundId:string|null}}>(`/api/sales/${id}/approve`,{method:"POST"})).result;},async invoice(id,documentNo){return(await request<{invoice:{id:string}}>(`/api/sales/${id}/invoice`,{method:"POST",body:JSON.stringify({documentNo})})).invoice;},async listCustomers(){return(await request<{data:Partner[]}>("/api/partners?pageSize=100")).data.filter(p=>p.kind==="customer");},async listProducts(){return(await request<{data:Product[]}>("/api/products?pageSize=100")).data;}};
-export const returnApi:ReturnClient={async list(){return(await request<{data:StockReturn[]}>("/api/returns?pageSize=50")).data;},async create(input){return(await request<{return:{id:string}}>("/api/returns",{method:"POST",body:JSON.stringify(input)})).return;},async confirm(id){return(await request<{result:{alreadyConfirmed:boolean}}>(`/api/returns/${id}/confirm`,{method:"POST"})).result;}};
+export const returnApi:ReturnClient={async list(){return(await request<{data:StockReturn[]}>("/api/returns?pageSize=50")).data;},async listSourceDocuments(kind){return(await request<{data:ReturnSourceDocument[]}>(`/api/returns/source-documents?kind=${kind}`)).data;},async listSourceLines(documentId){return(await request<{data:ReturnSourceLine[]}>(`/api/returns/source-documents/${documentId}/lines`)).data;},async create(input){return(await request<{return:{id:string}}>("/api/returns",{method:"POST",body:JSON.stringify(input)})).return;},async confirm(id){return(await request<{result:{alreadyConfirmed:boolean}}>(`/api/returns/${id}/confirm`,{method:"POST"})).result;}};
 export const stockCountApi:StockCountClient={async list(){return(await request<{data:StockCount[]}>("/api/stock-counts?pageSize=50")).data;},async create(input){return(await request<{stockCount:{id:string}}>("/api/stock-counts",{method:"POST",body:JSON.stringify(input)})).stockCount;},async submit(id){await request(`/api/stock-counts/${id}/submit`,{method:"POST"});},async approve(id){await request(`/api/stock-counts/${id}/approve`,{method:"POST"});},async listBalances(){return(await request<{data:InventoryBalance[]}>("/api/inventory/balances?pageSize=100")).data;}};
 export const transferApi:TransferClient={async list(){return(await request<{data:Transfer[]}>("/api/transfers?pageSize=50")).data;},async create(input){return(await request<{transfer:{id:string}}>("/api/transfers",{method:"POST",body:JSON.stringify(input)})).transfer;},async dispatch(id){await request(`/api/transfers/${id}/dispatch`,{method:"POST"});},async receive(id,input){await request(`/api/transfers/${id}/receive`,{method:"POST",body:JSON.stringify(input)});},async cancel(id){await request(`/api/transfers/${id}/cancel`,{method:"POST"});},async listBalances(){return(await request<{data:InventoryBalance[]}>("/api/inventory/balances?pageSize=100")).data;}};
 export const reportApi:ReportClient={async dashboard(){return(await request<{summary:DashboardSummary}>("/api/reports/dashboard")).summary;},inventory({page,q}){const p=new URLSearchParams({page:String(page),pageSize:"20"});if(q)p.set("q",q);return request(`/api/reports/inventory?${p}`);},exportUrl(q){const p=new URLSearchParams({limit:"5000"});if(q)p.set("q",q);return apiUrl(`/api/reports/inventory.csv?${p}`);}};

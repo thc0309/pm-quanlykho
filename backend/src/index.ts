@@ -9,6 +9,7 @@ import {
 import { createPostgresAdminStore, registerAdminRoutes } from "./modules/admin.js";
 import { createPostgresAuthStore, registerAuthRoutes } from "./modules/auth.js";
 import { createPostgresCatalogStore, registerCatalogRoutes } from "./modules/catalog.js";
+import { createPostgresCatalogSpecStore, registerCatalogSpecRoutes } from "./modules/catalog-specs.js";
 import { createPostgresLocationStore, registerLocationRoutes } from "./modules/locations.js";
 import { createPostgresInventoryStore, registerInventoryRoutes } from "./modules/inventory.js";
 import { createPostgresOutboundStore, registerOutboundRoutes } from "./modules/outbound.js";
@@ -43,6 +44,7 @@ registerAdminRoutes(
   config.SESSION_SECRET,
 );
 registerCatalogRoutes(app, authStore, accessStore, createPostgresCatalogStore(pool), config.SESSION_SECRET);
+registerCatalogSpecRoutes(app, authStore, accessStore, createPostgresCatalogSpecStore(pool), config.SESSION_SECRET);
 registerLocationRoutes(app, authStore, accessStore, createPostgresLocationStore(pool), config.SESSION_SECRET);
 registerInventoryRoutes(app, authStore, accessStore, createPostgresInventoryStore(pool), config.SESSION_SECRET);
 registerOutboundRoutes(app, authStore, accessStore, createPostgresOutboundStore(pool), config.SESSION_SECRET);

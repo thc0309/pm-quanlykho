@@ -1,11 +1,12 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
 import {
   adminApi,
   ApiError,
   type AdminClient,
+  type AdminDepartment,
   type AdminRole,
   type AdminUser,
   type PermissionFeature,
@@ -40,25 +41,31 @@ const tableCellClass = "px-4 py-3 text-sm text-gray-700 dark:text-gray-300";
 
 function useAdminData(api: AdminClient) {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [departments, setDepartments] = useState<AdminDepartment[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([api.listUsers(), api.listRoles()])
-      .then(([nextUsers, nextRoles]) => {
+    Promise.all([api.listUsers(), api.listDepartments(), api.listRoles()])
+      .then(([nextUsers, nextDepartments, nextRoles]) => {
         setUsers(nextUsers);
+        setDepartments(nextDepartments);
         setRoles(nextRoles);
       })
       .catch(() => setError("Không thể tải dữ liệu phân quyền. Hãy thử tải lại trang."))
       .finally(() => setLoading(false));
   }, [api]);
 
-  return { users, setUsers, roles, setRoles, loading, error, setError };
+  return { users, setUsers, departments, setDepartments, roles, setRoles, loading, error, setError };
 }
 
 function normalizeRoleCode(value: string) {
   return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
     .trimStart()
     .toLowerCase()
     .replace(/\s+/g, "-")
@@ -134,7 +141,10 @@ function PermissionMatrix({
 
   function togglePermissions(codes: string[], checked: boolean) {
     const selected = new Set(permissions);
-    for (const code of codes) checked ? selected.add(code) : selected.delete(code);
+    for (const code of codes) {
+      if (checked) selected.add(code);
+      else selected.delete(code);
+    }
     selectPermissions(selected);
   }
 
@@ -210,7 +220,7 @@ type UserFormState = {
   phone: string;
   employeeCode: string;
   jobTitle: string;
-  department: string;
+  departmentId: string;
   note: string;
 };
 
@@ -220,7 +230,7 @@ const emptyUserForm: UserFormState = {
   phone: "",
   employeeCode: "",
   jobTitle: "",
-  department: "",
+  departmentId: "",
   note: "",
 };
 
@@ -231,7 +241,7 @@ function userFormFor(user?: AdminUser): UserFormState {
     phone: user.phone,
     employeeCode: user.employeeCode ?? "",
     jobTitle: user.jobTitle ?? "",
-    department: user.department ?? "",
+    departmentId: user.departmentId ?? "",
     note: user.note ?? "",
   } : { ...emptyUserForm };
 }
@@ -243,7 +253,7 @@ function createUserInput(form: UserFormState): Parameters<AdminClient["createUse
     phone: form.phone.trim(),
     ...(form.employeeCode.trim() ? { employeeCode: form.employeeCode.trim() } : {}),
     ...(form.jobTitle.trim() ? { jobTitle: form.jobTitle.trim() } : {}),
-    ...(form.department.trim() ? { department: form.department.trim() } : {}),
+    ...(form.departmentId ? { departmentId: form.departmentId } : {}),
     ...(form.note.trim() ? { note: form.note.trim() } : {}),
   };
 }
@@ -255,22 +265,18 @@ function updateUserInput(form: UserFormState): Parameters<AdminClient["updateUse
     phone: form.phone.trim(),
     employeeCode: form.employeeCode.trim() || null,
     jobTitle: form.jobTitle.trim() || null,
-    department: form.department.trim() || null,
+    departmentId: form.departmentId || null,
     note: form.note.trim() || null,
   };
 }
 
 function useAvatarPreview(file: File | null) {
-  const [preview, setPreview] = useState("");
+  const preview = useMemo(() => (file ? URL.createObjectURL(file) : ""), [file]);
   useEffect(() => {
-    if (!file) {
-      setPreview("");
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
   return preview;
 }
 
@@ -280,12 +286,14 @@ function UserProfileFields({
   setAvatar,
   previewUrl,
   onFileError,
+  departments,
 }: {
   form: UserFormState;
   setForm: (form: UserFormState) => void;
   setAvatar: (file: File | null) => void;
   previewUrl?: string | null;
   onFileError: (message: string) => void;
+  departments: AdminDepartment[];
 }) {
   const field = (name: keyof UserFormState) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [name]: event.target.value });
@@ -296,7 +304,20 @@ function UserProfileFields({
       <label className={labelClass}>Số điện thoại (*)<input type="tel" required autoComplete="tel" value={form.phone} onChange={field("phone")} className={inputClass} /></label>
       <label className={labelClass}>Mã nhân viên<input maxLength={50} autoComplete="off" value={form.employeeCode} onChange={field("employeeCode")} className={inputClass} /></label>
       <label className={labelClass}>Chức danh<input maxLength={100} autoComplete="organization-title" value={form.jobTitle} onChange={field("jobTitle")} className={inputClass} /></label>
-      <label className={labelClass}>Bộ phận<input maxLength={100} autoComplete="organization" value={form.department} onChange={field("department")} className={inputClass} /></label>
+      <label className={labelClass}>
+        Phòng ban (*)
+        <select
+          required
+          value={form.departmentId}
+          onChange={(event) => setForm({ ...form, departmentId: event.target.value })}
+          className={inputClass}
+        >
+          <option value="">Chọn phòng ban</option>
+          {departments.filter((department) => department.status === "active" || department.id === form.departmentId).map((department) => (
+            <option key={department.id} value={department.id}>{department.name}</option>
+          ))}
+        </select>
+      </label>
       <label className={`${labelClass} sm:col-span-2`}>Ghi chú<textarea maxLength={500} value={form.note} onChange={field("note")} className={`${inputClass} min-h-24 py-3`} /></label>
       <label className={`${labelClass} sm:col-span-2`}>
         Ảnh đại diện
@@ -322,6 +343,43 @@ function UserProfileFields({
   );
 }
 
+function DepartmentRoleFields({
+  roles,
+  roleIds,
+  setRoleIds,
+  legend = "Vai trò được gán (*)",
+}: {
+  roles: AdminRole[];
+  roleIds: string[];
+  setRoleIds: (roleIds: string[]) => void;
+  legend?: string;
+}) {
+  return (
+    <fieldset aria-required="true" className="space-y-2">
+      <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">{legend}</legend>
+      {roles.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Chưa có vai trò.</p>
+      ) : roles.map((role) => (
+        <label key={role.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input
+            type="checkbox"
+            checked={roleIds.includes(role.id)}
+            onChange={(event) =>
+              setRoleIds(
+                event.target.checked
+                  ? [...roleIds, role.id]
+                  : roleIds.filter((id) => id !== role.id),
+              )
+            }
+            className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500 dark:border-gray-700"
+          />
+          {role.name}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
 function apiMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
 }
@@ -330,11 +388,6 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
   const { users, setUsers, loading, error, setError } = useAdminData(api);
   const [busy, setBusy] = useState(false);
   const [userPage, setUserPage] = useState(1);
-  const [editing, setEditing] = useState<AdminUser | null>(null);
-  const [editForm, setEditForm] = useState<UserFormState>(emptyUserForm);
-  const [avatar, setAvatar] = useState<File | null>(null);
-  const editButtonRef = useRef<HTMLButtonElement>(null);
-  const avatarPreview = useAvatarPreview(avatar);
   const pagedUsers = paginate(users, userPage);
 
   async function toggleUserStatus(item: AdminUser) {
@@ -351,37 +404,6 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
     }
   }
 
-  function startEditing(user: AdminUser) {
-    setEditing(user);
-    setEditForm(userFormFor(user));
-    setAvatar(null);
-    setError("");
-  }
-
-  function cancelEditing() {
-    setEditing(null);
-    setAvatar(null);
-    editButtonRef.current?.focus();
-  }
-
-  async function saveUser(event: FormEvent) {
-    event.preventDefault();
-    if (!editing) return;
-    setBusy(true);
-    setError("");
-    try {
-      let updated = await api.updateUser(editing.id, updateUserInput(editForm));
-      if (avatar) updated = await api.uploadUserAvatar(editing.id, avatar);
-      setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
-      setEditing(null);
-      setAvatar(null);
-    } catch (cause) {
-      setError(apiMessage(cause, "Không thể cập nhật người dùng."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (loading) {
     return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải người dùng…</p>;
   }
@@ -390,7 +412,7 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
     <div className="space-y-6">
       <PageHeader
         title="Người dùng"
-        description="Tạo, vô hiệu hóa và gán vai trò cho người dùng trong kho hiện tại."
+        description="Tạo, vô hiệu hóa và gán phòng ban cho người dùng trong kho hiện tại."
         actions={(
           <Link to="/admin/users/create" className={primaryButtonClass}>
             <PlusIcon className="h-4 w-4" />
@@ -400,23 +422,6 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
       />
       <ErrorNotice message={error} />
 
-      {editing && (
-        <form onSubmit={saveUser} aria-label={`Sửa ${editing.fullName}`} className={`space-y-4 ${panelClass}`}>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Sửa người dùng</h2>
-          <UserProfileFields
-            form={editForm}
-            setForm={setEditForm}
-            setAvatar={setAvatar}
-            previewUrl={avatarPreview || editing.avatarUrl}
-            onFileError={setError}
-          />
-          <div className="flex flex-wrap gap-3">
-            <button type="submit" disabled={busy} className={primaryButtonClass}>Lưu thay đổi</button>
-            <button type="button" onClick={cancelEditing} className={secondaryButtonClass}>Hủy chỉnh sửa</button>
-          </div>
-        </form>
-      )}
-
       <section className={panelClass}>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
@@ -424,7 +429,7 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
               <tr>
                 <th scope="col" className="px-4 py-3">Người dùng</th>
                 <th scope="col" className="px-4 py-3">Điện thoại</th>
-                <th scope="col" className="px-4 py-3">Bộ phận / chức danh</th>
+                <th scope="col" className="px-4 py-3">Phòng ban / chức danh</th>
                 <th scope="col" className="px-4 py-3">Trạng thái</th>
                 <th scope="col" className="px-4 py-3 text-right">Thao tác</th>
               </tr>
@@ -455,15 +460,12 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
                   <td className={tableCellClass}>{item.status === "active" ? "Đang hoạt động" : "Đã vô hiệu hóa"}</td>
                   <td className={`${tableCellClass} text-right`}>
                     <div className="flex justify-end gap-2">
-                      <button
-                        ref={editing?.id === item.id ? editButtonRef : undefined}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => startEditing(item)}
+                      <Link
+                        to={`/admin/users/${item.id}/edit`}
                         aria-label={`Sửa ${item.fullName}`}
                         title="Sửa"
                         className={iconButtonClass}
-                      ><PencilIcon className="h-4 w-4" /></button>
+                      ><PencilIcon className="h-4 w-4" /></Link>
                       <button
                         type="button"
                         disabled={busy}
@@ -488,66 +490,86 @@ export function UsersPage({ api = adminApi }: { api?: AdminClient }) {
 }
 
 export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
-  const { users, setUsers, roles, loading, error, setError } = useAdminData(api);
+  const navigate = useNavigate();
+  const { userId } = useParams();
+  const isEditMode = Boolean(userId);
+  const { setUsers, departments, loading, error, setError } = useAdminData(api);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
   const [avatar, setAvatar] = useState<File | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [formLoading, setFormLoading] = useState(isEditMode);
   const avatarPreview = useAvatarPreview(avatar);
-  const [assignment, setAssignment] = useState({ userId: "", roleIds: [] as string[] });
 
-  async function createUser(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const result = await api.createUser(createUserInput(userForm));
-      let savedUser = result.user;
-      if (avatar) {
-        try {
-          savedUser = await api.uploadUserAvatar(result.user.id, avatar);
-        } catch (cause) {
-          setError(apiMessage(cause, "Đã tạo người dùng nhưng không thể tải ảnh đại diện."));
-        }
-      }
-      setUsers((current) => [savedUser, ...current]);
-      setAssignment((current) => ({ ...current, userId: result.user.id }));
-      setTemporaryPassword(result.temporaryPassword);
-      setUserForm(userFormFor());
-      setAvatar(null);
-    } catch (cause) {
-      setError(apiMessage(cause, "Không thể tạo người dùng. Kiểm tra email đã tồn tại hay chưa."));
-    } finally {
-      setBusy(false);
-    }
-  }
+  useEffect(() => {
+    if (!isEditMode || !userId) return;
+    let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormLoading(true);
+    api.getUser(userId)
+      .then((user) => {
+        if (!active) return;
+        setSelectedUser(user);
+        setUserForm(userFormFor(user));
+        setAvatar(null);
+      })
+      .catch((cause) => {
+        if (!active) return;
+        setSelectedUser(null);
+        setError(apiMessage(cause, "Không tìm thấy người dùng cần sửa."));
+      })
+      .finally(() => {
+        if (active) setFormLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, isEditMode, setError, userId]);
 
-  async function assignRoles(event: FormEvent) {
+  async function saveUser(event: FormEvent) {
     event.preventDefault();
-    if (!assignment.userId) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await api.setUserRoles(assignment.userId, assignment.roleIds);
-      setNotice("Đã gán vai trò");
-    } catch {
-      setError("Không thể gán vai trò. Hãy kiểm tra người dùng và quyền hiện tại.");
+      if (isEditMode && userId) {
+        let updated = await api.updateUser(userId, updateUserInput(userForm));
+        if (avatar) updated = await api.uploadUserAvatar(userId, avatar);
+        setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
+        navigate("/admin/users");
+      } else {
+        const result = await api.createUser(createUserInput(userForm));
+        let savedUser = result.user;
+        if (avatar) {
+          savedUser = await api.uploadUserAvatar(result.user.id, avatar);
+        }
+        setUsers((current) => [savedUser, ...current]);
+        setTemporaryPassword(result.temporaryPassword);
+        setNotice("Đã tạo người dùng");
+        setUserForm(userFormFor());
+        setAvatar(null);
+      }
+    } catch (cause) {
+      setError(apiMessage(cause, isEditMode ? "Không thể cập nhật người dùng." : "Không thể tạo người dùng. Kiểm tra email đã tồn tại hay chưa."));
     } finally {
       setBusy(false);
     }
   }
 
-  if (loading) {
+  if (loading || formLoading) {
     return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải form người dùng…</p>;
+  }
+  if (isEditMode && !selectedUser) {
+    return <p role="alert" className="text-sm text-error-600 dark:text-error-400">Không tìm thấy người dùng cần sửa.</p>;
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Thêm người dùng"
-        description="Nhập thông tin người dùng và gán vai trò sau khi tạo."
+        title={isEditMode ? "Sửa người dùng" : "Thêm người dùng"}
+        description={isEditMode ? "Cập nhật thông tin, ảnh đại diện và phòng ban của người dùng." : "Nhập thông tin người dùng và chọn phòng ban ngay trong cùng biểu mẫu."}
         actions={<Link to="/admin/users" className={secondaryButtonClass}>Quay lại</Link>}
       />
       <ErrorNotice message={error} />
@@ -556,69 +578,207 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
           {notice}
         </p>
       )}
-      {temporaryPassword && (
+      {!isEditMode && temporaryPassword && (
         <div role="status" className="rounded-lg border border-warning-300 bg-warning-50 p-4 text-sm text-warning-800 dark:border-warning-700 dark:bg-warning-500/15 dark:text-warning-300">
           Mật khẩu tạm chỉ hiển thị lần này: <strong className="break-all">{temporaryPassword}</strong>
         </div>
       )}
 
-      <form onSubmit={createUser} className={`space-y-4 ${panelClass}`}>
+      <form onSubmit={saveUser} className={`space-y-4 ${panelClass}`}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Thông tin người dùng</h2>
         <UserProfileFields
           form={userForm}
           setForm={setUserForm}
           setAvatar={setAvatar}
-          previewUrl={avatarPreview}
+          previewUrl={avatarPreview || (isEditMode ? selectedUser?.avatarUrl : null)}
           onFileError={setError}
+          departments={departments}
         />
         <button type="submit" disabled={busy} className={primaryButtonClass}>
-          Tạo người dùng
+          {isEditMode ? "Lưu thay đổi" : "Tạo người dùng"}
         </button>
       </form>
+    </div>
+  );
+}
 
-      <form onSubmit={assignRoles} className={`space-y-4 ${panelClass}`}>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Vai trò</h2>
-        <label className={labelClass}>
-          Người dùng cần gán (*)
-          <select
-            name="assignedUser"
-            required
-            autoComplete="off"
-            value={assignment.userId}
-            onChange={(event) => setAssignment({ ...assignment, userId: event.target.value })}
-            className={inputClass}
-          >
-            <option value="">Chọn người dùng</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>{user.fullName} — {user.email}</option>
-            ))}
-          </select>
-        </label>
-        <fieldset aria-required="true" className="space-y-2">
-          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Vai trò được gán (*)</legend>
-          {roles.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Chưa có vai trò.</p>
-          ) : roles.map((role) => (
-            <label key={role.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input
-                type="checkbox"
-                checked={assignment.roleIds.includes(role.id)}
-                onChange={(event) =>
-                  setAssignment({
-                    ...assignment,
-                    roleIds: event.target.checked
-                      ? [...assignment.roleIds, role.id]
-                      : assignment.roleIds.filter((id) => id !== role.id),
-                  })
-                }
-                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus-visible:ring-brand-500 dark:border-gray-700"
-              />
-              Gán {role.name}
-            </label>
-          ))}
-        </fieldset>
-        <button type="submit" disabled={busy || !assignment.userId || assignment.roleIds.length === 0} className={primaryButtonClass}>
-          Gán vai trò
+export function DepartmentsPage({ api = adminApi }: { api?: AdminClient }) {
+  const { departments, setDepartments, roles, loading, error, setError } = useAdminData(api);
+  const [busy, setBusy] = useState(false);
+  const [departmentPage, setDepartmentPage] = useState(1);
+  const pagedDepartments = paginate(departments, departmentPage);
+  const roleMap = useMemo(() => new Map(roles.map((role) => [role.id, role.name])), [roles]);
+
+  async function toggleDepartmentStatus(item: AdminDepartment) {
+    setBusy(true);
+    setError("");
+    try {
+      const status = item.status === "active" ? "inactive" : "active";
+      const updated = await api.setDepartmentStatus(item.id, status);
+      setDepartments((current) => current.map((department) => department.id === updated.id ? updated : department));
+    } catch {
+      setError("Không thể cập nhật trạng thái phòng ban.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải phòng ban…</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Phòng ban"
+        description="Quản lý phòng ban và bộ vai trò áp dụng cho từng phòng ban."
+        actions={(
+          <Link to="/admin/departments/create" className={primaryButtonClass}>
+            <PlusIcon className="h-4 w-4" />
+            Thêm phòng ban
+          </Link>
+        )}
+      />
+      <ErrorNotice message={error} />
+
+      <section className={panelClass}>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
+            <thead className={tableHeadClass}>
+              <tr>
+                <th scope="col" className="px-4 py-3">Phòng ban</th>
+                <th scope="col" className="px-4 py-3">Mã</th>
+                <th scope="col" className="px-4 py-3">Vai trò</th>
+                <th scope="col" className="px-4 py-3">Trạng thái</th>
+                <th scope="col" className="px-4 py-3 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {departments.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className={`${tableCellClass} text-center text-gray-500 dark:text-gray-400`}>
+                    Chưa có phòng ban.
+                  </td>
+                </tr>
+              ) : pagedDepartments.map((item) => (
+                <tr key={item.id}>
+                  <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{item.name}</td>
+                  <td className={tableCellClass}>{item.code}</td>
+                  <td className={tableCellClass}>{item.roleIds.map((roleId) => roleMap.get(roleId) ?? roleId).join(", ") || "—"}</td>
+                  <td className={tableCellClass}>{item.status === "active" ? "Đang hoạt động" : "Đã vô hiệu hóa"}</td>
+                  <td className={`${tableCellClass} text-right`}>
+                    <div className="flex justify-end gap-2">
+                      <Link
+                        to={`/admin/departments/${item.id}/edit`}
+                        aria-label={`Sửa phòng ban ${item.name}`}
+                        title="Sửa"
+                        className={iconButtonClass}
+                      ><PencilIcon className="h-4 w-4" /></Link>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => toggleDepartmentStatus(item)}
+                        aria-label={`${item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} phòng ban ${item.name}`}
+                        title={item.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"}
+                        className={iconButtonClass}
+                      >
+                        {item.status === "active" ? <TrashBinIcon className="h-4 w-4" /> : <CheckCircleIcon className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={departmentPage} totalItems={departments.length} onPageChange={setDepartmentPage} />
+      </section>
+    </div>
+  );
+}
+
+export function DepartmentCreatePage({ api = adminApi }: { api?: AdminClient }) {
+  const navigate = useNavigate();
+  const { departmentId } = useParams();
+  const isEditMode = Boolean(departmentId);
+  const { setDepartments, roles, loading, error, setError } = useAdminData(api);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ code: "", name: "", roleIds: [] as string[] });
+  const [selectedDepartment, setSelectedDepartment] = useState<AdminDepartment | null>(null);
+  const [formLoading, setFormLoading] = useState(isEditMode);
+
+  useEffect(() => {
+    if (!isEditMode || !departmentId) return;
+    let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormLoading(true);
+    api.getDepartment(departmentId)
+      .then((department) => {
+        if (!active) return;
+        setSelectedDepartment(department);
+        setForm({ code: department.code, name: department.name, roleIds: department.roleIds });
+      })
+      .catch((cause) => {
+        if (!active) return;
+        setSelectedDepartment(null);
+        setError(apiMessage(cause, "Không tìm thấy phòng ban cần sửa."));
+      })
+      .finally(() => {
+        if (active) setFormLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, departmentId, isEditMode, setError]);
+
+  async function saveDepartment(event: FormEvent) {
+    event.preventDefault();
+    if (form.roleIds.length === 0) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (isEditMode && departmentId) {
+        const updated = await api.updateDepartment(departmentId, { name: form.name.trim(), roleIds: form.roleIds });
+        setDepartments((current) => current.map((department) => department.id === updated.id ? updated : department));
+        navigate("/admin/departments");
+      } else {
+        const created = await api.createDepartment({
+          code: normalizeRoleCode(form.code),
+          name: form.name.trim(),
+          roleIds: form.roleIds,
+        });
+        setDepartments((current) => [created, ...current]);
+        navigate("/admin/departments");
+      }
+    } catch (cause) {
+      setError(apiMessage(cause, isEditMode ? "Không thể cập nhật phòng ban." : "Không thể tạo phòng ban."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading || formLoading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải form phòng ban…</p>;
+  }
+  if (isEditMode && !selectedDepartment) {
+    return <p role="alert" className="text-sm text-error-600 dark:text-error-400">Không tìm thấy phòng ban cần sửa.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={isEditMode ? "Sửa phòng ban" : "Thêm phòng ban"}
+        description={isEditMode ? "Cập nhật tên và các vai trò áp dụng cho phòng ban." : "Tạo phòng ban và chọn nhiều vai trò cho phòng ban đó."}
+        actions={<Link to="/admin/departments" className={secondaryButtonClass}>Quay lại</Link>}
+      />
+      <ErrorNotice message={error} />
+
+      <form onSubmit={saveDepartment} className={`space-y-4 ${panelClass}`}>
+        <label className={labelClass}>Mã phòng ban (*)<input required disabled={isEditMode} value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} className={inputClass} /></label>
+        <label className={labelClass}>Tên phòng ban (*)<input required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className={inputClass} /></label>
+        <DepartmentRoleFields roles={roles} roleIds={form.roleIds} setRoleIds={(roleIds) => setForm((current) => ({ ...current, roleIds }))} legend="Vai trò của phòng ban (*)" />
+        <button type="submit" disabled={busy || form.roleIds.length === 0} className={primaryButtonClass}>
+          {isEditMode ? "Lưu thay đổi" : "Tạo phòng ban"}
         </button>
       </form>
     </div>
@@ -627,39 +787,12 @@ export function UserCreatePage({ api = adminApi }: { api?: AdminClient }) {
 
 export function RolesPage({ api = adminApi, permissions = ["*"] }: { api?: AdminClient; permissions?: readonly string[] }) {
   const { roles, setRoles, loading, error, setError } = useAdminData(api);
-  const { catalog, loading: catalogLoading, error: catalogError } = usePermissionCatalog(api);
   const [rolePage, setRolePage] = useState(1);
-  const [editing, setEditing] = useState<AdminRole | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const pagedRoles = paginate(roles, rolePage);
   const canCreate = hasPermission(permissions, "admin.roles.create");
   const canUpdate = hasPermission(permissions, "admin.roles.update");
   const canDelete = hasPermission(permissions, "admin.roles.delete");
-
-  function startEditing(role: AdminRole) {
-    setEditing(role);
-    setEditName(role.name);
-    setEditPermissions(role.permissions);
-    setError("");
-  }
-
-  async function saveRole(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editing || editPermissions.length === 0) return;
-    setBusyId(editing.id);
-    setError("");
-    try {
-      const updated = await api.updateRole(editing.id, { name: editName.trim(), permissions: editPermissions });
-      setRoles((current) => current.map((role) => role.id === updated.id ? updated : role));
-      setEditing(null);
-    } catch (cause) {
-      setError(apiMessage(cause, "Không thể cập nhật vai trò."));
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   async function deleteRole(role: AdminRole) {
     if (!window.confirm(`Bạn có chắc muốn xóa vai trò ${role.name}?`)) return;
@@ -668,7 +801,6 @@ export function RolesPage({ api = adminApi, permissions = ["*"] }: { api?: Admin
     try {
       await api.deleteRole(role.id);
       setRoles((current) => current.filter((item) => item.id !== role.id));
-      if (editing?.id === role.id) setEditing(null);
     } catch (cause) {
       setError(apiMessage(cause, "Không thể xóa vai trò."));
     } finally {
@@ -692,7 +824,7 @@ export function RolesPage({ api = adminApi, permissions = ["*"] }: { api?: Admin
           </Link>
         ) : null}
       />
-      <ErrorNotice message={error || catalogError} />
+      <ErrorNotice message={error} />
 
       <section className={panelClass}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Vai trò hiện có</h2>
@@ -714,17 +846,21 @@ export function RolesPage({ api = adminApi, permissions = ["*"] }: { api?: Admin
                   </td>
                 </tr>
               ) : pagedRoles.map((role) => (
-                <Fragment key={role.id}>
                 <tr>
                   <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{role.name}</td>
                   <td className={tableCellClass}>{role.code}</td>
                   <td className={tableCellClass}>{role.permissions.join(", ")}</td>
                   <td className={`${tableCellClass} text-right`}>
                     <div className="inline-flex gap-2">
-                      {canUpdate && editing?.id !== role.id && (
-                        <button type="button" disabled={busyId === role.id} aria-label={`Sửa vai trò ${role.name}`} title="Sửa vai trò" className={iconButtonClass} onClick={() => startEditing(role)}>
+                      {canUpdate && (
+                        <Link
+                          to={`/admin/roles/${role.id}/edit`}
+                          aria-label={`Sửa vai trò ${role.name}`}
+                          title="Sửa vai trò"
+                          className={iconButtonClass}
+                        >
                           <PencilIcon className="h-4 w-4" />
-                        </button>
+                        </Link>
                       )}
                       {canDelete && (
                         <button type="button" disabled={busyId === role.id} aria-label={`Xóa vai trò ${role.name}`} title="Xóa vai trò" className={iconButtonClass} onClick={() => deleteRole(role)}>
@@ -734,23 +870,6 @@ export function RolesPage({ api = adminApi, permissions = ["*"] }: { api?: Admin
                     </div>
                   </td>
                 </tr>
-                {editing?.id === role.id && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-4">
-                      <form className={`space-y-4 ${panelClass}`} onSubmit={saveRole}>
-                        <label className={labelClass}>Tên vai trò (*)
-                          <input autoFocus required aria-label={`Tên vai trò ${role.name}`} className={inputClass} value={editName} onChange={(event) => setEditName(event.target.value)} />
-                        </label>
-                        <PermissionMatrix catalog={catalog} loading={catalogLoading} permissions={editPermissions} onChange={setEditPermissions} />
-                        <div className="flex flex-wrap gap-2">
-                          <button type="submit" disabled={busyId === role.id || catalogLoading || editPermissions.length === 0} className={primaryButtonClass} aria-label={`Lưu vai trò ${role.name}`}>{busyId === role.id ? "Đang lưu…" : "Lưu thay đổi"}</button>
-                          <button type="button" disabled={busyId === role.id} className={secondaryButtonClass} onClick={() => setEditing(null)}>Hủy</button>
-                        </div>
-                      </form>
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
               ))}
             </tbody>
           </table>
@@ -762,53 +881,69 @@ export function RolesPage({ api = adminApi, permissions = ["*"] }: { api?: Admin
 }
 
 export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
+  const navigate = useNavigate();
+  const { roleId } = useParams();
+  const isEditMode = Boolean(roleId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [roleForm, setRoleForm] = useState({ code: "", name: "", permissions: [] as string[] });
   const { catalog, loading: catalogLoading, error: catalogError } = usePermissionCatalog(api);
-  const actions = useMemo(
-    () => [...new Map(catalog.flatMap((feature) => feature.actions.map((action) => [action.action, action.label]))).entries()],
-    [catalog],
-  );
-  const permissionCodes = useMemo(
-    () => catalog.flatMap((feature) => feature.actions.map((action) => action.code)),
-    [catalog],
-  );
+  const [formLoading, setFormLoading] = useState(isEditMode);
 
-  function selectPermissions(codes: Iterable<string>) {
-    const selected = new Set(codes);
-    setRoleForm((current) => ({ ...current, permissions: permissionCodes.filter((code) => selected.has(code)) }));
-  }
+  useEffect(() => {
+    if (!isEditMode || !roleId) return;
+    let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormLoading(true);
+    api.getRole(roleId)
+      .then((role) => {
+        if (!active) return;
+        setRoleForm({ code: role.code, name: role.name, permissions: role.permissions });
+      })
+      .catch((cause) => {
+        if (!active) return;
+        setError(apiMessage(cause, "Không tìm thấy vai trò cần sửa."));
+      })
+      .finally(() => {
+        if (active) setFormLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, isEditMode, roleId]);
 
-  function togglePermissions(codes: string[], checked: boolean) {
-    const selected = new Set(roleForm.permissions);
-    for (const code of codes) checked ? selected.add(code) : selected.delete(code);
-    selectPermissions(selected);
-  }
-
-  async function createRole(event: FormEvent) {
+  async function saveRole(event: FormEvent) {
     event.preventDefault();
     if (roleForm.permissions.length === 0) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await api.createRole(roleForm);
-      setNotice("Đã tạo vai trò");
-      setRoleForm({ code: "", name: "", permissions: [] });
-    } catch {
-      setError("Không thể tạo vai trò. Kiểm tra mã vai trò đã tồn tại hay chưa.");
+      if (isEditMode && roleId) {
+        await api.updateRole(roleId, { name: roleForm.name.trim(), permissions: roleForm.permissions });
+        navigate("/admin/roles");
+      } else {
+        await api.createRole(roleForm);
+        setNotice("Đã tạo vai trò");
+        setRoleForm({ code: "", name: "", permissions: [] });
+      }
+    } catch (cause) {
+      setError(apiMessage(cause, isEditMode ? "Không thể cập nhật vai trò." : "Không thể tạo vai trò. Kiểm tra mã vai trò đã tồn tại hay chưa."));
     } finally {
       setBusy(false);
     }
   }
 
+  if (formLoading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải form vai trò…</p>;
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Thêm vai trò"
-        description="Nhập mã, tên và quyền nghiệp vụ cho vai trò mới."
+        title={isEditMode ? "Sửa vai trò" : "Thêm vai trò"}
+        description={isEditMode ? "Cập nhật tên và quyền nghiệp vụ cho vai trò." : "Nhập mã, tên và quyền nghiệp vụ cho vai trò mới."}
         actions={<Link to="/admin/roles" className={secondaryButtonClass}>Quay lại</Link>}
       />
       <ErrorNotice message={error || catalogError} />
@@ -818,7 +953,7 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
         </p>
       )}
 
-      <form onSubmit={createRole} className={`space-y-4 ${panelClass}`}>
+      <form onSubmit={saveRole} className={`space-y-4 ${panelClass}`}>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Thông tin vai trò</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className={labelClass}>
@@ -826,6 +961,7 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
             <input
               name="roleCode"
               required
+              disabled={isEditMode}
               autoComplete="off"
               spellCheck={false}
               pattern="[a-z][a-z0-9_-]*"
@@ -846,70 +982,9 @@ export function RoleCreatePage({ api = adminApi }: { api?: AdminClient }) {
             />
           </label>
         </div>
-        <fieldset aria-required="true" className="space-y-3">
-          <legend className="text-sm font-medium text-gray-700 dark:text-gray-400">Quyền (*)</legend>
-          {catalogLoading ? (
-            <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải quyền…</p>
-          ) : (
-            <>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <MatrixCheckbox
-                  label="Chọn tất cả quyền"
-                  checked={permissionCodes.length > 0 && roleForm.permissions.length === permissionCodes.length}
-                  indeterminate={roleForm.permissions.length > 0 && roleForm.permissions.length < permissionCodes.length}
-                  onChange={(checked) => selectPermissions(checked ? permissionCodes : [])}
-                />
-                Chọn tất cả quyền
-              </label>
-              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
-                <table aria-label="Ma trận quyền" className="min-w-[760px] divide-y divide-gray-100 dark:divide-gray-800">
-                  <thead className={tableHeadClass}>
-                    <tr>
-                      <th scope="col" className="px-3 py-3">Tính năng</th>
-                      {actions.map(([action, label]) => <th key={action} scope="col" className="px-3 py-3 text-center">{label}</th>)}
-                      <th scope="col" className="px-3 py-3 text-center">Chọn tất cả</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {catalog.map((feature) => {
-                      const codes = feature.actions.map((action) => action.code);
-                      const selected = codes.filter((code) => roleForm.permissions.includes(code)).length;
-                      return (
-                        <tr key={feature.featureCode}>
-                          <th scope="row" className="px-3 py-3 text-left text-sm font-medium text-gray-800 dark:text-white/90">{feature.featureLabel}</th>
-                          {actions.map(([action]) => {
-                            const permission = feature.actions.find((item) => item.action === action);
-                            return (
-                              <td key={action} className="px-3 py-3 text-center">
-                                {permission ? (
-                                  <MatrixCheckbox
-                                    label={`${feature.featureLabel} — ${permission.label}`}
-                                    checked={roleForm.permissions.includes(permission.code)}
-                                    onChange={(checked) => togglePermissions([permission.code], checked)}
-                                  />
-                                ) : <span aria-label={`${feature.featureLabel} — Không áp dụng`} className="text-gray-300 dark:text-gray-700">—</span>}
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-3 text-center">
-                            <MatrixCheckbox
-                              label={`Chọn tất cả ${feature.featureLabel}`}
-                              checked={selected === codes.length}
-                              indeterminate={selected > 0 && selected < codes.length}
-                              onChange={(checked) => togglePermissions(codes, checked)}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </fieldset>
+        <PermissionMatrix catalog={catalog} loading={catalogLoading} permissions={roleForm.permissions} onChange={(permissions) => setRoleForm((current) => ({ ...current, permissions }))} />
         <button type="submit" disabled={busy || catalogLoading || roleForm.permissions.length === 0} className={primaryButtonClass}>
-          Tạo vai trò
+          {isEditMode ? "Lưu thay đổi" : "Tạo vai trò"}
         </button>
       </form>
     </div>

@@ -1,6 +1,6 @@
 # Spec: Hệ thống quản lý kho đa ngành
 
-Status: draft v4 — đã chốt user metadata, avatar, granular permission và metadata CRUD; chờ duyệt task chi tiết trước khi build
+Status: draft v6 — bổ sung scope “Thông số” và rule dùng chung trang Thêm/Sửa; chờ duyệt trước khi chuyển qua `$vibe-plan`
 
 ## Objective
 
@@ -253,6 +253,17 @@ Ví dụ quyền danh mục:
 - Dự án còn ở giai đoạn development nên thay toàn bộ quyền cũ bằng catalog `<feature>.<action>` mới và reset/reseed role dev; không duy trì compatibility runtime cho `*.manage` hoặc tên quyền nghiệp vụ cũ.
 - Master admin tiếp tục có quyền `*`.
 
+### Feature Permission Review Rule
+
+Mỗi khi thêm tính năng, route hoặc action mới, task phải kiểm tra và cập nhật phân quyền trước khi build xong:
+
+- Xác định feature/action cần quyền gì: `view`, `create`, `update`, `delete`, `approve`, `print`, `export` hoặc action đặc thù nếu thật sự cần.
+- Nếu dùng quyền hiện có, ghi rõ trong task để tránh tạo quyền trùng nghĩa.
+- Nếu thêm quyền mới, cập nhật permission catalog, label tiếng Việt, route/API enforcement, seed/migration role dev, UI gating và test liên quan.
+- Backend là lớp bắt buộc phải chặn quyền; UI chỉ được xem là lớp hiển thị/tiện dụng.
+- E2E hoặc regression phải có case user thiếu quyền gọi trực tiếp API bị `403` khi tính năng có hành vi ghi/xóa/duyệt/in/export.
+- Master admin có `*`, nhưng role thường phải được test bằng quyền cụ thể.
+
 ### Testing Strategy
 
 - Backend test cho create/update user metadata, validation phone, upload/resize avatar, warehouse scope và audit.
@@ -331,6 +342,139 @@ Hoàn thiện các màn hình metadata/master data đang có nút thêm, sửa h
 - Ask first: hard delete dữ liệu đã từng phát sinh chứng từ, thay đổi migration lớn, thêm dependency UI mới.
 - Never: xóa cứng user, stock movement, chứng từ kho hoặc dữ liệu audit.
 
+## Product Specification Scope
+
+### Objective
+
+Bổ sung tính năng `Thông số` để warehouse admin định nghĩa bộ thông số theo từng danh mục sản phẩm, ví dụ danh mục laptop có `RAM`, `CPU`, `Ổ cứng`, danh mục dây/cáp có `Độ dài`, `Chất liệu`, `Màu sắc`. Khi tạo hoặc sửa sản phẩm thuộc danh mục đó, form sản phẩm tự hiển thị các thông số tương ứng để nhập giá trị và backend validate theo rule đã cấu hình.
+
+Mục tiêu là quản lý dữ liệu sản phẩm linh hoạt theo ngành mà không phải sửa schema mỗi khi xuất hiện loại hàng mới, nhưng vẫn không dùng JSON tự do cho dữ liệu cần lọc/tìm kiếm/kiểm soát.
+
+### Current Reality
+
+- Danh mục hiện có `code`, `name`, `status`, `warehouseId`.
+- Sản phẩm hiện có `sku`, `name`, `productType`, `trackingMode`, `expiryManaged`, `fefoEnabled`, `categoryId`, `baseUnitId`, `barcodes`, `status`.
+- Product create/update form hiện chỉ nhập thông tin sản phẩm cố định; chưa có cấu hình thông số theo danh mục.
+- Spec cũ đã nêu nhu cầu “thuộc tính/biến thể theo category” nhưng chưa có acceptance criteria, data model, quyền hoặc UI cụ thể.
+
+### Terms
+
+- `Thông số`: một định nghĩa field áp dụng cho sản phẩm trong một danh mục. Ví dụ `RAM`, `CPU`, `Độ dài`.
+- `Kiểu thông số`: kiểu dữ liệu của thông số, tối thiểu gồm `text`, `number`, `boolean`, `select`.
+- `Giá trị thông số`: giá trị người dùng nhập cho một sản phẩm cụ thể theo định nghĩa thông số của danh mục.
+- `Danh mục áp dụng`: danh mục sản phẩm sở hữu bộ thông số. MVP áp dụng trực tiếp theo `categoryId` của sản phẩm, chưa tự kế thừa từ danh mục cha.
+
+### Required Behavior
+
+1. Quản lý thông số theo danh mục
+   - Warehouse admin/master admin mở danh mục và tạo thông số cho danh mục đó.
+   - Mỗi thông số có: mã (`code`), tên hiển thị (`name`), kiểu (`type`), bắt buộc hay không (`required`), thứ tự hiển thị (`sortOrder`), trạng thái (`active/inactive`).
+   - Với kiểu `select`, admin khai báo danh sách lựa chọn; không cho lưu `select` không có option.
+   - Với kiểu `number`, admin có thể khai báo đơn vị hiển thị (`unit`) như `GB`, `cm`, `kg`, và min/max nếu cần.
+   - Mã thông số là duy nhất trong cùng danh mục, dùng dạng kỹ thuật ổn định như `ram`, `cpu`, `length`.
+   - Có thể sửa tên hiển thị, thứ tự, required, unit, min/max và options khi chưa làm mất dữ liệu hợp lệ.
+   - Không hard delete thông số đã có sản phẩm dùng; dùng `Vô hiệu hóa` để ngừng nhập mới.
+
+2. Form sản phẩm tự điều chỉnh theo danh mục
+   - Khi tạo/sửa sản phẩm và chọn danh mục, frontend tự tải bộ thông số active của danh mục đó.
+   - Form hiển thị field đúng theo kiểu thông số: text input, number input, checkbox/toggle, select.
+   - Field required phải có dấu `(*)` theo `Form Required Field Rule`.
+   - Đổi danh mục trong form phải cảnh báo nếu làm mất thông số đã nhập; không âm thầm xóa dữ liệu.
+   - Submit sản phẩm gửi kèm giá trị thông số theo danh sách field đã render.
+
+3. Validate và lưu giá trị
+   - Backend validate giá trị theo định nghĩa thông số hiện hành của danh mục sản phẩm.
+   - Required field thiếu giá trị trả `422 VALIDATION_ERROR`.
+   - Number phải là số hợp lệ và tôn trọng min/max nếu có.
+   - Select chỉ nhận option đang active của thông số.
+   - Giá trị boolean phải là boolean, không nhận text tự do.
+   - Không cho ghi giá trị cho thông số không thuộc danh mục của sản phẩm.
+
+4. Hiển thị và tra cứu
+   - Product list hiển thị vài thông số quan trọng nếu có cấu hình hiển thị; tối thiểu product detail/edit phải hiển thị toàn bộ thông số đang có.
+   - Product detail hoặc edit phải hiển thị cả giá trị của thông số đã bị vô hiệu hóa nếu sản phẩm cũ đang có dữ liệu, nhưng không bắt buộc nhập mới.
+   - API list/detail trả thông số theo cấu trúc có type rõ ràng để frontend không đoán kiểu từ string.
+   - Tìm kiếm/lọc theo thông số là scope kế tiếp; MVP chỉ cần lưu, validate và hiển thị. Nếu làm lọc trong cùng phase thì phải giới hạn ở exact match cho `select` và range cho `number`.
+
+### Suggested Data Model
+
+Không dùng một cột JSON tự do cho toàn bộ thông số sản phẩm. Dùng bảng có ràng buộc rõ:
+
+- `category_spec_definitions`
+  - `id`, `warehouse_id`, `category_id`
+  - `code`, `name`, `type`
+  - `required`, `unit`, `min_value`, `max_value`, `sort_order`, `status`
+  - unique `(category_id, code)`
+
+- `category_spec_options`
+  - `id`, `definition_id`
+  - `value`, `label`, `sort_order`, `status`
+  - unique `(definition_id, value)`
+
+- `product_spec_values`
+  - `product_id`, `definition_id`
+  - typed value columns: `text_value`, `number_value`, `boolean_value`, `option_value`
+  - exactly one value column được dùng theo `type`
+
+Tên bảng cuối cùng có thể đổi trong `$vibe-plan`, nhưng phải giữ nguyên nguyên tắc: definition tách khỏi value, validate server-side, và query được theo từng loại dữ liệu.
+
+### Permissions
+
+Thêm feature quyền mới:
+
+- `catalog.specs.view`: xem thông số của danh mục và giá trị thông số sản phẩm.
+- `catalog.specs.create`: tạo thông số/option.
+- `catalog.specs.update`: sửa thông số/option, đổi trạng thái.
+- `catalog.specs.delete`: vô hiệu hóa thông số/option.
+
+Quyền sản phẩm vẫn áp dụng:
+
+- `products.create`: tạo sản phẩm và nhập giá trị thông số.
+- `products.update`: sửa giá trị thông số của sản phẩm.
+- `products.view`: xem giá trị thông số.
+
+Backend phải enforce cả quyền catalog specs và quyền products tương ứng; UI chỉ ẩn/disable theo quyền.
+
+### UI Scope
+
+- Trong màn hình `Danh mục`, mỗi danh mục có hành động `Thông số`.
+- Màn hình/section `Thông số danh mục` cho phép thêm, sửa, vô hiệu hóa, kích hoạt thông số và option.
+- Product create/edit form hiển thị section `Thông số` sau khi chọn danh mục.
+- Không thêm thư viện form/table mới nếu Tailwind + component hiện có đủ dùng.
+- Tất cả label và validation message dùng tiếng Việt; giữ thuật ngữ đặc thù như `SKU`, `barcode`, `CPU`, `RAM` nếu tự nhiên hơn.
+
+### Testing Strategy
+
+- Backend test:
+  - Tạo/sửa/vô hiệu hóa thông số theo danh mục, warehouse scope, duplicate code.
+  - Validate `text`, `number`, `boolean`, `select`, required, min/max, option inactive.
+  - Tạo/sửa sản phẩm với giá trị thông số đúng/sai danh mục.
+  - Permission: có `products.update` nhưng thiếu `catalog.specs.view` vẫn không được quản trị definition; có `catalog.specs.view` chỉ xem, không sửa.
+
+- Frontend component test:
+  - Tạo thông số `RAM`, `CPU`, `Độ dài`.
+  - Chọn danh mục trong form sản phẩm thì section `Thông số` tự đổi field.
+  - Required field có `(*)` và chặn submit khi thiếu.
+  - Đổi danh mục có cảnh báo khi đã nhập thông số.
+
+- Browser smoke:
+  - Tạo danh mục laptop, tạo thông số `RAM` dạng select và `CPU` dạng text, tạo sản phẩm laptop có giá trị thông số, mở lại form thấy đúng giá trị.
+
+### Boundaries
+
+- Always: validate server-side theo definition hiện hành, audit create/update/status cho definition và product values, giữ warehouse isolation.
+- Always: dùng `Vô hiệu hóa` cho thông số đã được sản phẩm dùng; không hard delete dữ liệu có lịch sử.
+- Ask first: kế thừa thông số từ danh mục cha, biến thể SKU theo thông số, lọc/tìm kiếm nâng cao theo thông số, import/export Excel thông số.
+- Never: lưu thông số cần truy vấn bằng JSON string tự do, cho frontend tự quyết định kiểu dữ liệu, hoặc âm thầm xóa giá trị thông số khi đổi danh mục.
+
+### Success Criteria
+
+- Admin cấu hình được bộ thông số khác nhau cho từng danh mục.
+- Product form tự render đúng thông số theo danh mục đang chọn.
+- Backend reject dữ liệu sai kiểu, thiếu required hoặc không thuộc danh mục.
+- Product detail/edit hiển thị đúng giá trị thông số đã lưu.
+- Quyền `catalog.specs.*` và `products.*` được enforce ở backend.
+
 ## Production Scope
 
 ### Quản trị, tài khoản và phân quyền
@@ -348,7 +492,7 @@ Hoàn thiện các màn hình metadata/master data đang có nút thêm, sửa h
 - Danh mục đa cấp, thương hiệu, nhà sản xuất, tag, trạng thái.
 - Sản phẩm có SKU duy nhất trong kho, nhiều barcode, ảnh/tệp, đơn vị cơ sở, đơn vị mua/bán và quy đổi.
 - Loại sản phẩm: hàng tồn kho, hàng không tồn kho, dịch vụ.
-- Thuộc tính/biến thể theo category, có kiểu dữ liệu và validate rõ; không dùng JSON tự do cho dữ liệu cần truy vấn/kiểm soát.
+- Thông số theo danh mục sản phẩm, có kiểu dữ liệu và validate rõ; không dùng JSON tự do cho dữ liệu cần truy vấn/kiểm soát.
 - Metadata theo ngành: công nghệ, thực phẩm, thuốc.
 - Chính sách sản phẩm: tracking `none`, `lot`, `serial`; quản lý hạn dùng; FEFO; tồn tối thiểu/tối đa; giá mua/bán tham chiếu; thuế suất hiển thị.
 
@@ -477,6 +621,11 @@ if (lot.expiresAt < today && !canOverrideExpiredLot) {
 - Mỗi screen dạng danh sách phải có toolbar action ở đầu màn hình như `Thêm`, `In`, `Export` theo quyền và nghiệp vụ.
 - Màn hình danh sách chỉ hiển thị danh sách, filter/pagination và toolbar action; form tạo/sửa nằm ở route riêng mở từ action như `Thêm`.
 - Với màn hình có tạo mới, nút `Thêm` trên list screen phải điều hướng sang route form riêng, không scroll tới form nhúng trong cùng trang.
+- Với màn hình có sửa dữ liệu, nút `Sửa`/`Update` trên list screen phải điều hướng sang route form riêng và tái sử dụng cùng trang/component của `Thêm mới`; khi có `id` thì form chạy ở chế độ sửa.
+- Route đề xuất: tạo mới dùng `/resource/create`, sửa dùng `/resource/:id/edit`; cả hai render cùng form component. Nếu module đang dùng path khác thì vẫn phải giữ nguyên nguyên tắc: không duplicate form tạo/sửa.
+- Form dùng chung phải tự đổi tiêu đề, button, validation và API theo mode: không có `id` là `Thêm mới`, có `id` là `Sửa`; khi sửa phải tải dữ liệu hiện có, hiển thị loading/error/not found và không submit trước khi dữ liệu sẵn sàng.
+- Quyền phải tách đúng mode: route tạo mới cần quyền `*.create`, route sửa cần quyền `*.update`. Người chỉ có `view` không thấy nút `Sửa` và gọi API vẫn bị backend chặn.
+- Thao tác trạng thái nhanh như `Vô hiệu hóa`/`Kích hoạt` có thể vẫn là row action có confirm, không bắt buộc mở trang form.
 - Mỗi item trong danh sách phải có cột `Action` riêng; thao tác dòng dùng icon button như sửa, xóa, kích hoạt, xem chi tiết và phải có `aria-label`.
 - Icon-only button phải có `aria-label`.
 - Màu trạng thái không truyền nghĩa chỉ bằng màu; luôn có label/icon.
@@ -582,3 +731,6 @@ Nền `frontend/`, `backend/`, PostgreSQL và migration đầu đã có. Sau khi
 - Khi thiếu hàng, MVP cho phép supervisor xuất thiếu ngay hay bắt buộc trả về `needs_repick`?
 - Email provider nào dùng cho mật khẩu tạm/reset password?
 - Xác nhận flow đầu tiên sau auth/product/location là outbound soạn → kiểm → xuất?
+- Thông số có cần kế thừa từ danh mục cha xuống danh mục con trong MVP không, hay chỉ áp dụng trực tiếp theo danh mục sản phẩm?
+- Có cần tạo biến thể SKU từ thông số như màu/size/RAM ngay trong phase này không, hay chỉ lưu thông số mô tả sản phẩm trước?
+- Có cần lọc/tìm kiếm sản phẩm theo thông số trong MVP không?

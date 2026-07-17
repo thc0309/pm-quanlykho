@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
-import UsersPage, { PermissionsPage, RoleCreatePage, RolesPage, UserCreatePage } from "./features/admin/AccessPage";
+import UsersPage, { DepartmentCreatePage, DepartmentsPage, PermissionsPage, RoleCreatePage, RolesPage, UserCreatePage } from "./features/admin/AccessPage";
 import AuthPage from "./features/auth/AuthPage";
-import { CategoriesPage, CategoryCreatePage, UnitCreatePage, UnitsPage } from "./features/catalog/CatalogPage";
+import { CategoriesPage, CategoryCreatePage, CategorySpecPage, UnitCreatePage, UnitsPage } from "./features/catalog/CatalogPage";
 import LocationsPage, { LocationCreatePage } from "./features/locations/LocationsPage";
 import InventoryPage from "./features/inventory/InventoryPage";
 import OutboundPage, { OutboundCreatePage } from "./features/outbound/OutboundPage";
@@ -52,6 +52,8 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
   if (!access) return <p role="status">Đang tải ứng dụng…</p>;
   const allow = (permission: string, page: ReactNode) =>
     hasPermission(access.permissions, permission) ? page : <ForbiddenPage />;
+  const allowAll = (permissions: string[], page: ReactNode) =>
+    permissions.every((permission) => hasPermission(access.permissions, permission)) ? page : <ForbiddenPage />;
   const catalogHome = hasPermission(access.permissions, "catalog.categories.view")
     ? <Navigate to="/catalog/categories" replace />
     : allow("catalog.units.view", <Navigate to="/catalog/units" replace />);
@@ -62,21 +64,32 @@ function Workspace({ user, onLogout }: { user: SessionUser; onLogout: () => void
         <Route index element={allow("reports.view", <DashboardPage />)} />
         <Route path="admin/access" element={allow("admin.users.view", <Navigate to="/admin/users" replace />)} />
         <Route path="admin/users" element={allow("admin.users.view", <UsersPage />)} />
-        <Route path="admin/users/create" element={allow("admin.users.view", <UserCreatePage />)} />
+        <Route path="admin/users/create" element={allowAll(["admin.users.view", "admin.users.create"], <UserCreatePage />)} />
+        <Route path="admin/users/:userId/edit" element={allowAll(["admin.users.view", "admin.users.update"], <UserCreatePage />)} />
+        <Route path="admin/departments" element={allow("admin.departments.view", <DepartmentsPage />)} />
+        <Route path="admin/departments/create" element={allowAll(["admin.departments.view", "admin.departments.create"], <DepartmentCreatePage />)} />
+        <Route path="admin/departments/:departmentId/edit" element={allowAll(["admin.departments.view", "admin.departments.update"], <DepartmentCreatePage />)} />
         <Route path="admin/roles" element={allow("admin.roles.view", <RolesPage permissions={access.permissions} />)} />
         <Route path="admin/roles/create" element={allow("admin.roles.create", <RoleCreatePage />)} />
+        <Route path="admin/roles/:roleId/edit" element={allowAll(["admin.roles.view", "admin.roles.update"], <RoleCreatePage />)} />
         <Route path="admin/permissions" element={allow("admin.roles.view", <PermissionsPage />)} />
         <Route path="locations" element={allow("locations.view", <LocationsPage permissions={access.permissions} />)} />
         <Route path="locations/create" element={allow("locations.create", <LocationCreatePage />)} />
+        <Route path="locations/:locationId/edit" element={allowAll(["locations.view", "locations.update"], <LocationCreatePage />)} />
         <Route path="catalog" element={catalogHome} />
         <Route path="catalog/categories" element={allow("catalog.categories.view", <CategoriesPage permissions={access.permissions} />)} />
         <Route path="catalog/categories/create" element={allow("catalog.categories.create", <CategoryCreatePage />)} />
+        <Route path="catalog/categories/:categoryId/edit" element={allowAll(["catalog.categories.view", "catalog.categories.update"], <CategoryCreatePage />)} />
+        <Route path="catalog/categories/:categoryId/specs" element={allow("catalog.specs.view", <CategorySpecPage permissions={access.permissions} />)} />
         <Route path="catalog/units" element={allow("catalog.units.view", <UnitsPage permissions={access.permissions} />)} />
         <Route path="catalog/units/create" element={allow("catalog.units.create", <UnitCreatePage />)} />
+        <Route path="catalog/units/:unitId/edit" element={allowAll(["catalog.units.view", "catalog.units.update"], <UnitCreatePage />)} />
         <Route path="products" element={allow("products.view", <ProductsPage permissions={access.permissions} />)} />
         <Route path="products/create" element={allow("products.create", <ProductCreatePage />)} />
+        <Route path="products/:productId/edit" element={allowAll(["products.view", "products.update"], <ProductCreatePage />)} />
         <Route path="partners" element={allow("partners.view", <PartnersPage permissions={access.permissions} />)} />
         <Route path="partners/create" element={allow("partners.create", <PartnerCreatePage />)} />
+        <Route path="partners/:partnerId/edit" element={allowAll(["partners.view", "partners.update"], <PartnerCreatePage />)} />
         <Route path="receipts" element={allow("receipts.view", <ReceiptPage />)} />
         <Route path="receipts/create" element={allow("receipts.view", <ReceiptCreatePage />)} />
         <Route path="inventory" element={allow("inventory.view", <InventoryPage />)} />

@@ -26,6 +26,7 @@ export interface Partner {
 export interface PartnerStore {
   defaultWarehouseId(): Promise<string | null>;
   listPartners(warehouseId: string | null, limit: number, offset: number): Promise<Page<Partner>>;
+  findPartner(warehouseId: string, id: string): Promise<Partner | null>;
   createPartner(input: Omit<Partner, "id" | "status">): Promise<Partner>;
   updatePartner(warehouseId: string, id: string, input: Partial<Pick<Partner, "name" | "taxCode" | "phone" | "email" | "address">>): Promise<Partner | null>;
   setPartnerStatus(warehouseId: string, id: string, status: Partner["status"]): Promise<Partner | null>;
@@ -108,6 +109,14 @@ export function registerPartnerRoutes(
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
+  app.get("/api/partners/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/partners/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const partner = await store.findPartner(warehouseId, c.req.param("id"));
+    if (!partner) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy đối tác");
+    return c.json({ partner });
+  });
+
   app.post("/api/partners", async (c) => {
     const current = await actor(c, routePermissionCatalog["POST /api/partners"]);
     const warehouseId = await warehouseFor(c, current, store);
@@ -178,6 +187,12 @@ export function createPostgresPartnerStore(pool: Pool): PartnerStore {
         ),
       ]);
       return { data: rows.rows, total: Number(count.rows[0]?.count ?? 0) };
+    },
+    async findPartner(warehouseId, id) {
+      return (await pool.query<Partner>(
+        `SELECT ${columns} FROM partners WHERE warehouse_id = $1 AND id = $2`,
+        [warehouseId, id],
+      )).rows[0] ?? null;
     },
     async createPartner(input) {
       const result = await pool.query<Partner>(

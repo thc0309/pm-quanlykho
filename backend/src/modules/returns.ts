@@ -26,6 +26,33 @@ const createSchema = z.object({
     quantity: z.number().positive(),
   })).min(1).max(200),
 }).strict();
+const sourceDocumentQuerySchema = z.object({
+  kind: z.enum(["customer", "supplier"]),
+});
+
+export interface ReturnSourceDocument {
+  id: string;
+  documentNo: string;
+  partnerName: string | null;
+  confirmedAt: string | null;
+}
+
+export interface ReturnSourceLine {
+  originalMovementId: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  locationCode: string | null;
+  lotCode: string | null;
+  serialCode: string | null;
+  quantity: number;
+  claimedQuantity: number;
+  remainingQuantity: number;
+}
+
+function originalDocumentType(kind: "customer" | "supplier") {
+  return kind === "customer" ? "issue" : "receipt";
+}
 
 function mapReturnError(error: unknown): never {
   const code = typeof error === "object" && error && "code" in error
@@ -65,17 +92,98 @@ export function registerReturnRoutes(
     return c.json({ data: result.rows });
   });
 
+  app.get("/api/returns/source-documents", async (c) => {
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["GET /api/returns/source-documents"]);
+    const page = parsePagination(c.req.query());
+    const query = sourceDocumentQuerySchema.safeParse(c.req.query());
+    if (!query.success) {
+      throw new HttpError(422, "VALIDATION_ERROR", "Loại trả không hợp lệ");
+    }
+    const { kind } = query.data;
+    const result = await pool.query<ReturnSourceDocument>(
+      `SELECT d.id,d.document_no AS "documentNo",p.name AS "partnerName",
+        d.confirmed_at AS "confirmedAt"
+       FROM stock_documents d
+       LEFT JOIN partners p ON p.id=d.partner_id
+       WHERE d.warehouse_id=$1
+         AND d.document_type=$2
+         AND d.status IN('confirmed','shipped')
+       ORDER BY d.confirmed_at DESC NULLS LAST,d.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [actor.user.warehouseId, originalDocumentType(kind), page.pageSize, page.offset],
+    );
+    return c.json({ data: result.rows });
+  });
+
+  app.get("/api/returns/source-documents/:id/lines", async (c) => {
+    const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["GET /api/returns/source-documents/:id/lines"]);
+    const documentId = c.req.param("id");
+    const original = await pool.query<{ documentType: string }>(
+      `SELECT document_type AS "documentType"
+       FROM stock_documents
+       WHERE id=$1 AND warehouse_id=$2 AND status IN('confirmed','shipped')`,
+      [documentId, actor.user.warehouseId],
+    );
+    if (!original.rowCount) throw new Error("NOT_FOUND");
+
+    const lines = await pool.query<{
+      originalMovementId: string;
+      productId: string;
+      sku: string;
+      productName: string;
+      locationCode: string | null;
+      lotCode: string | null;
+      serialCode: string | null;
+      quantity: string;
+      claimedQuantity: string;
+    }>(
+      `SELECT m.id AS "originalMovementId",m.product_id AS "productId",
+        p.sku,p.name AS "productName",loc.code AS "locationCode",
+        lot.lot_code AS "lotCode",serial.serial_code AS "serialCode",
+        abs(m.quantity_delta) AS quantity,
+        coalesce((
+          SELECT sum(rl.quantity)
+          FROM stock_return_lines rl
+          JOIN stock_returns sr ON sr.id=rl.return_id
+          WHERE rl.original_movement_id=m.id
+            AND sr.status IN('draft','confirmed')
+        ),0) AS "claimedQuantity"
+       FROM stock_movements m
+       JOIN products p ON p.id=m.product_id
+       LEFT JOIN locations loc ON loc.id=m.location_id
+       LEFT JOIN lots lot ON lot.id=m.lot_id
+       LEFT JOIN serials serial ON serial.id=m.serial_id
+       WHERE m.document_id=$1 AND m.warehouse_id=$2 AND m.quantity_delta <> 0
+       ORDER BY m.created_at,m.id`,
+      [documentId, actor.user.warehouseId],
+    );
+
+    return c.json({
+      data: lines.rows
+        .map<ReturnSourceLine>((line) => {
+          const quantity = Number(line.quantity);
+          const claimedQuantity = Number(line.claimedQuantity);
+          return {
+            ...line,
+            quantity,
+            claimedQuantity,
+            remainingQuantity: remainingReturnQuantity(quantity, claimedQuantity),
+          };
+        })
+        .filter((line) => line.remainingQuantity > 0),
+    });
+  });
+
   app.post("/api/returns", async (c) => {
     const actor = await actorFor(c, auth, access, secret, routePermissionCatalog["POST /api/returns"]);
     const input = await parseJson(c, createSchema);
     const db = await pool.connect();
     try {
       await db.query("BEGIN");
-      const expectedType = input.kind === "customer" ? "issue" : "receipt";
       const original = await db.query(
         `SELECT 1 FROM stock_documents
          WHERE id=$1 AND warehouse_id=$2 AND document_type=$3 AND status IN('confirmed','shipped')`,
-        [input.originalDocumentId, actor.user.warehouseId, expectedType],
+        [input.originalDocumentId, actor.user.warehouseId, originalDocumentType(input.kind)],
       );
       if (!original.rowCount) throw new Error("NOT_FOUND");
 

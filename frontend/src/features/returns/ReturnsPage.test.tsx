@@ -10,7 +10,17 @@ import ReturnsPage, { ReturnCreatePage } from "./ReturnsPage";
 afterEach(cleanup);
 
 function client(overrides: Partial<ReturnClient> = {}): ReturnClient {
-  return { list: vi.fn().mockResolvedValue([]), create: vi.fn(), confirm: vi.fn(), ...overrides };
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    listSourceDocuments: vi.fn().mockResolvedValue([{ id: "document-1", documentNo: "RC-1", partnerName: "NCC A", confirmedAt: null }]),
+    listSourceLines: vi.fn().mockResolvedValue([
+      { originalMovementId: "movement-1", productId: "product-1", sku: "SKU-1", productName: "Sản phẩm 1", locationCode: "A-01", lotCode: null, serialCode: null, quantity: 5, claimedQuantity: 0, remainingQuantity: 5 },
+      { originalMovementId: "movement-2", productId: "product-2", sku: "SKU-2", productName: "Sản phẩm 2", locationCode: "A-02", lotCode: null, serialCode: null, quantity: 3, claimedQuantity: 1.5, remainingQuantity: 1.5 },
+    ]),
+    create: vi.fn(),
+    confirm: vi.fn(),
+    ...overrides,
+  };
 }
 
 it("confirms a draft return once", async () => {
@@ -29,12 +39,12 @@ it("creates a supplier return with two movement lines", async () => {
   await user.selectOptions(screen.getByLabelText("Loại (*)"), "supplier");
   expect(screen.getByRole("option", { name: "Trả nhà cung cấp" })).toBeInTheDocument();
   expect(screen.queryByText("Trả supplier")).not.toBeInTheDocument();
-  await user.type(screen.getByLabelText("ID chứng từ gốc (*)"), "document-1");
-  await user.type(screen.getByLabelText("ID biến động kho gốc dòng 1 (*)"), "movement-1");
+  await user.selectOptions(await screen.findByLabelText("Chứng từ gốc (*)"), "document-1");
+  await user.selectOptions(await screen.findByLabelText("Sản phẩm dòng 1 (*)"), "movement-1");
   await user.clear(screen.getByLabelText("Số lượng dòng 1 (*)"));
   await user.type(screen.getByLabelText("Số lượng dòng 1 (*)"), "2");
   await user.click(screen.getByRole("button", { name: "Thêm dòng" }));
-  await user.type(screen.getByLabelText("ID biến động kho gốc dòng 2 (*)"), "movement-2");
+  await user.selectOptions(await screen.findByLabelText("Sản phẩm dòng 2 (*)"), "movement-2");
   await user.clear(screen.getByLabelText("Số lượng dòng 2 (*)"));
   await user.type(screen.getByLabelText("Số lượng dòng 2 (*)"), "1.5");
   await user.click(screen.getByRole("button", { name: "Tạo phiếu trả" }));
@@ -49,7 +59,7 @@ it("creates a supplier return with two movement lines", async () => {
     ],
   });
   expect(await screen.findByText("Đã tạo phiếu trả")).toBeVisible();
-  expect(screen.getAllByLabelText(/ID biến động kho gốc dòng \d+ \(\*\)/)).toHaveLength(1);
+  expect(screen.getAllByLabelText(/Sản phẩm dòng \d+ \(\*\)/)).toHaveLength(1);
 });
 
 it("keeps return rows on over-quantity errors and guards the final row", async () => {
@@ -58,11 +68,11 @@ it("keeps return rows on over-quantity errors and guards the final row", async (
   render(<MemoryRouter><ReturnCreatePage api={api} /></MemoryRouter>);
   expect(screen.getByRole("button", { name: "Xóa dòng 1" })).toBeDisabled();
   await user.type(screen.getByLabelText("Số phiếu (*)"), "RET-ERR");
-  await user.type(screen.getByLabelText("ID chứng từ gốc (*)"), "document-1");
-  await user.type(screen.getByLabelText("ID biến động kho gốc dòng 1 (*)"), "movement-1");
+  await user.selectOptions(await screen.findByLabelText("Chứng từ gốc (*)"), "document-1");
+  await user.selectOptions(await screen.findByLabelText("Sản phẩm dòng 1 (*)"), "movement-1");
   await user.click(screen.getByRole("button", { name: "Thêm dòng" }));
-  await user.type(screen.getByLabelText("ID biến động kho gốc dòng 2 (*)"), "movement-2");
+  await user.selectOptions(await screen.findByLabelText("Sản phẩm dòng 2 (*)"), "movement-2");
   await user.click(screen.getByRole("button", { name: "Tạo phiếu trả" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Số lượng trả vượt chứng từ gốc");
-  expect(screen.getAllByLabelText(/ID biến động kho gốc dòng \d+ \(\*\)/)).toHaveLength(2);
+  expect(screen.getAllByLabelText(/Sản phẩm dòng \d+ \(\*\)/)).toHaveLength(2);
 });

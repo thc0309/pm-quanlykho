@@ -1,0 +1,124 @@
+- generic [ref=f7e4]:
+  - complementary [ref=f7e5]:
+    - link "Warehouse Suite" [ref=f7e7] [cursor=pointer]:
+      - /url: /
+    - generic [ref=f7e8]:
+      - navigation "Điều hướng chính" [ref=f7e9]:
+        - heading "Menu" [level=2] [ref=f7e10]
+        - list [ref=f7e11]:
+          - listitem [ref=f7e12]:
+            - link "Tổng quan" [ref=f7e13] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=f7e18]:
+            - button "Quản trị" [ref=f7e19] [cursor=pointer]
+            - list [ref=f7e26]:
+              - listitem [ref=f7e27]:
+                - link "Người dùng" [ref=f7e28] [cursor=pointer]:
+                  - /url: /admin/users
+              - listitem [ref=f7e29]:
+                - link "Vai trò" [ref=f7e30] [cursor=pointer]:
+                  - /url: /admin/roles
+              - listitem [ref=f7e31]:
+                - link "Quyền hạn" [ref=f7e32] [cursor=pointer]:
+                  - /url: /admin/permissions
+          - listitem [ref=f7e33]:
+            - button "Kho hàng" [ref=f7e34] [cursor=pointer]
+            - list [ref=f7e42]:
+              - listitem [ref=f7e43]:
+                - link "Vị trí kho" [ref=f7e44] [cursor=pointer]:
+                  - /url: /locations
+              - listitem [ref=f7e45]:
+                - link "Danh mục" [ref=f7e46] [cursor=pointer]:
+                  - /url: /catalog/categories
+              - listitem [ref=f7e47]:
+                - link "Đơn vị" [ref=f7e48] [cursor=pointer]:
+                  - /url: /catalog/units
+              - listitem [ref=f7e49]:
+                - link "Sản phẩm" [ref=f7e50] [cursor=pointer]:
+                  - /url: /products
+              - listitem [ref=f7e51]:
+                - link "Đối tác" [ref=f7e52] [cursor=pointer]:
+                  - /url: /partners
+              - listitem [ref=f7e53]:
+                - link "Đơn mua" [ref=f7e54] [cursor=pointer]:
+                  - /url: /purchasing
+              - listitem [ref=f7e55]:
+                - link "Bán hàng" [ref=f7e56] [cursor=pointer]:
+                  - /url: /sales
+              - listitem [ref=f7e57]:
+                - link "Trả hàng" [ref=f7e58] [cursor=pointer]:
+                  - /url: /returns
+              - listitem [ref=f7e59]:
+                - link "Kiểm kê" [ref=f7e60] [cursor=pointer]:
+                  - /url: /stock-counts
+              - listitem [ref=f7e61]:
+                - link "Chuyển kho" [ref=f7e62] [cursor=pointer]:
+                  - /url: /transfers
+              - listitem [ref=f7e63]:
+                - link "Báo cáo" [ref=f7e64] [cursor=pointer]:
+                  - /url: /reports
+              - listitem [ref=f7e65]:
+                - link "Kiểm tra scanner" [ref=f7e66] [cursor=pointer]:
+                  - /url: /scanner
+              - listitem [ref=f7e67]:
+                - link "Phiếu nhập" [ref=f7e68] [cursor=pointer]:
+                  - /url: /receipts
+              - listitem [ref=f7e69]:
+                - link "Phiếu xuất" [ref=f7e70] [cursor=pointer]:
+                  - /url: /outbounds
+              - listitem [ref=f7e71]:
+                - link "Soạn hàng" [ref=f7e72] [cursor=pointer]:
+                  - /url: /picking
+              - listitem [ref=f7e73]:
+                - link "Kiểm và xuất" [ref=f7e74] [cursor=pointer]:
+                  - /url: /checking
+              - listitem [ref=f7e75]:
+                - link "Ngoại lệ xuất" [ref=f7e76] [cursor=pointer]:
+                  - /url: /outbound-exceptions
+              - listitem [ref=f7e77]:
+                - link "Tồn kho" [ref=f7e78] [cursor=pointer]:
+                  - /url: /inventory
+      - generic [ref=f7e79]:
+        - generic [ref=f7e80]: Kho MAIN
+        - generic [ref=f7e81]: Phiên làm việc đang dùng quyền theo kho.
+  - generic [ref=f7e82]:
+    - banner [ref=f7e83]:
+      - generic [ref=f7e84]:
+        - generic [ref=f7e85]:
+          - button "Mở/đóng thanh điều hướng" [ref=f7e86] [cursor=pointer]
+          - generic [ref=f7e91]:
+            - textbox "Tìm kiếm hoặc nhập lệnh…" [ref=f7e92]
+            - button "Phím tắt tìm kiếm" [ref=f7e93] [cursor=pointer]:
+              - generic [ref=f7e94]: ⌘
+              - generic [ref=f7e95]: K
+        - generic [ref=f7e96]:
+          - generic [ref=f7e97]:
+            - button "Đổi giao diện sáng/tối" [ref=f7e98] [cursor=pointer]
+            - button "Mở thông báo" [ref=f7e102] [cursor=pointer]
+          - button "WA Warehouse Admin" [ref=f7e106] [cursor=pointer]:
+            - generic [ref=f7e107]: WA
+            - generic [ref=f7e108]: Warehouse Admin
+    - generic [ref=f7e125]:
+      - heading "Tạo phiếu trả" [level=1] [ref=f7e126]
+      - generic [ref=f7e127]:
+        - text: Số phiếu (*)
+        - textbox "Số phiếu (*)" [ref=f7e128]
+      - generic [ref=f7e129]:
+        - text: Loại (*)
+        - combobox "Loại (*)" [ref=f7e130]:
+          - option "Khách trả" [selected]
+          - option "Trả nhà cung cấp"
+      - generic [ref=f7e131]:
+        - text: ID chứng từ gốc (*)
+        - textbox "ID chứng từ gốc (*)" [ref=f7e132]
+      - generic [ref=f7e133]:
+        - group "Dòng 1" [ref=f7e134]:
+          - generic [ref=f7e136]:
+            - text: ID biến động kho gốc dòng 1 (*)
+            - textbox "ID biến động kho gốc dòng 1 (*)" [ref=f7e137]
+          - generic [ref=f7e138]:
+            - text: Số lượng dòng 1 (*)
+            - spinbutton "Số lượng dòng 1 (*)" [ref=f7e139]: "1"
+          - button "Xóa dòng 1" [disabled] [ref=f7e140]: Xóa dòng
+        - button "Thêm dòng" [ref=f7e141] [cursor=pointer]
+      - button "Tạo phiếu trả" [ref=f7e142] [cursor=pointer]

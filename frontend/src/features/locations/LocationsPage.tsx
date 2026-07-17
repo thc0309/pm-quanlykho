@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
+import { PencilIcon, PlusIcon } from "../../icons";
 import { locationApi, type LocationClient, type WarehouseLocation } from "../../lib/api";
 import { hasPermission } from "../../lib/permissions";
-import { PencilIcon, PlusIcon } from "../../icons";
 
 const typeLabels: Record<WarehouseLocation["type"], string> = {
   storage: "Lưu trữ",
@@ -33,52 +33,52 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+type LocationFormState = {
+  code: string;
+  barcode: string;
+  name: string;
+  type: WarehouseLocation["type"];
+};
+
+const emptyForm: LocationFormState = {
+  code: "",
+  barcode: "",
+  name: "",
+  type: "storage",
+};
+
+function formFor(location?: WarehouseLocation | null): LocationFormState {
+  if (!location) return emptyForm;
+  return {
+    code: location.code,
+    barcode: location.barcode,
+    name: location.name,
+    type: location.type,
+  };
+}
+
 export default function LocationsPage({ api = locationApi, permissions = ["*"] }: { api?: LocationClient; permissions?: readonly string[] }) {
   const [locations, setLocations] = useState<WarehouseLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [locationPage, setLocationPage] = useState(1);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Pick<WarehouseLocation, "name" | "barcode" | "type">>({ name: "", barcode: "", type: "storage" });
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const pagedLocations = paginate(locations, locationPage);
   const canCreate = hasPermission(permissions, "locations.create");
   const canUpdate = hasPermission(permissions, "locations.update");
   const canChangeStatus = hasPermission(permissions, "locations.delete");
-
-  function startEdit(location: WarehouseLocation) {
-    setEditingId(location.id);
-    setDraft({ name: location.name, barcode: location.barcode, type: location.type });
-    setRowError(null);
-  }
-
-  async function saveLocation(event: FormEvent<HTMLFormElement>, location: WarehouseLocation) {
-    event.preventDefault();
-    setBusyId(location.id);
-    setRowError(null);
-    try {
-      const updated = await api.updateLocation(location.id, { name: draft.name.trim(), barcode: draft.barcode.trim(), type: draft.type });
-      setLocations((current) => current.map((item) => item.id === updated.id ? updated : item));
-      setEditingId(null);
-    } catch (caught) {
-      setRowError({ id: location.id, message: errorMessage(caught, "Không thể cập nhật vị trí kho") });
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   async function changeStatus(location: WarehouseLocation) {
     const nextStatus = location.status === "active" ? "inactive" : "active";
     const action = nextStatus === "inactive" ? "vô hiệu hóa" : "kích hoạt";
     if (!window.confirm(`Bạn có chắc muốn ${action} vị trí ${location.name}?`)) return;
     setBusyId(location.id);
-    setRowError(null);
+    setError("");
     try {
       const updated = await api.setLocationStatus(location.id, nextStatus);
       setLocations((current) => current.map((item) => item.id === updated.id ? updated : item));
     } catch (caught) {
-      setRowError({ id: location.id, message: errorMessage(caught, `Không thể ${action} vị trí`) });
+      setError(errorMessage(caught, `Không thể ${action} vị trí`));
     } finally {
       setBusyId(null);
     }
@@ -142,8 +142,7 @@ export default function LocationsPage({ api = locationApi, permissions = ["*"] }
                   </td>
                 </tr>
               ) : pagedLocations.map((location) => (
-                <Fragment key={location.id}>
-                <tr>
+                <tr key={location.id}>
                   <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{location.name}</td>
                   <td className={tableCellClass}>{location.code}</td>
                   <td className={tableCellClass}>{location.barcode}</td>
@@ -151,10 +150,15 @@ export default function LocationsPage({ api = locationApi, permissions = ["*"] }
                   <td className={tableCellClass}>{location.status === "active" ? "Đang dùng" : "Tạm ngưng"}</td>
                   <td className={`${tableCellClass} text-right`}>
                     <div className="inline-flex items-center gap-2">
-                      {canUpdate && editingId !== location.id && (
-                        <button type="button" disabled={busyId === location.id} aria-label={`Sửa vị trí ${location.name}`} title="Sửa vị trí" className={iconButtonClass} onClick={() => startEdit(location)}>
+                      {canUpdate && (
+                        <Link
+                          to={`/locations/${location.id}/edit`}
+                          aria-label={`Sửa vị trí ${location.name}`}
+                          title="Sửa vị trí"
+                          className={iconButtonClass}
+                        >
                           <PencilIcon className="h-4 w-4" />
-                        </button>
+                        </Link>
                       )}
                       {canChangeStatus && (
                         <button type="button" disabled={busyId === location.id} aria-label={`${location.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} vị trí ${location.name}`} className={rowActionClass} onClick={() => changeStatus(location)}>
@@ -164,33 +168,6 @@ export default function LocationsPage({ api = locationApi, permissions = ["*"] }
                     </div>
                   </td>
                 </tr>
-                {(editingId === location.id || rowError?.id === location.id) && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-4">
-                      {editingId === location.id && (
-                        <form className="grid gap-3 rounded-xl bg-gray-50 p-3 sm:grid-cols-2 lg:grid-cols-4 dark:bg-white/[0.03]" onSubmit={(event) => saveLocation(event, location)}>
-                          <label className={labelClass}>Tên vị trí
-                            <input autoFocus required aria-label={`Tên vị trí ${location.name}`} className={inputClass} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
-                          </label>
-                          <label className={labelClass}>Barcode
-                            <input required aria-label={`Barcode vị trí ${location.name}`} className={inputClass} value={draft.barcode} onChange={(event) => setDraft((current) => ({ ...current, barcode: event.target.value }))} />
-                          </label>
-                          <label className={labelClass}>Loại vị trí
-                            <select aria-label={`Loại vị trí ${location.name}`} className={inputClass} value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as WarehouseLocation["type"] }))}>
-                              <option value="storage">Lưu trữ</option><option value="staging">Chờ kiểm</option><option value="shipping">Xuất hàng</option>
-                            </select>
-                          </label>
-                          <div className="flex items-end gap-2">
-                            <button type="submit" disabled={busyId === location.id} className={primaryButtonClass} aria-label={`Lưu vị trí ${location.name}`}>{busyId === location.id ? "Đang lưu…" : "Lưu"}</button>
-                            <button type="button" disabled={busyId === location.id} className={secondaryButtonClass} onClick={() => setEditingId(null)}>Hủy</button>
-                          </div>
-                        </form>
-                      )}
-                      {rowError?.id === location.id && <p role="alert" className="mt-2 text-sm text-error-600">{rowError.message}</p>}
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
               ))}
             </tbody>
           </table>
@@ -202,34 +179,78 @@ export default function LocationsPage({ api = locationApi, permissions = ["*"] }
 }
 
 export function LocationCreatePage({ api = locationApi }: { api?: LocationClient }) {
-  const [form, setForm] = useState({ code: "", barcode: "", name: "", type: "storage" as WarehouseLocation["type"] });
+  const navigate = useNavigate();
+  const { locationId } = useParams();
+  const isEditMode = Boolean(locationId);
+  const [form, setForm] = useState<LocationFormState>(emptyForm);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(isEditMode);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  async function createLocation(event: FormEvent) {
+  useEffect(() => {
+    if (!isEditMode || !locationId) return;
+    let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    api.getLocation(locationId)
+      .then((location) => {
+        if (!active) return;
+        setForm(formFor(location));
+      })
+      .catch((caught) => {
+        if (!active) return;
+        setError(errorMessage(caught, "Không tìm thấy vị trí cần sửa."));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, isEditMode, locationId]);
+
+  async function saveLocation(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await api.createLocation(form);
-      setNotice("Đã tạo vị trí");
-      setForm({ code: "", barcode: "", name: "", type: "storage" });
-    } catch {
-      setError("Không thể tạo vị trí. Kiểm tra mã vị trí hoặc barcode đã tồn tại hay chưa.");
+      if (isEditMode && locationId) {
+        await api.updateLocation(locationId, {
+          barcode: form.barcode.trim(),
+          name: form.name.trim(),
+          type: form.type,
+        });
+        navigate("/locations");
+      } else {
+        await api.createLocation({
+          code: form.code.trim(),
+          barcode: form.barcode.trim(),
+          name: form.name.trim(),
+          type: form.type,
+        });
+        setNotice("Đã tạo vị trí");
+        setForm(emptyForm);
+      }
+    } catch (caught) {
+      setError(errorMessage(caught, isEditMode ? "Không thể cập nhật vị trí." : "Không thể tạo vị trí. Kiểm tra mã vị trí hoặc barcode đã tồn tại hay chưa."));
     } finally {
       setBusy(false);
     }
+  }
+
+  if (loading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải form vị trí…</p>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 text-pretty dark:text-white/90">Thêm vị trí</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 text-pretty dark:text-white/90">{isEditMode ? "Sửa vị trí" : "Thêm vị trí"}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Nhập thông tin kệ lưu trữ, khu chờ kiểm hoặc khu xuất hàng.
+            {isEditMode ? "Cập nhật thông tin vị trí kho hiện có." : "Nhập thông tin kệ lưu trữ, khu chờ kiểm hoặc khu xuất hàng."}
           </p>
         </div>
         <Link to="/locations" className={secondaryButtonClass}>Quay lại</Link>
@@ -246,16 +267,17 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
         </p>
       )}
 
-      <form onSubmit={createLocation} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
+      <form onSubmit={saveLocation} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
         <label className={labelClass}>
           Mã vị trí (*)
           <input
             name="locationCode"
             required
+            disabled={isEditMode}
             autoComplete="off"
             spellCheck={false}
             value={form.code}
-            onChange={(event) => setForm({ ...form, code: event.target.value })}
+            onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
             className={inputClass}
           />
         </label>
@@ -267,7 +289,7 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
             autoComplete="off"
             spellCheck={false}
             value={form.barcode}
-            onChange={(event) => setForm({ ...form, barcode: event.target.value })}
+            onChange={(event) => setForm((current) => ({ ...current, barcode: event.target.value }))}
             className={inputClass}
           />
         </label>
@@ -278,7 +300,7 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
             required
             autoComplete="off"
             value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             className={inputClass}
           />
         </label>
@@ -287,9 +309,8 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
           <select
             name="locationType"
             required
-            autoComplete="off"
             value={form.type}
-            onChange={(event) => setForm({ ...form, type: event.target.value as WarehouseLocation["type"] })}
+            onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as WarehouseLocation["type"] }))}
             className={inputClass}
           >
             <option value="storage">Lưu trữ</option>
@@ -297,12 +318,8 @@ export function LocationCreatePage({ api = locationApi }: { api?: LocationClient
             <option value="shipping">Xuất hàng</option>
           </select>
         </label>
-        <button
-          type="submit"
-          disabled={busy}
-          className={`${primaryButtonClass} sm:col-span-2 sm:w-fit`}
-        >
-          Tạo vị trí
+        <button type="submit" disabled={busy} className={`${primaryButtonClass} sm:col-span-2 sm:w-fit`}>
+          {isEditMode ? "Lưu thay đổi" : "Tạo vị trí"}
         </button>
       </form>
     </div>

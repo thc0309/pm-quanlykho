@@ -39,6 +39,9 @@ class MemoryCatalogStore implements AuthStore, AccessStore, CatalogStore {
     const data = warehouseId ? this.categories.filter((item) => item.warehouseId === warehouseId) : this.categories;
     return { data, total: data.length };
   }
+  async findCategory(warehouseId: string, id: string) {
+    return this.categories.find((item) => item.warehouseId === warehouseId && item.id === id) ?? null;
+  }
   async createCategory(input: Omit<CatalogCategory, "id" | "status">) {
     if (this.categories.some((item) => item.warehouseId === input.warehouseId && item.code === input.code)) {
       throw Object.assign(new Error("duplicate"), { code: "23505" });
@@ -198,6 +201,50 @@ test("catalog rejects invalid and ambiguous conversions", async () => {
     });
     assert.equal(response.status, 422);
   }
+});
+
+test("catalog detail endpoints are scoped by warehouse", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  const category: CatalogCategory = {
+    id: randomUUID(),
+    warehouseId: "warehouse-a",
+    code: "DRY",
+    name: "Hàng khô",
+    status: "active",
+  };
+  const unit: CatalogUnit = {
+    id: randomUUID(),
+    warehouseId: "warehouse-a",
+    code: "PCS",
+    name: "Cái",
+    baseUnitId: null,
+    conversionFactor: "1",
+    status: "active",
+  };
+  store.categories.push(category, {
+    ...category,
+    id: randomUUID(),
+    warehouseId: "warehouse-b",
+    code: "FOREIGN",
+  });
+  store.units.push(unit, {
+    ...unit,
+    id: randomUUID(),
+    warehouseId: "warehouse-b",
+    code: "FOREIGN",
+  });
+
+  const categoryResponse = await app.request(`/api/catalog/categories/${category.id}`, { headers: { cookie } });
+  assert.equal(categoryResponse.status, 200);
+  assert.equal((await categoryResponse.json()).category.name, "Hàng khô");
+
+  const unitResponse = await app.request(`/api/catalog/units/${unit.id}`, { headers: { cookie } });
+  assert.equal(unitResponse.status, 200);
+  assert.equal((await unitResponse.json()).unit.name, "Cái");
+
+  assert.equal((await app.request(`/api/catalog/categories/${store.categories[1]!.id}`, { headers: { cookie } })).status, 404);
+  assert.equal((await app.request(`/api/catalog/units/${store.units[1]!.id}`, { headers: { cookie } })).status, 404);
 });
 
 test("catalog view permissions cannot create category or unit", async () => {

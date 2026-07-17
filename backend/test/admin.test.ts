@@ -9,6 +9,7 @@ import { createApp } from "../src/app.js";
 import { hashPassword } from "../src/domain/password.js";
 import { registerAccessRoutes, type AccessStore, type AuditEntry } from "../src/modules/access.js";
 import {
+  type AdminDepartment,
   registerAdminRoutes,
   type AdminRole,
   type AdminStore,
@@ -28,6 +29,8 @@ import {
 
 const secret = "test-session-secret-that-is-at-least-32-characters";
 const emptyMetadata = {
+  roleIds: [],
+  departmentId: null,
   avatarUrl: null,
   employeeCode: null,
   jobTitle: null,
@@ -41,10 +44,21 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
   sessions = new Map<string, AuthSession>();
   permissions = new Map<string, string[]>();
   roles: AdminRole[] = [];
+  departments: AdminDepartment[] = [];
   userRoles = new Map<string, string[]>();
+  departmentRoles = new Map<string, string[]>();
   assignedRoleIds = new Set<string>();
   audits: AuditEntry[] = [];
   warehouseIds = ["warehouse-a"];
+
+  private hydrateUser(user: AdminUser) {
+    const departmentRoleIds = user.departmentId ? this.departmentRoles.get(user.departmentId) ?? [] : [];
+    const roleIds = [...new Set([...(this.userRoles.get(user.id) ?? user.roleIds ?? []), ...departmentRoleIds])];
+    const department = user.departmentId
+      ? this.departments.find((item) => item.id === user.departmentId)?.name ?? user.department
+      : user.department;
+    return { ...user, roleIds, department };
+  }
 
   async findUserByEmail(email: string) {
     return this.authUsers.find((user) => user.email === email) ?? null;
@@ -72,11 +86,16 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
     return this.warehouseIds.length === 1 ? this.warehouseIds[0]! : null;
   }
   async listUsers(warehouseId: string | null) {
-    const data = warehouseId ? this.users.filter((user) => user.warehouseId === warehouseId) : this.users;
+    const data = (warehouseId ? this.users.filter((user) => user.warehouseId === warehouseId) : this.users)
+      .map((user) => this.hydrateUser(user));
     return { data, total: data.length };
   }
+  async findUser(userId: string) {
+    const user = this.users.find((candidate) => candidate.id === userId);
+    return user ? this.hydrateUser(user) : null;
+  }
   async createUser(input: Pick<AdminUser, "email" | "fullName" | "phone" | "kind" | "warehouseId">
-    & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "department" | "note">>
+    & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "departmentId" | "note">>
     & { passwordHash: string }) {
     const { passwordHash: _passwordHash, ...profile } = input;
     const user: AdminUser = {
@@ -86,33 +105,68 @@ class MemoryAdminStore implements AuthStore, AccessStore, AdminStore {
       status: "active",
     };
     this.users.push(user);
-    return user;
+    return this.hydrateUser(user);
   }
   async updateUser(userId: string, input: Partial<AdminUser>) {
     const user = this.users.find((candidate) => candidate.id === userId);
     if (!user) return null;
     Object.assign(user, input);
-    return user;
+    return this.hydrateUser(user);
   }
   async setUserAvatar(userId: string, avatarUrl: string) {
     const user = this.users.find((candidate) => candidate.id === userId);
     if (!user) return null;
     const previousAvatarUrl = user.avatarUrl;
     user.avatarUrl = avatarUrl;
-    return { user, previousAvatarUrl };
+    return { user: this.hydrateUser(user), previousAvatarUrl };
   }
   async findUserWarehouse(userId: string) {
     return this.users.find((user) => user.id === userId)?.warehouseId ?? null;
+  }
+  async findDepartmentWarehouse(departmentId: string) {
+    return this.departments.find((department) => department.id === departmentId)?.warehouseId ?? null;
   }
   async setUserStatus(userId: string, status: "active" | "inactive") {
     const user = this.users.find((candidate) => candidate.id === userId);
     if (!user) return null;
     user.status = status;
-    return user;
+    return this.hydrateUser(user);
   }
   async listRoles(warehouseId: string | null) {
     const data = warehouseId ? this.roles.filter((role) => role.warehouseId === warehouseId) : this.roles;
     return { data, total: data.length };
+  }
+  async findRole(warehouseId: string, roleId: string) {
+    return this.roles.find((candidate) => candidate.id === roleId && candidate.warehouseId === warehouseId) ?? null;
+  }
+  async listDepartments(warehouseId: string | null) {
+    const data = warehouseId ? this.departments.filter((department) => department.warehouseId === warehouseId) : this.departments;
+    return { data, total: data.length };
+  }
+  async findDepartment(warehouseId: string, departmentId: string) {
+    return this.departments.find((candidate) => candidate.id === departmentId && candidate.warehouseId === warehouseId) ?? null;
+  }
+  async createDepartment(input: Omit<AdminDepartment, "id" | "status">) {
+    const department: AdminDepartment = { ...input, id: `department-${this.departments.length + 1}`, status: "active" };
+    this.departments.push(department);
+    this.departmentRoles.set(department.id, [...input.roleIds]);
+    for (const roleId of input.roleIds) this.assignedRoleIds.add(roleId);
+    return department;
+  }
+  async updateDepartment(warehouseId: string, departmentId: string, input: Pick<AdminDepartment, "name" | "roleIds">) {
+    const department = this.departments.find((candidate) => candidate.id === departmentId && candidate.warehouseId === warehouseId);
+    if (!department) return null;
+    department.name = input.name;
+    department.roleIds = [...input.roleIds];
+    this.departmentRoles.set(departmentId, [...input.roleIds]);
+    for (const roleId of input.roleIds) this.assignedRoleIds.add(roleId);
+    return department;
+  }
+  async setDepartmentStatus(warehouseId: string, departmentId: string, status: "active" | "inactive") {
+    const department = this.departments.find((candidate) => candidate.id === departmentId && candidate.warehouseId === warehouseId);
+    if (!department) return null;
+    department.status = status;
+    return department;
   }
   async createRole(input: Omit<AdminRole, "id">) {
     const role = { ...input, id: `role-${this.roles.length + 1}` };
@@ -223,6 +277,18 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
     );
   }
 
+  const department = await app.request("/api/admin/departments", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      code: "ban-hang",
+      name: "Bán hàng",
+      roleIds: store.roles.map((role) => role.id),
+    }),
+  });
+  assert.equal(department.status, 201);
+  const departmentBody = await department.json();
+
   const created = await app.request("/api/admin/users", {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
@@ -232,6 +298,7 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
       phone: "+84 901-234-567",
       employeeCode: "NV-001",
       jobTitle: "Nhân viên soạn",
+      departmentId: departmentBody.department.id,
     }),
   });
   assert.equal(created.status, 201);
@@ -239,24 +306,22 @@ test("warehouse admin creates picker/checker roles and a scoped user", async () 
   assert.equal(body.user.warehouseId, "warehouse-a");
   assert.equal(body.user.phone, "+84901234567");
   assert.equal(body.user.employeeCode, "NV-001");
+  assert.equal(body.user.departmentId, departmentBody.department.id);
+  assert.equal(body.user.department, "Bán hàng");
+  assert.deepEqual(body.user.roleIds, store.roles.map((role) => role.id));
   assert.equal(typeof body.temporaryPassword, "string");
   assert.equal("passwordHash" in body.user, false);
 
-  const assign = await app.request(`/api/admin/users/${body.user.id}/roles`, {
-    method: "PUT",
-    headers: { "content-type": "application/json", cookie },
-    body: JSON.stringify({ roleIds: store.roles.map((role) => role.id) }),
-  });
-  assert.equal(assign.status, 204);
   assert.equal(store.audits.length, 4);
 });
 
 test("permission catalog exposes only granular feature actions", () => {
   assert.deepEqual(Object.keys(permissionCatalog), [
-    "admin.users", "admin.roles", "locations", "catalog.categories", "catalog.units",
-    "products", "partners", "receipts", "outbounds", "picking", "checking",
-    "outbound.exceptions", "purchasing", "sales", "returns", "stockCounts",
-    "transfers", "inventory", "reports", "print",
+    "admin.users", "admin.departments", "admin.roles", "warehouse.metadata", "warehouse.operations",
+    "locations", "catalog.categories", "catalog.specs", "catalog.units", "products", "partners",
+    "receipts", "outbounds", "picking", "checking", "outbound.exceptions",
+    "purchasing", "sales", "returns", "stockCounts", "transfers", "inventory",
+    "reports", "print",
   ]);
   assert.equal(new Set(permissionCodes).size, permissionCodes.length);
   assert.equal(
@@ -279,21 +344,30 @@ test("permission catalog API returns the runtime matrix", async () => {
   const body = await response.json();
   assert.equal(body.data[0].featureCode, "admin.users");
   assert.equal(body.data[0].actions[0].code, "admin.users.view");
+  assert.equal(body.data.some((feature: { featureCode: string }) => feature.featureCode === "warehouse.metadata"), true);
+  assert.equal(body.data.some((feature: { featureCode: string }) => feature.featureCode === "warehouse.operations"), true);
   assert.equal((await app.request("/api/admin/permissions", {
     headers: { cookie: await login(app, "denied@example.test") },
   })).status, 403);
 });
 
 test("granular permission migration stays synchronized with the runtime catalog", async () => {
-  const migration = await readFile(
-    new URL("../db/migrations/019_granular_permissions.sql", import.meta.url),
-    "utf8",
-  );
-  const permissionArray = migration.match(/unnest\(ARRAY\[(.*?)\]\)/s)?.[1] ?? "";
-  const migrationCodes = [...permissionArray.matchAll(/'([^']+)'/g)].map((match) => match[1]!);
+  const [granularMigration, departmentMigration, productSpecMigration] = await Promise.all([
+    readFile(new URL("../db/migrations/019_granular_permissions.sql", import.meta.url), "utf8"),
+    readFile(new URL("../db/migrations/021_departments.sql", import.meta.url), "utf8"),
+    readFile(new URL("../db/migrations/022_product_specs.sql", import.meta.url), "utf8"),
+  ]);
+  const permissionArray = granularMigration.match(/unnest\(ARRAY\[(.*?)\]\)/s)?.[1] ?? "";
+  const departmentPermissionArray = departmentMigration.match(/unnest\(ARRAY\[(.*?)\]\)/s)?.[1] ?? "";
+  const productSpecPermissionArray = productSpecMigration.match(/ARRAY\[(.*?)\]/s)?.[1] ?? "";
+  const migrationCodes = [
+    ...permissionArray.matchAll(/'([^']+)'/g),
+    ...departmentPermissionArray.matchAll(/'([^']+)'/g),
+    ...productSpecPermissionArray.matchAll(/'([^']+)'/g),
+  ].map((match) => match[1]!);
   assert.deepEqual(migrationCodes.sort(), [...permissionCodes].sort());
-  assert.match(migration, /DELETE FROM roles;/);
-  assert.match(migration, /WHERE users\.kind = 'warehouse_admin';/);
+  assert.match(granularMigration, /DELETE FROM roles;/);
+  assert.match(granularMigration, /WHERE users\.kind = 'warehouse_admin';/);
 });
 
 test("role validation rejects empty, unknown and duplicate permission codes", async () => {
@@ -339,12 +413,18 @@ test("admin user requires phone and supports scoped metadata updates", async () 
     warehouseId: "warehouse-a",
     status: "active",
   });
+  const department = await store.createDepartment({
+    warehouseId: "warehouse-a",
+    code: "van-hanh-kho",
+    name: "Vận hành kho",
+    roleIds: [],
+  });
   const updated = await app.request("/api/admin/users/inside-user", {
     method: "PATCH",
     headers: { "content-type": "application/json", cookie },
     body: JSON.stringify({
       phone: "090 123 4567",
-      department: "Vận hành kho",
+      departmentId: department.id,
       note: "Ca sáng",
     }),
   });
@@ -355,6 +435,52 @@ test("admin user requires phone and supports scoped metadata updates", async () 
   assert.equal(body.user.note, "Ca sáng");
   assert.equal(store.audits.at(-1)?.action, "admin.user.update");
   assert.equal(store.audits.at(-1)?.warehouseId, "warehouse-a");
+});
+
+test("admin detail endpoints are scoped by warehouse", async () => {
+  const { app, store } = await setup();
+  const cookie = await login(app, "admin@example.test");
+  const role: AdminRole = {
+    id: "role-1",
+    warehouseId: "warehouse-a",
+    code: "picker",
+    name: "Nhân viên soạn",
+    permissions: ["picking.view"],
+  };
+  const department: AdminDepartment = {
+    id: "department-1",
+    warehouseId: "warehouse-a",
+    code: "van-hanh-kho",
+    name: "Vận hành kho",
+    roleIds: [role.id],
+    status: "active",
+  };
+  const user: AdminUser = {
+    id: "user-1",
+    email: "user-1@example.test",
+    fullName: "Nhân viên A",
+    phone: "0900000001",
+    roleIds: [role.id],
+    departmentId: department.id,
+    avatarUrl: null,
+    employeeCode: null,
+    jobTitle: null,
+    department: department.name,
+    note: null,
+    kind: "warehouse_user",
+    warehouseId: "warehouse-a",
+    status: "active",
+  };
+  store.roles.push(role, { ...role, id: "role-2", warehouseId: "warehouse-b", code: "foreign" });
+  store.departments.push(department, { ...department, id: "department-2", warehouseId: "warehouse-b", code: "foreign" });
+  store.users.push(user, { ...user, id: "user-2", warehouseId: "warehouse-b", email: "outside-2@example.test" });
+
+  assert.equal((await app.request("/api/admin/users/user-1", { headers: { cookie } })).status, 200);
+  assert.equal((await app.request("/api/admin/roles/role-1", { headers: { cookie } })).status, 200);
+  assert.equal((await app.request("/api/admin/departments/department-1", { headers: { cookie } })).status, 200);
+  assert.equal((await app.request("/api/admin/users/user-2", { headers: { cookie } })).status, 403);
+  assert.equal((await app.request("/api/admin/roles/role-2", { headers: { cookie } })).status, 404);
+  assert.equal((await app.request("/api/admin/departments/department-2", { headers: { cookie } })).status, 404);
 });
 
 test("master can list admin data across warehouses", async () => {

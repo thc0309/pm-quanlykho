@@ -2,21 +2,21 @@
 
 > Generated from `tasks/todo.md`. Do not edit by hand.
 
-- Active: Checkpoint E reviewed.
-- Progress: 27/32 checklist items complete
+- Active: [T52 Browser E2E cho rule mới](task-detail/task-52.md).
+- Progress: 43/49 checklist items complete
 
 ## Next queue
 
-- Checkpoint E reviewed.
-- Checkpoint F reviewed.
 - [T52 Browser E2E cho rule mới](task-detail/task-52.md).
 - [T53 Review và cleanup trước merge](task-detail/task-53.md).
 - Checkpoint G reviewed.
+- [T65 Browser E2E cho route form và thông số](task-detail/task-65.md).
+- [T66 Review và cleanup v6](task-detail/task-66.md).
 
 ## Recently completed
 
-- [T51 Chuyển kho và kiểm kê nhiều dòng](task-detail/task-51.md).
-- [T50 Trả hàng nhiều dòng](task-detail/task-50.md).
-- [T49 Phiếu xuất nhiều dòng](task-detail/task-49.md).
-- [T48 Phiếu nhập nhiều dòng với tracking theo từng dòng](task-detail/task-48.md).
-- [T47 Báo giá và đơn bán nhiều dòng](task-detail/task-47.md).
+- Checkpoint J reviewed.
+- [T64 Hiển thị thông số trong danh sách/chi tiết sản phẩm](task-detail/task-64.md).
+- [T63 Product create/edit tự render thông số theo danh mục](task-detail/task-63.md).
+- [T62 UI quản lý Thông số trong danh mục](task-detail/task-62.md).
+- [T61 API client và type frontend cho thông số](task-detail/task-61.md).

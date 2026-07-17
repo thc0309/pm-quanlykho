@@ -130,6 +130,24 @@ test("warehouse user is isolated and permission checked", async () => {
   );
 });
 
+test("parent permissions grant mapped child permissions", async () => {
+  const { app, store } = await setup();
+  store.permissions.set("picker", ["warehouse.operations.view", "warehouse.operations.update"]);
+  const cookie = await login(app, "picker@example.test");
+  assert.equal(
+    (await app.request("/__access/warehouse-a/picking.update", { headers: { cookie } })).status,
+    200,
+  );
+  assert.equal(
+    (await app.request("/__access/warehouse-a/checking.view", { headers: { cookie } })).status,
+    200,
+  );
+  assert.equal(
+    (await app.request("/__access/warehouse-a/checking.approve", { headers: { cookie } })).status,
+    403,
+  );
+});
+
 test("master scope crosses warehouses", async () => {
   const { app } = await setup();
   const cookie = await login(app, "master@example.test");

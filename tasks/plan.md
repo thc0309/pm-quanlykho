@@ -1,10 +1,10 @@
-# Implementation Plan: Hoàn thiện form, user metadata và phân quyền v4
+# Implementation Plan: Hoàn thiện form, user metadata, phân quyền và thông số sản phẩm v6
 
-Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
+Status: active v6 — thêm task cho rule dùng chung trang Thêm/Sửa và tính năng Thông số theo danh mục; đang build theo phase
 
 ## Overview
 
-Plan v4 gom các scope mới từ `SPEC.md`: trường bắt buộc có `(*)`, user metadata có avatar upload/resize và số điện thoại bắt buộc, phân quyền chi tiết theo ma trận tính năng x hành động, metadata CRUD/vô hiệu hóa dùng được, và form chứng từ nhiều dòng. Thứ tự ưu tiên: chuẩn hóa UI rule nhỏ trước, sau đó làm nền user/permission vì nó ảnh hưởng mọi API action, rồi mới nối metadata và form nhiều dòng.
+Plan v6 giữ nguyên tiến độ v4 đã build và bổ sung scope mới từ `SPEC.md`: rule list/form bắt buộc dùng route form riêng cho `Thêm mới` và `Sửa`, đồng thời thêm tính năng `Thông số` theo danh mục sản phẩm. Thứ tự ưu tiên: hoàn tất E2E/review v4 còn lại, sau đó làm contract edit-route/detail API, chuyển UI metadata sang form dùng chung, rồi mới thêm permission/DB/API/UI cho thông số sản phẩm.
 
 ## Architecture Decisions
 
@@ -13,7 +13,9 @@ Plan v4 gom các scope mới từ `SPEC.md`: trường bắt buộc có `(*)`, u
 - Avatar được xác thực theo nội dung, crop 256x256, bỏ metadata và lưu WebP tối đa 200 KB; file đầu vào tối đa 5 MB.
 - Thay toàn bộ permission cũ bằng `<feature>.<action>`; không giữ compatibility runtime vì dự án chưa production.
 - Hard delete role chỉ khi chưa từng gán user; role đã/đang tham chiếu bị chặn.
-- Chi tiết thực thi từng task nằm trong `tasks/task-detail/task-29.md` đến `task-53.md`.
+- Rule mới: form tạo/sửa dùng chung component; route tạo mới dạng `/resource/create`, route sửa dạng `/resource/:id/edit`; status action như `Vô hiệu hóa` vẫn có thể là row action.
+- Thông số sản phẩm dùng definition/value có kiểu rõ ràng; không dùng JSON tự do cho dữ liệu cần validate/query.
+- Chi tiết thực thi từng task nằm trong `tasks/task-detail/task-29.md` đến `task-66.md`.
 
 ## Dependency Order
 
@@ -26,6 +28,12 @@ Required label rule
               │   └─> Metadata UI actions
               └─> Multi-line document forms
                   └─> E2E + review
+                      └─> Detail API/client for edit routes
+                          └─> Shared create/edit form routes
+                              └─> Product spec permission + DB
+                                  └─> Product spec APIs
+                                      └─> Product spec UI
+                                          └─> E2E + review
 ```
 
 ## Skill Intake Summary
@@ -34,7 +42,7 @@ Required label rule
 
 - Frontend: React/Vite/TypeScript/Tailwind, route/component theo `frontend/src/features`.
 - Backend: Hono + TypeScript + Zod + PostgreSQL SQL trực tiếp, migration versioned, auth cookie session.
-- Domains: form UX/accessibility, upload/resize ảnh, user profile metadata, RBAC chi tiết, API permission enforcement, metadata CRUD, chứng từ nhiều dòng, browser E2E.
+- Domains: form UX/accessibility, upload/resize ảnh, user profile metadata, RBAC chi tiết, API permission enforcement, metadata CRUD, chứng từ nhiều dòng, route form create/edit, product specification definitions/values, browser E2E.
 
 ### Applicable existing skills
 
@@ -46,6 +54,8 @@ Required label rule
 | API contract/permission | `api-and-interface-design`, `security-and-hardening` |
 | Upload/avatar validation | `security-and-hardening`, `source-driven-development` |
 | Data migration/audit | `doubt-driven-development`, `test-driven-development` |
+| Create/edit route rule | `frontend-ui-engineering`, `api-and-interface-design`, `test-driven-development` |
+| Product specifications | `api-and-interface-design`, `security-and-hardening`, `frontend-ui-engineering`, `test-driven-development` |
 | Debug | `debugging-and-error-recovery` |
 | Browser evidence | `vibe-e2e`, `browser-testing-with-devtools` |
 | Review/simplify | `vibe-review`, `code-review-and-quality`, `vibe-simplify` |
@@ -54,6 +64,24 @@ Required label rule
 
 - Có thể cần thư viện resize ảnh server-side hoặc browser-side. Không thêm dependency trong plan; task build phải kiểm tra dependency hiện có trước. Nếu không có giải pháp chuẩn nhỏ gọn, hỏi trước khi thêm dependency.
 - Nếu role matrix lặp nhiều logic selection, cân nhắc tạo helper/component nhỏ sau 2 use case thật; không tạo component library sớm.
+- Không thiếu skill bắt buộc cho scope mới. Có thể cân nhắc tạo skill riêng cho "metadata form route migration" nếu lặp nhiều ở nhiều repo, nhưng không tạo trong phase plan này.
+
+## Impact Review for v6 Tasks
+
+- T54-T57 ảnh hưởng trực tiếp đến workflow metadata: `Thêm` và `Sửa` chuyển sang route form riêng, nên test cũ cho inline form phải được cập nhật. Hành vi create/update/status hiện có không được đổi.
+- T58-T64 ảnh hưởng product/category workflow vì category có thể sinh thông số động cho product form. Category không có required specs vẫn phải tạo/sửa product như trước.
+- Luồng chứng từ kho hiện tại như mua hàng, bán hàng, trả hàng, chuyển kho, kiểm kê và xuất kho không bị đổi trực tiếp trong v6; chỉ cần regression đảm bảo product payload mới không làm hỏng các form dùng product.
+- T65-T66 là chốt kiểm tra tương thích: E2E route form, E2E thông số, regression permission và review trùng lặp form.
+
+## Permission Review Rule for New Features
+
+Mỗi task thêm tính năng/route/action mới phải có checklist phân quyền:
+
+- [ ] Xác định quyền dùng lại hoặc quyền mới theo dạng `<feature>.<action>`.
+- [ ] Cập nhật permission catalog, label tiếng Việt và seed/migration role dev nếu có quyền mới.
+- [ ] Cập nhật backend enforcement/route mapping; user thiếu quyền gọi trực tiếp API phải nhận `403`.
+- [ ] Cập nhật UI gating: sidebar, toolbar, row action, route create/edit theo đúng quyền.
+- [ ] Cập nhật test backend/frontend/E2E hoặc ghi rõ vì sao không cần test mới.
 
 ## Task Plan
 
@@ -666,6 +694,298 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 
 **Recommended skills:** `vibe-review`, `code-review-and-quality`, `vibe-simplify`
 
+### Phase 8 — Rule dùng chung trang Thêm/Sửa
+
+#### T54: Detail API và client cho form sửa metadata
+
+**Description:** Bổ sung contract đọc chi tiết theo `id` cho các entity metadata cần route sửa, để form `:id/edit` không phụ thuộc vào list page hoặc state cũ.
+
+**Acceptance criteria:**
+- [ ] Có API/client lấy chi tiết cho category, unit, location, product, partner, user và role theo warehouse scope.
+- [ ] API dùng quyền `*.view`, trả `404` khi không thuộc scope hoặc không tồn tại.
+- [ ] Không thay đổi hành vi create/update/status hiện có.
+
+**Verification:**
+- [ ] `npm test --prefix backend -- --test-name-pattern "catalog|location|product|partner|admin"`
+- [ ] `npm run build --prefix backend`
+- [ ] `npm test --prefix frontend -- --run api`
+
+**Dependencies:** T53
+
+**Likely files:** `backend/src/modules/catalog.ts`, `backend/src/modules/locations.ts`, `backend/src/modules/products.ts`, `backend/src/modules/partners.ts`, `backend/src/modules/admin.ts`, `backend/src/modules/permissions.ts`, `frontend/src/lib/api.ts`, related backend tests
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `test-driven-development`
+
+#### T55: Route form dùng chung cho danh mục và đơn vị
+
+**Description:** Chuyển create/edit category và unit sang route form riêng dùng chung component; list chỉ còn table/filter/action.
+
+**Acceptance criteria:**
+- [ ] `Thêm danh mục` mở `/catalog/categories/create`, `Sửa` mở `/catalog/categories/:id/edit`; cả hai dùng cùng form component.
+- [ ] `Thêm đơn vị` mở `/catalog/units/create`, `Sửa` mở `/catalog/units/:id/edit`; cả hai dùng cùng form component.
+- [ ] Edit mode load dữ liệu theo `id`, có loading/error/not found, submit gọi update; create mode gọi create.
+- [ ] List không còn inline edit form cho category/unit.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run CatalogPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T54
+
+**Likely files:** `frontend/src/App.tsx`, `frontend/src/features/catalog/CatalogPage.tsx`, `frontend/src/features/catalog/CatalogPage.test.tsx`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T56: Route form dùng chung cho vị trí và sản phẩm
+
+**Description:** Chuyển create/edit location và product sang route form riêng dùng chung component.
+
+**Acceptance criteria:**
+- [ ] `Thêm vị trí` và `Sửa vị trí` dùng cùng form route create/edit.
+- [ ] `Thêm sản phẩm` và `Sửa sản phẩm` dùng cùng form route create/edit.
+- [ ] Product edit giữ các rule an toàn hiện có: không sửa tracking/SKU khi đã có lịch sử; status vẫn là row action.
+- [ ] List không còn inline edit form cho location/product.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run LocationsPage ProductsPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T54, T55
+
+**Likely files:** `frontend/src/App.tsx`, `frontend/src/features/locations/LocationsPage.tsx`, `frontend/src/features/products/ProductsPage.tsx`, related tests, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T57: Route form dùng chung cho đối tác, người dùng và vai trò
+
+**Description:** Chuyển edit partner, user và role sang route form riêng dùng chung create/edit component; giữ gán role/status action phù hợp.
+
+**Acceptance criteria:**
+- [ ] Partner create/edit dùng chung form; list không inline edit.
+- [ ] User create/edit dùng chung form; avatar/metadata hoạt động ở edit mode.
+- [ ] Role create/edit dùng chung form; permission matrix load đúng role hiện có.
+- [ ] Status actions như `Vô hiệu hóa/Kích hoạt` vẫn là row action có confirm.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run PartnersPage AccessPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T54, T55
+
+**Likely files:** `frontend/src/App.tsx`, `frontend/src/features/partners/PartnersPage.tsx`, `frontend/src/features/admin/AccessPage.tsx`, related tests, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `security-and-hardening`, `test-driven-development`
+
+### Checkpoint H — Shared create/edit route rule
+
+- [ ] T54-T57 pass.
+- [ ] Metadata list pages không còn inline update form.
+- [ ] Route create/edit dùng quyền đúng mode: `*.create` cho create, `*.update` cho edit.
+- [ ] Human review xác nhận UX route mới trước khi thêm thông số.
+
+### Phase 9 — Backend thông số sản phẩm
+
+#### T58: Permission catalog và migration cho thông số
+
+**Description:** Thêm permission `catalog.specs.*` và schema lưu definition/option/value thông số theo danh mục.
+
+**Acceptance criteria:**
+- [x] Permission catalog có `catalog.specs.view/create/update/delete`, label tiếng Việt và route mapping dự kiến.
+- [x] Permission review checklist hoàn tất cho feature `catalog.specs`.
+- [x] Migration thêm `category_spec_definitions`, `category_spec_options`, `product_spec_values` hoặc tên tương đương.
+- [x] DB ràng buộc unique theo danh mục/code, option theo definition/value, và value typed theo type.
+- [x] Seed role dev cập nhật quyền mới cho warehouse admin.
+
+**Verification:**
+- [x] `npm run db:migrate --prefix backend`
+- [x] `npm test --prefix backend -- products.test.ts catalog-specs.test.ts`
+- [x] `npm run build --prefix backend`
+
+**Dependencies:** Checkpoint H
+
+**Likely files:** `backend/db/migrations/022_product_specs.sql`, `backend/src/modules/permissions.ts`, `backend/src/db/seed.ts`, `backend/test/admin.test.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `test-driven-development`
+
+#### T59: API quản lý thông số danh mục
+
+**Description:** Thêm API CRUD/status cho spec definitions và options theo danh mục.
+
+**Acceptance criteria:**
+- [x] List/create/update/status spec definition theo category và warehouse scope.
+- [x] API enforce `catalog.specs.view/create/update/delete`; thiếu quyền trả `403` kể cả gọi trực tiếp.
+- [x] `select` bắt buộc có option; number hỗ trợ unit/min/max; code duy nhất trong danh mục.
+- [x] Không hard delete definition/option đã có product value; dùng status `inactive`.
+- [x] Audit create/update/status cho definition và option.
+
+**Verification:**
+- [x] `npm test --prefix backend -- catalog-specs.test.ts`
+- [x] `npm run build --prefix backend`
+
+**Dependencies:** T58
+
+**Likely files:** `backend/src/modules/catalog-specs.ts`, `backend/src/index.ts`, `backend/src/modules/permissions.ts`, `backend/test/catalog-specs.test.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `test-driven-development`
+
+#### T60: Product API nhận và trả giá trị thông số
+
+**Description:** Mở rộng product create/update/detail/list để lưu, validate và trả typed spec values theo category.
+
+**Acceptance criteria:**
+- [x] Product create/update nhận `specValues[]` hoặc shape typed tương đương và validate theo definitions active của category.
+- [x] Product create/update không yêu cầu `specValues` khi category không có required specs, để giữ workflow product cũ.
+- [x] Required thiếu, number sai min/max, select option inactive/sai category, boolean sai type đều trả `422`.
+- [x] Không cho ghi value cho definition không thuộc category của product.
+- [x] Product detail/edit trả cả value cũ của definition inactive để hiển thị lịch sử.
+
+**Verification:**
+- [x] `npm test --prefix backend -- products.test.ts`
+- [x] `npm run build --prefix backend`
+
+**Dependencies:** T59
+
+**Likely files:** `backend/src/modules/products.ts`, `backend/src/modules/catalog-specs.ts`, `backend/test/products.test.ts`, `backend/test/catalog-specs.test.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `security-and-hardening`, `test-driven-development`
+
+### Checkpoint I — Backend thông số
+
+- [x] T58-T60 pass.
+- [x] API contract đủ cho UI danh mục thông số và product form.
+- [x] Không có JSON tự do cho dữ liệu cần validate/query.
+
+### Phase 10 — UI thông số sản phẩm
+
+#### T61: API client và type frontend cho thông số
+
+**Description:** Thêm type/client cho spec definitions, options và product spec values.
+
+**Acceptance criteria:**
+- [ ] `frontend/src/lib/api.ts` có type rõ cho `text`, `number`, `boolean`, `select`.
+- [ ] Client có method list/create/update/status definitions/options và product create/update/detail có spec values.
+- [ ] API test cover `VITE_API_BASE_URL` vẫn pass sau khi thêm method.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run src/lib/api.test.ts`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T60
+
+**Likely files:** `frontend/src/lib/api.ts`, `frontend/src/lib/api.test.ts`
+
+**Recommended skills:** `vibe-build`, `api-and-interface-design`, `test-driven-development`
+
+#### T62: UI quản lý Thông số trong danh mục
+
+**Description:** Thêm action `Thông số` ở category list và màn hình quản lý definitions/options cho category.
+
+**Acceptance criteria:**
+- [ ] Category row có action `Thông số` khi có `catalog.specs.view`.
+- [ ] Admin thêm/sửa/vô hiệu hóa/kích hoạt definition và option theo quyền.
+- [ ] User thiếu quyền ghi chỉ xem được hoặc bị ẩn action; gọi API trực tiếp bị backend trả `403`.
+- [ ] UI validate `select` phải có option, required/min/max/unit đúng label `(*)` khi cần.
+- [ ] Row update không cần reload trang; lỗi hiển thị tiếng Việt.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run CatalogPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T61
+
+**Likely files:** `frontend/src/App.tsx`, `frontend/src/features/catalog/CatalogPage.tsx`, `frontend/src/features/catalog/CatalogPage.test.tsx`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+#### T63: Product create/edit tự render thông số theo danh mục
+
+**Description:** Product form dùng chung create/edit tự tải và render section `Thông số` theo category đang chọn.
+
+**Acceptance criteria:**
+- [ ] Chọn category thì form tải definitions active và render field theo type.
+- [ ] Required có `(*)`; missing value chặn submit trước khi gọi API khi có thể.
+- [ ] Đổi category sau khi nhập value có cảnh báo; không âm thầm xóa dữ liệu.
+- [ ] Edit mode load product spec values hiện có và submit update đúng payload.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run ProductsPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T61, T62
+
+**Likely files:** `frontend/src/features/products/ProductsPage.tsx`, `frontend/src/features/products/ProductsPage.test.tsx`, `frontend/src/lib/api.ts`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `security-and-hardening`, `test-driven-development`
+
+#### T64: Hiển thị thông số trong danh sách/chi tiết sản phẩm
+
+**Description:** Hiển thị giá trị thông số quan trọng trong product list/detail/edit mà không làm bảng vỡ layout.
+
+**Acceptance criteria:**
+- [ ] Product edit/detail hiển thị toàn bộ spec values, kể cả definition inactive đã có dữ liệu.
+- [ ] Product list hiển thị tóm tắt thông số gọn hoặc có vùng mở rộng; không ép tất cả thông số vào nhiều cột gây vỡ bảng.
+- [ ] Empty/loading/error states rõ ràng khi category chưa có thông số.
+
+**Verification:**
+- [ ] `npm test --prefix frontend -- --run ProductsPage`
+- [ ] `npm run build --prefix frontend`
+
+**Dependencies:** T63
+
+**Likely files:** `frontend/src/features/products/ProductsPage.tsx`, `frontend/src/features/products/ProductsPage.test.tsx`
+
+**Recommended skills:** `vibe-build`, `frontend-ui-engineering`, `test-driven-development`
+
+### Checkpoint J — UI thông số
+
+- [ ] T61-T64 pass.
+- [ ] Admin tạo được definitions/options theo danh mục.
+- [ ] Product create/edit tự render và lưu spec values đúng type.
+- [ ] Human review xác nhận chưa cần kế thừa danh mục cha, biến thể SKU hoặc lọc nâng cao.
+
+### Phase 11 — E2E và review v6
+
+#### T65: Browser E2E cho route form và thông số
+
+**Description:** Chạy E2E mới cho create/edit route rule và product specifications, ghi evidence.
+
+**Acceptance criteria:**
+- [ ] E2E-020 create/edit route rule pass.
+- [ ] E2E-021 product specifications pass.
+- [ ] Evidence có URL, role, viewport, console/network và screenshot khi khả dụng.
+
+**Verification:**
+- [ ] `$vibe-e2e E2E-020`
+- [ ] `$vibe-e2e E2E-021`
+
+**Dependencies:** T57, T64
+
+**Likely files:** `tasks/test-result.md`
+
+**Recommended skills:** `vibe-e2e`, `browser-testing-with-devtools`
+
+#### T66: Review và cleanup v6
+
+**Description:** Review toàn bộ scope route form + product specs, chạy regression rộng và đơn giản hóa code lặp.
+
+**Acceptance criteria:**
+- [ ] Full lint/build/test pass hoặc blocker ghi rõ.
+- [ ] Review không còn high/medium finding chưa xử lý.
+- [ ] Không duplicate form create/edit lớn ở các metadata/product page.
+- [ ] Permission `catalog.specs.*` và route create/edit metadata được enforce backend, reflected UI và có regression thiếu quyền.
+
+**Verification:**
+- [ ] `npm run lint`
+- [ ] `npm run build`
+- [ ] `npm test`
+- [ ] `$vibe-review`
+
+**Dependencies:** T65
+
+**Likely files:** all files changed by T54-T65
+
+**Recommended skills:** `vibe-review`, `code-review-and-quality`, `vibe-simplify`
+
 ## Phase Checkpoints
 
 1. **Checkpoint A after T30:** required marker and Vietnamese label baseline.
@@ -675,9 +995,16 @@ Mỗi task có hướng thực hiện chi tiết, ranh giới và bằng chứng
 5. **Checkpoint E after T45:** metadata UI actions usable.
 6. **Checkpoint F after T51:** multi-line document forms.
 7. **Checkpoint G after T53:** E2E/review/regression complete.
+8. **Checkpoint H after T57:** shared create/edit route rule complete.
+9. **Checkpoint I after T60:** backend product specs contract complete.
+10. **Checkpoint J after T64:** frontend product specs complete.
+11. **Checkpoint K after T66:** E2E/review v6 complete.
 
 ## Tradeoffs and Open Questions
 
 - Resize ảnh có thể cần dependency server-side nhỏ, được duyệt nếu dependency hiện tại không hỗ trợ; ưu tiên `sharp`, không xây pipeline ảnh riêng.
 - `delete` vẫn là action code chuẩn, nhưng UI dùng `Vô hiệu hóa` cho dữ liệu nghiệp vụ.
 - Form edit cho chứng từ nháp nằm ngoài đợt multi-line đầu tiên; chỉ create form được triển khai trong T46-T51.
+- Scope thông số MVP áp dụng trực tiếp theo category của product; chưa kế thừa category cha, chưa tạo biến thể SKU, chưa lọc nâng cao theo thông số.
+- Product list không nên mở rộng thành bảng nhiều cột động cho mọi thông số; ưu tiên summary/expand để giữ layout ổn định.
+- Permission review là rule bắt buộc khi thêm tính năng mới; nếu task dùng lại quyền hiện có thì phải ghi rõ trong acceptance criteria hoặc implementation note.

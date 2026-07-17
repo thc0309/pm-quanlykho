@@ -21,6 +21,7 @@ export function buildNavItems(permissions: string[]): NavItem[] {
 
   const adminSubItems = [
     ...(hasPermission(permissions, "admin.users.view") ? [{ name: "Người dùng", path: "/admin/users" }] : []),
+    ...(hasPermission(permissions, "admin.departments.view") ? [{ name: "Phòng ban", path: "/admin/departments" }] : []),
     ...(hasPermission(permissions, "admin.roles.view") ? [
       { name: "Vai trò", path: "/admin/roles" },
       { name: "Quyền hạn", path: "/admin/permissions" },
@@ -34,12 +35,23 @@ export function buildNavItems(permissions: string[]): NavItem[] {
     });
   }
 
-  const warehouseSubItems = [
+  const warehouseMetadataSubItems = [
     ...(hasPermission(permissions, "locations.view") ? [{ name: "Vị trí kho", path: "/locations" }] : []),
     ...(hasPermission(permissions, "catalog.categories.view") ? [{ name: "Danh mục", path: "/catalog/categories" }] : []),
     ...(hasPermission(permissions, "catalog.units.view") ? [{ name: "Đơn vị", path: "/catalog/units" }] : []),
     ...(hasPermission(permissions, "products.view") ? [{ name: "Sản phẩm", path: "/products" }] : []),
     ...(hasPermission(permissions, "partners.view") ? [{ name: "Đối tác", path: "/partners" }] : []),
+  ];
+
+  if (warehouseMetadataSubItems.length > 0) {
+    items.push({
+      icon: <TableIcon />,
+      name: "Danh mục kho",
+      subItems: warehouseMetadataSubItems,
+    });
+  }
+
+  const warehouseOperationSubItems = [
     ...(hasPermission(permissions, "purchasing.view") ? [{ name: "Đơn mua", path: "/purchasing" }] : []),
     ...(hasPermission(permissions, "sales.view") ? [{ name: "Bán hàng", path: "/sales" }] : []),
     ...(hasPermission(permissions, "returns.view") ? [{ name: "Trả hàng", path: "/returns" }] : []),
@@ -55,11 +67,11 @@ export function buildNavItems(permissions: string[]): NavItem[] {
     ...(hasPermission(permissions, "inventory.view") ? [{ name: "Tồn kho", path: "/inventory" }] : []),
   ];
 
-  if (warehouseSubItems.length > 0) {
+  if (warehouseOperationSubItems.length > 0) {
     items.push({
-      icon: <TableIcon />,
-      name: "Kho hàng",
-      subItems: warehouseSubItems,
+      icon: <GridIcon />,
+      name: "Vận hành kho",
+      subItems: warehouseOperationSubItems,
     });
   }
 

@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { Pagination, paginate } from "../../components/common/Pagination";
 import { PencilIcon, PlusIcon } from "../../icons";
@@ -32,57 +32,60 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+type PartnerFormState = {
+  code: string;
+  name: string;
+  kind: Partner["kind"];
+  taxCode: string;
+  phone: string;
+  email: string;
+  address: string;
+};
+
+const emptyForm: PartnerFormState = {
+  code: "",
+  name: "",
+  kind: "customer",
+  taxCode: "",
+  phone: "",
+  email: "",
+  address: "",
+};
+
+function formFor(partner?: Partner | null): PartnerFormState {
+  if (!partner) return emptyForm;
+  return {
+    code: partner.code,
+    name: partner.name,
+    kind: partner.kind,
+    taxCode: partner.taxCode ?? "",
+    phone: partner.phone ?? "",
+    email: partner.email ?? "",
+    address: partner.address ?? "",
+  };
+}
+
 export default function PartnersPage({ api = partnerApi, permissions = ["*"] }: { api?: PartnerClient; permissions?: readonly string[] }) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: "", taxCode: "", phone: "", email: "", address: "" });
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const canCreate = hasPermission(permissions, "partners.create");
   const canUpdate = hasPermission(permissions, "partners.update");
   const canChangeStatus = hasPermission(permissions, "partners.delete");
-
-  function startEdit(partner: Partner) {
-    setEditingId(partner.id);
-    setDraft({ name: partner.name, taxCode: partner.taxCode ?? "", phone: partner.phone ?? "", email: partner.email ?? "", address: partner.address ?? "" });
-    setRowError(null);
-  }
-
-  async function savePartner(event: FormEvent<HTMLFormElement>, partner: Partner) {
-    event.preventDefault();
-    setBusyId(partner.id);
-    setRowError(null);
-    try {
-      const updated = await api.updatePartner(partner.id, {
-        name: draft.name.trim(),
-        taxCode: draft.taxCode.trim() || null,
-        phone: draft.phone.trim() || null,
-        email: draft.email.trim() || null,
-        address: draft.address.trim() || null,
-      });
-      setPartners((current) => current.map((item) => item.id === updated.id ? updated : item));
-      setEditingId(null);
-    } catch (caught) {
-      setRowError({ id: partner.id, message: errorMessage(caught, "Không thể cập nhật đối tác") });
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   async function changeStatus(partner: Partner) {
     const nextStatus = partner.status === "active" ? "inactive" : "active";
     const action = nextStatus === "inactive" ? "vô hiệu hóa" : "kích hoạt";
     if (!window.confirm(`Bạn có chắc muốn ${action} đối tác ${partner.name}?`)) return;
     setBusyId(partner.id);
-    setRowError(null);
+    setError("");
     try {
       const updated = await api.setPartnerStatus(partner.id, nextStatus);
       setPartners((current) => current.map((item) => item.id === updated.id ? updated : item));
     } catch (caught) {
-      setRowError({ id: partner.id, message: errorMessage(caught, `Không thể ${action} đối tác`) });
+      setError(errorMessage(caught, `Không thể ${action} đối tác`));
     } finally {
       setBusyId(null);
     }
@@ -144,8 +147,7 @@ export default function PartnersPage({ api = partnerApi, permissions = ["*"] }: 
                   </td>
                 </tr>
               ) : paginate(partners, page).map((partner) => (
-                <Fragment key={partner.id}>
-                <tr>
+                <tr key={partner.id}>
                   <td className={`${tableCellClass} font-medium text-gray-800 dark:text-white/90`}>{partner.name}</td>
                   <td className={tableCellClass}>{partner.code}</td>
                   <td className={tableCellClass}>{kindLabels[partner.kind]}</td>
@@ -153,10 +155,15 @@ export default function PartnersPage({ api = partnerApi, permissions = ["*"] }: 
                   <td className={tableCellClass}>{partner.status === "active" ? "Đang dùng" : "Tạm ngưng"}</td>
                   <td className={`${tableCellClass} text-right`}>
                     <div className="inline-flex items-center gap-2">
-                      {canUpdate && editingId !== partner.id && (
-                        <button type="button" disabled={busyId === partner.id} aria-label={`Sửa đối tác ${partner.name}`} title="Sửa đối tác" className={iconButtonClass} onClick={() => startEdit(partner)}>
+                      {canUpdate && (
+                        <Link
+                          to={`/partners/${partner.id}/edit`}
+                          aria-label={`Sửa đối tác ${partner.name}`}
+                          title="Sửa đối tác"
+                          className={iconButtonClass}
+                        >
                           <PencilIcon className="h-4 w-4" />
-                        </button>
+                        </Link>
                       )}
                       {canChangeStatus && (
                         <button type="button" disabled={busyId === partner.id} aria-label={`${partner.status === "active" ? "Vô hiệu hóa" : "Kích hoạt"} đối tác ${partner.name}`} className={rowActionClass} onClick={() => changeStatus(partner)}>
@@ -166,27 +173,6 @@ export default function PartnersPage({ api = partnerApi, permissions = ["*"] }: 
                     </div>
                   </td>
                 </tr>
-                {(editingId === partner.id || rowError?.id === partner.id) && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-4">
-                      {editingId === partner.id && (
-                        <form className="grid gap-3 rounded-xl bg-gray-50 p-3 sm:grid-cols-2 lg:grid-cols-3 dark:bg-white/[0.03]" onSubmit={(event) => savePartner(event, partner)}>
-                          <label className={labelClass}>Tên đối tác<input autoFocus required aria-label={`Tên đối tác ${partner.name}`} className={inputClass} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
-                          <label className={labelClass}>Mã số thuế<input aria-label={`Mã số thuế đối tác ${partner.name}`} className={inputClass} value={draft.taxCode} onChange={(event) => setDraft((current) => ({ ...current, taxCode: event.target.value }))} /></label>
-                          <label className={labelClass}>Điện thoại<input aria-label={`Điện thoại đối tác ${partner.name}`} className={inputClass} value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
-                          <label className={labelClass}>Email<input type="email" aria-label={`Email đối tác ${partner.name}`} className={inputClass} value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} /></label>
-                          <label className={labelClass}>Địa chỉ<input aria-label={`Địa chỉ đối tác ${partner.name}`} className={inputClass} value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} /></label>
-                          <div className="flex items-end gap-2">
-                            <button type="submit" disabled={busyId === partner.id} className={primaryButtonClass} aria-label={`Lưu đối tác ${partner.name}`}>{busyId === partner.id ? "Đang lưu…" : "Lưu"}</button>
-                            <button type="button" disabled={busyId === partner.id} className={secondaryButtonClass} onClick={() => setEditingId(null)}>Hủy</button>
-                          </div>
-                        </form>
-                      )}
-                      {rowError?.id === partner.id && <p role="alert" className="mt-2 text-sm text-error-600">{rowError.message}</p>}
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
               ))}
             </tbody>
           </table>
@@ -198,34 +184,83 @@ export default function PartnersPage({ api = partnerApi, permissions = ["*"] }: 
 }
 
 export function PartnerCreatePage({ api = partnerApi }: { api?: PartnerClient }) {
-  const [form, setForm] = useState({ code: "", name: "", kind: "customer" as Partner["kind"], taxCode: "", phone: "", email: "", address: "" });
+  const navigate = useNavigate();
+  const { partnerId } = useParams();
+  const isEditMode = Boolean(partnerId);
+  const [form, setForm] = useState<PartnerFormState>(emptyForm);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(isEditMode);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  async function createPartner(event: FormEvent) {
+  useEffect(() => {
+    if (!isEditMode || !partnerId) return;
+    let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    api.getPartner(partnerId)
+      .then((partner) => {
+        if (!active) return;
+        setForm(formFor(partner));
+      })
+      .catch((caught) => {
+        if (!active) return;
+        setError(errorMessage(caught, "Không tìm thấy đối tác cần sửa."));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, isEditMode, partnerId]);
+
+  async function savePartner(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await api.createPartner(form);
-      setNotice("Đã tạo đối tác");
-      setForm({ code: "", name: "", kind: "customer", taxCode: "", phone: "", email: "", address: "" });
-    } catch {
-      setError("Không thể tạo đối tác. Kiểm tra mã hoặc thông tin liên hệ.");
+      if (isEditMode && partnerId) {
+        await api.updatePartner(partnerId, {
+          name: form.name.trim(),
+          taxCode: form.taxCode.trim() || null,
+          phone: form.phone.trim() || null,
+          email: form.email.trim() || null,
+          address: form.address.trim() || null,
+        });
+        navigate("/partners");
+      } else {
+        await api.createPartner({
+          code: form.code.trim(),
+          name: form.name.trim(),
+          kind: form.kind,
+          taxCode: form.taxCode,
+          phone: form.phone,
+          email: form.email,
+          address: form.address,
+        });
+        setNotice("Đã tạo đối tác");
+        setForm(emptyForm);
+      }
+    } catch (caught) {
+      setError(errorMessage(caught, isEditMode ? "Không thể cập nhật đối tác." : "Không thể tạo đối tác. Kiểm tra mã hoặc thông tin liên hệ."));
     } finally {
       setBusy(false);
     }
+  }
+
+  if (loading) {
+    return <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Đang tải form đối tác…</p>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 text-pretty dark:text-white/90">Thêm đối tác</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 text-pretty dark:text-white/90">{isEditMode ? "Sửa đối tác" : "Thêm đối tác"}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Nhập thông tin khách hàng hoặc nhà cung cấp.
+            {isEditMode ? "Cập nhật thông tin khách hàng hoặc nhà cung cấp." : "Nhập thông tin khách hàng hoặc nhà cung cấp."}
           </p>
         </div>
         <Link to="/partners" className={secondaryButtonClass}>Quay lại</Link>
@@ -242,40 +277,40 @@ export function PartnerCreatePage({ api = partnerApi }: { api?: PartnerClient })
         </p>
       )}
 
-      <form onSubmit={createPartner} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
+      <form onSubmit={savePartner} className={`grid gap-4 sm:grid-cols-2 ${panelClass}`}>
         <label className={labelClass}>
           Mã đối tác (*)
-          <input required autoComplete="off" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={inputClass} />
+          <input required disabled={isEditMode} autoComplete="off" value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} className={inputClass} />
         </label>
         <label className={labelClass}>
           Tên đối tác (*)
-          <input required autoComplete="off" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />
+          <input required autoComplete="off" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className={inputClass} />
         </label>
         <label className={labelClass}>
           Loại đối tác (*)
-          <select required value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as Partner["kind"] })} className={inputClass}>
+          <select required disabled={isEditMode} value={form.kind} onChange={(event) => setForm((current) => ({ ...current, kind: event.target.value as Partner["kind"] }))} className={inputClass}>
             <option value="customer">Khách hàng</option>
             <option value="supplier">Nhà cung cấp</option>
           </select>
         </label>
         <label className={labelClass}>
           Mã số thuế
-          <input autoComplete="off" value={form.taxCode} onChange={(event) => setForm({ ...form, taxCode: event.target.value })} className={inputClass} />
+          <input autoComplete="off" value={form.taxCode} onChange={(event) => setForm((current) => ({ ...current, taxCode: event.target.value }))} className={inputClass} />
         </label>
         <label className={labelClass}>
           Điện thoại
-          <input autoComplete="off" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className={inputClass} />
+          <input autoComplete="off" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className={inputClass} />
         </label>
         <label className={labelClass}>
           Email
-          <input type="email" autoComplete="off" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={inputClass} />
+          <input type="email" autoComplete="off" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={inputClass} />
         </label>
         <label className={`${labelClass} sm:col-span-2`}>
           Địa chỉ
-          <input autoComplete="off" value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} className={inputClass} />
+          <input autoComplete="off" value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} className={inputClass} />
         </label>
         <button type="submit" disabled={busy} className={`${primaryButtonClass} sm:col-span-2 sm:w-fit`}>
-          Tạo đối tác
+          {isEditMode ? "Lưu thay đổi" : "Tạo đối tác"}
         </button>
       </form>
     </div>

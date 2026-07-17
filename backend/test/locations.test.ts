@@ -33,6 +33,9 @@ class MemoryLocationStore implements AuthStore, AccessStore, LocationStore {
   async insertAudit(entry: AuditEntry) { this.audits.push(entry); }
   async defaultWarehouseId() { return this.warehouseIds.length === 1 ? this.warehouseIds[0]! : null; }
   async list(warehouseId: string | null) { return warehouseId ? this.locations.filter((item) => item.warehouseId === warehouseId) : this.locations; }
+  async find(warehouseId: string, id: string) {
+    return this.locations.find((item) => item.warehouseId === warehouseId && item.id === id) ?? null;
+  }
   async create(input: Omit<WarehouseLocation, "id" | "status">) {
     if (this.locations.some((item) => item.warehouseId === input.warehouseId && (item.code === input.code || item.barcode === input.barcode))) throw Object.assign(new Error("duplicate"), { code: "23505" });
     const location: WarehouseLocation = { ...input, id: `location-${this.locations.length + 1}`, status: "active" };
@@ -128,6 +131,36 @@ test("master can list locations across warehouses", async () => {
   const response = await app.request("/api/locations", { headers: { cookie } });
   assert.equal(response.status, 200);
   assert.deepEqual((await response.json()).data.map((item: WarehouseLocation) => item.id), ["foreign", "own"]);
+});
+
+test("location detail is scoped by warehouse", async () => {
+  const { app, store, cookie } = await setup();
+  store.locations = store.locations.filter((item) => item.id !== "foreign");
+  const foreignLocation: WarehouseLocation = {
+    id: randomUUID(),
+    warehouseId: "warehouse-b",
+    code: "B-01",
+    barcode: "FOREIGN-SCAN",
+    name: "Kho B",
+    type: "storage",
+    status: "active",
+  };
+  const location: WarehouseLocation = {
+    id: randomUUID(),
+    warehouseId: "warehouse-a",
+    code: "A-01",
+    barcode: "A-SCAN",
+    name: "Kho A",
+    type: "storage",
+    status: "active",
+  };
+  store.locations.push(foreignLocation, location);
+
+  const found = await app.request(`/api/locations/${location.id}`, { headers: { cookie } });
+  assert.equal(found.status, 200);
+  assert.equal((await found.json()).location.name, "Kho A");
+  assert.equal((await app.request("/api/locations/invalid-id", { headers: { cookie } })).status, 422);
+  assert.equal((await app.request(`/api/locations/${foreignLocation.id}`, { headers: { cookie } })).status, 404);
 });
 
 test("location view permission cannot create a location", async () => {

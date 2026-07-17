@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 
 import { hashPassword } from "../domain/password.js";
@@ -34,6 +34,8 @@ export interface AdminUser {
   email: string;
   fullName: string;
   phone: string;
+  roleIds: string[];
+  departmentId: string | null;
   avatarUrl: string | null;
   employeeCode: string | null;
   jobTitle: string | null;
@@ -52,13 +54,23 @@ export interface AdminRole {
   permissions: string[];
 }
 
+export interface AdminDepartment {
+  id: string;
+  warehouseId: string;
+  code: string;
+  name: string;
+  roleIds: string[];
+  status: "active" | "inactive";
+}
+
 type Page<T> = { data: T[]; total: number };
 type AdminUserWrite = Pick<AdminUser, "email" | "fullName" | "phone">
-  & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "department" | "note">>;
+  & Partial<Pick<AdminUser, "employeeCode" | "jobTitle" | "departmentId" | "note">>;
 
 export interface AdminStore {
   defaultWarehouseId(): Promise<string | null>;
   listUsers(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminUser>>;
+  findUser(userId: string): Promise<AdminUser | null>;
   createUser(
     input: AdminUserWrite & Pick<AdminUser, "kind" | "warehouseId"> & { passwordHash: string },
   ): Promise<AdminUser>;
@@ -68,8 +80,15 @@ export interface AdminStore {
     avatarUrl: string,
   ): Promise<{ user: AdminUser; previousAvatarUrl: string | null } | null>;
   findUserWarehouse(userId: string): Promise<string | null>;
+  findDepartmentWarehouse(departmentId: string): Promise<string | null>;
   setUserStatus(userId: string, status: "active" | "inactive"): Promise<AdminUser | null>;
+  listDepartments(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminDepartment>>;
+  findDepartment(warehouseId: string, departmentId: string): Promise<AdminDepartment | null>;
+  createDepartment(input: Omit<AdminDepartment, "id" | "status">): Promise<AdminDepartment>;
+  updateDepartment(warehouseId: string, departmentId: string, input: Pick<AdminDepartment, "name" | "roleIds">): Promise<AdminDepartment | null>;
+  setDepartmentStatus(warehouseId: string, departmentId: string, status: "active" | "inactive"): Promise<AdminDepartment | null>;
   listRoles(warehouseId: string | null, limit: number, offset: number): Promise<Page<AdminRole>>;
+  findRole(warehouseId: string, roleId: string): Promise<AdminRole | null>;
   createRole(input: Omit<AdminRole, "id">): Promise<AdminRole>;
   updateRole(warehouseId: string, roleId: string, input: Pick<AdminRole, "name" | "permissions">): Promise<AdminRole | null>;
   deleteRole(warehouseId: string, roleId: string): Promise<boolean>;
@@ -86,7 +105,7 @@ const userFields = {
   phone: phoneSchema,
   employeeCode: z.string().trim().min(1).max(50).nullable().optional(),
   jobTitle: z.string().trim().min(1).max(100).nullable().optional(),
-  department: z.string().trim().min(1).max(100).nullable().optional(),
+  departmentId: z.string().min(1).nullable().optional(),
   note: z.string().trim().min(1).max(500).nullable().optional(),
 };
 const userSchema = z.object(userFields).strict();
@@ -107,6 +126,15 @@ const roleSchema = z.object({
 }).strict();
 const roleUpdateSchema = roleSchema.omit({ code: true });
 const assignmentSchema = z.object({ roleIds: z.array(z.string().min(1)).max(20) });
+const departmentSchema = z.object({
+  code: z.string().trim().min(2).max(50).regex(/^[a-z][a-z0-9_-]*$/),
+  name: z.string().trim().min(2).max(100),
+  roleIds: z.array(z.string().min(1)).min(1).max(20).refine(
+    (codes) => new Set(codes).size === codes.length,
+    "Danh sách vai trò không được trùng lặp",
+  ),
+}).strict();
+const departmentUpdateSchema = departmentSchema.omit({ code: true });
 
 async function warehouseFor(context: Context, actor: AccessActor, store: AdminStore) {
   if (actor.user.kind !== "master_admin") {
@@ -187,10 +215,24 @@ export function registerAdminRoutes(
     });
   });
 
+  app.get("/api/admin/users/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/admin/users/:id"]);
+    const user = await adminStore.findUser(c.req.param("id"));
+    assertWarehouse(current, user?.warehouseId ?? null);
+    if (!user) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy người dùng");
+    return c.json({ user });
+  });
+
   app.post("/api/admin/users", async (c) => {
     const current = await actor(c, routePermissionCatalog["POST /api/admin/users"]);
     const warehouseId = await warehouseFor(c, current, adminStore);
     const input = await parseJson(c, userSchema);
+    if (input.departmentId) {
+      const departmentWarehouseId = await adminStore.findDepartmentWarehouse(input.departmentId);
+      if (departmentWarehouseId !== warehouseId) {
+        throw new HttpError(422, "INVALID_DEPARTMENT_SCOPE", "Phòng ban không thuộc cùng kho");
+      }
+    }
     const temporaryPassword = randomBytes(12).toString("base64url");
     let user: AdminUser;
     try {
@@ -261,6 +303,12 @@ export function registerAdminRoutes(
     const warehouseId = await adminStore.findUserWarehouse(targetId);
     assertWarehouse(current, warehouseId);
     const input = await parseJson(c, userUpdateSchema);
+    if (input.departmentId) {
+      const departmentWarehouseId = await adminStore.findDepartmentWarehouse(input.departmentId);
+      if (departmentWarehouseId !== warehouseId) {
+        throw new HttpError(422, "INVALID_DEPARTMENT_SCOPE", "Phòng ban không thuộc cùng kho");
+      }
+    }
     let user: AdminUser | null = null;
     try {
       user = await adminStore.updateUser(targetId, input);
@@ -363,9 +411,107 @@ export function registerAdminRoutes(
     });
   });
 
+  app.get("/api/admin/roles/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/admin/roles/:id"]);
+    const warehouseId = await warehouseFor(c, current, adminStore);
+    const role = await adminStore.findRole(warehouseId, c.req.param("id"));
+    if (!role) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy vai trò");
+    return c.json({ role });
+  });
+
   app.get("/api/admin/permissions", async (c) => {
     await actor(c, routePermissionCatalog["GET /api/admin/permissions"]);
     return c.json({ data: permissionMatrix });
+  });
+
+  app.get("/api/admin/departments", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/admin/departments"]);
+    const warehouseId = warehouseScopeFor(c, current);
+    const pagination = parsePagination(c.req.query());
+    const result = await adminStore.listDepartments(
+      warehouseId,
+      pagination.pageSize,
+      pagination.offset,
+    );
+    return c.json({
+      data: result.data,
+      pagination: {
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        totalItems: result.total,
+        totalPages: Math.ceil(result.total / pagination.pageSize),
+      },
+    });
+  });
+
+  app.get("/api/admin/departments/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/admin/departments/:id"]);
+    const warehouseId = await warehouseFor(c, current, adminStore);
+    const department = await adminStore.findDepartment(warehouseId, c.req.param("id"));
+    if (!department) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy phòng ban");
+    return c.json({ department });
+  });
+
+  app.post("/api/admin/departments", async (c) => {
+    const current = await actor(c, routePermissionCatalog["POST /api/admin/departments"]);
+    const warehouseId = await warehouseFor(c, current, adminStore);
+    const input = await parseJson(c, departmentSchema);
+    const roleWarehouses = await adminStore.findRoleWarehouses(input.roleIds);
+    if (roleWarehouses.length !== input.roleIds.length || roleWarehouses.some((id) => id !== warehouseId)) {
+      throw new HttpError(422, "INVALID_ROLE_SCOPE", "Vai trò không thuộc cùng kho");
+    }
+    let department: AdminDepartment;
+    try {
+      department = await adminStore.createDepartment({ ...input, warehouseId });
+    } catch (error) {
+      conflict(error);
+    }
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "admin.department.create",
+      entityType: "department",
+      entityId: department!.id,
+      metadata: { roleIds: input.roleIds },
+    });
+    return c.json({ department: department! }, 201);
+  });
+
+  app.patch("/api/admin/departments/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/admin/departments/:id"]);
+    const warehouseId = await warehouseFor(c, current, adminStore);
+    const departmentId = c.req.param("id");
+    const input = await parseJson(c, departmentUpdateSchema);
+    const roleWarehouses = await adminStore.findRoleWarehouses(input.roleIds);
+    if (roleWarehouses.length !== input.roleIds.length || roleWarehouses.some((id) => id !== warehouseId)) {
+      throw new HttpError(422, "INVALID_ROLE_SCOPE", "Vai trò không thuộc cùng kho");
+    }
+    const department = await adminStore.updateDepartment(warehouseId, departmentId, input);
+    if (!department) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy phòng ban");
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "admin.department.update",
+      entityType: "department",
+      entityId: department.id,
+      metadata: { roleIds: input.roleIds },
+    });
+    return c.json({ department });
+  });
+
+  app.patch("/api/admin/departments/:id/status", async (c) => {
+    const current = await actor(c, routePermissionCatalog["PATCH /api/admin/departments/:id/status"]);
+    const warehouseId = await warehouseFor(c, current, adminStore);
+    const departmentId = c.req.param("id");
+    const { status } = await parseJson(c, statusSchema);
+    const department = await adminStore.setDepartmentStatus(warehouseId, departmentId, status);
+    if (!department) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy phòng ban");
+    await auditChange(accessStore, current, {
+      warehouseId,
+      action: "admin.department.status",
+      entityType: "department",
+      entityId: departmentId,
+      metadata: { status },
+    });
+    return c.json({ department });
   });
 
   app.post("/api/admin/roles", async (c) => {
@@ -413,7 +559,7 @@ export function registerAdminRoutes(
       deleted = await adminStore.deleteRole(warehouseId, roleId);
     } catch (error) {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "ROLE_ASSIGNED") {
-        throw new HttpError(409, "ROLE_ASSIGNED", "Vai trò đã được gán cho người dùng nên không thể xóa");
+        throw new HttpError(409, "ROLE_ASSIGNED", "Vai trò đã được gán cho phòng ban hoặc người dùng nên không thể xóa");
       }
       throw error;
     }
@@ -450,10 +596,61 @@ export function registerAdminRoutes(
 }
 
 export function createPostgresAdminStore(pool: Pool): AdminStore {
-  const userColumns = `id, email, full_name AS "fullName", phone,
-    avatar_url AS "avatarUrl", employee_code AS "employeeCode",
-    job_title AS "jobTitle", department, note, kind,
-    warehouse_id AS "warehouseId", status`;
+  const userColumns = (alias: string) => `${alias}.id, ${alias}.email, ${alias}.full_name AS "fullName", ${alias}.phone,
+    COALESCE((
+      SELECT array_agg(role_id ORDER BY role_id)
+      FROM (
+        SELECT ur.role_id
+        FROM user_roles ur
+        WHERE ur.user_id = ${alias}.id
+        UNION
+        SELECT dr.role_id
+        FROM department_roles dr
+        WHERE dr.department_id = ${alias}.department_id
+      ) granted_roles
+    ), '{}') AS "roleIds",
+    ${alias}.department_id AS "departmentId",
+    ${alias}.avatar_url AS "avatarUrl", ${alias}.employee_code AS "employeeCode",
+    ${alias}.job_title AS "jobTitle", COALESCE(d.name, ${alias}.department) AS department, ${alias}.note, ${alias}.kind,
+    ${alias}.warehouse_id AS "warehouseId", ${alias}.status`;
+  const departmentColumns = `d.id, d.warehouse_id AS "warehouseId", d.code, d.name,
+    COALESCE((
+      SELECT array_agg(dr.role_id ORDER BY dr.role_id)
+      FROM department_roles dr
+      WHERE dr.department_id = d.id
+    ), '{}') AS "roleIds",
+    d.status`;
+  async function loadUser(executor: Pool | PoolClient, userId: string) {
+    const result = await executor.query<AdminUser>(
+      `SELECT ${userColumns("u")}
+       FROM users u
+       LEFT JOIN departments d ON d.id = u.department_id
+       WHERE u.id = $1`,
+      [userId],
+    );
+    return result.rows[0] ?? null;
+  }
+  async function loadDepartment(executor: Pool | PoolClient, departmentId: string) {
+    const result = await executor.query<AdminDepartment>(
+      `SELECT ${departmentColumns}
+       FROM departments d
+       WHERE d.id = $1`,
+      [departmentId],
+    );
+    return result.rows[0] ?? null;
+  }
+  async function loadRole(executor: Pool | PoolClient, roleId: string) {
+    const result = await executor.query<AdminRole>(
+      `SELECT r.id, r.warehouse_id AS "warehouseId", r.code, r.name,
+         COALESCE(array_agg(rpc.permission_code) FILTER (WHERE rpc.permission_code IS NOT NULL), '{}') AS permissions
+       FROM roles r
+       LEFT JOIN role_permission_codes rpc ON rpc.role_id = r.id
+       WHERE r.id = $1
+       GROUP BY r.id`,
+      [roleId],
+    );
+    return result.rows[0] ?? null;
+  }
   return {
     async defaultWarehouseId() {
       const result = await pool.query<{ id: string }>(
@@ -464,9 +661,10 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
     async listUsers(warehouseId, limit, offset) {
       const [rows, count] = await Promise.all([
         pool.query<AdminUser>(
-          `SELECT ${userColumns} FROM users
-           WHERE warehouse_id IS NOT NULL AND ($1::uuid IS NULL OR warehouse_id = $1)
-           ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+          `SELECT ${userColumns("u")} FROM users u
+           LEFT JOIN departments d ON d.id = u.department_id
+           WHERE u.warehouse_id IS NOT NULL AND ($1::uuid IS NULL OR u.warehouse_id = $1)
+           ORDER BY u.created_at DESC LIMIT $2 OFFSET $3`,
           [warehouseId, limit, offset],
         ),
         pool.query<{ count: string }>(
@@ -476,13 +674,16 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
       ]);
       return { data: rows.rows, total: Number(count.rows[0]?.count ?? 0) };
     },
+    async findUser(userId) {
+      return loadUser(pool, userId);
+    },
     async createUser(input) {
-      const result = await pool.query<AdminUser>(
+      const result = await pool.query<{ id: string }>(
         `INSERT INTO users
           (email, password_hash, full_name, phone, employee_code, job_title,
-           department, note, kind, warehouse_id)
+           department_id, note, kind, warehouse_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         RETURNING ${userColumns}`,
+         RETURNING id`,
         [
           input.email,
           input.passwordHash,
@@ -490,13 +691,14 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
           input.phone,
           input.employeeCode ?? null,
           input.jobTitle ?? null,
-          input.department ?? null,
+          input.departmentId ?? null,
           input.note ?? null,
           input.kind,
           input.warehouseId,
         ],
       );
-      const user = result.rows[0];
+      const userId = result.rows[0]?.id;
+      const user = userId ? await loadUser(pool, userId) : null;
       if (!user) throw new Error("User insert returned no row");
       return user;
     },
@@ -507,17 +709,18 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
         phone: "phone",
         employeeCode: "employee_code",
         jobTitle: "job_title",
-        department: "department",
+        departmentId: "department_id",
         note: "note",
       };
       const entries = Object.entries(input).filter((entry) => entry[1] !== undefined);
       const updates = entries.map(([key], index) => `${columns[key as keyof AdminUserWrite]} = $${index + 2}`);
-      const result = await pool.query<AdminUser>(
+      const result = await pool.query<{ id: string }>(
         `UPDATE users SET ${updates.join(", ")}, updated_at = now() WHERE id = $1
-         RETURNING ${userColumns}`,
+         RETURNING id`,
         [userId, ...entries.map((entry) => entry[1])],
       );
-      return result.rows[0] ?? null;
+      const updatedUserId = result.rows[0]?.id;
+      return updatedUserId ? loadUser(pool, updatedUserId) : null;
     },
     async setUserAvatar(userId, avatarUrl) {
       const client = await pool.connect();
@@ -531,14 +734,15 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
           await client.query("ROLLBACK");
           return null;
         }
-        const result = await client.query<AdminUser>(
+        const result = await client.query<{ id: string }>(
           `UPDATE users SET avatar_url = $2, updated_at = now() WHERE id = $1
-           RETURNING ${userColumns}`,
+           RETURNING id`,
           [userId, avatarUrl],
         );
+        const user = result.rows[0]?.id ? await loadUser(client, result.rows[0].id) : null;
         await client.query("COMMIT");
         return {
-          user: result.rows[0]!,
+          user: user!,
           previousAvatarUrl: previous.rows[0].avatarUrl,
         };
       } catch (error) {
@@ -555,13 +759,110 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
       );
       return result.rows[0]?.warehouseId ?? null;
     },
+    async findDepartmentWarehouse(departmentId) {
+      const result = await pool.query<{ warehouseId: string }>(
+        `SELECT warehouse_id AS "warehouseId" FROM departments WHERE id = $1`,
+        [departmentId],
+      );
+      return result.rows[0]?.warehouseId ?? null;
+    },
     async setUserStatus(userId, status) {
-      const result = await pool.query<AdminUser>(
+      const result = await pool.query<{ id: string }>(
         `UPDATE users SET status = $1, updated_at = now() WHERE id = $2
-         RETURNING ${userColumns}`,
+         RETURNING id`,
         [status, userId],
       );
-      return result.rows[0] ?? null;
+      const updatedUserId = result.rows[0]?.id;
+      return updatedUserId ? loadUser(pool, updatedUserId) : null;
+    },
+    async listDepartments(warehouseId, limit, offset) {
+      const [rows, count] = await Promise.all([
+        pool.query<AdminDepartment>(
+          `SELECT ${departmentColumns}
+           FROM departments d
+           WHERE ($1::uuid IS NULL OR d.warehouse_id = $1)
+           ORDER BY d.created_at DESC LIMIT $2 OFFSET $3`,
+          [warehouseId, limit, offset],
+        ),
+        pool.query<{ count: string }>(
+          `SELECT count(*) FROM departments WHERE ($1::uuid IS NULL OR warehouse_id = $1)`,
+          [warehouseId],
+        ),
+      ]);
+      return { data: rows.rows, total: Number(count.rows[0]?.count ?? 0) };
+    },
+    async findDepartment(warehouseId, departmentId) {
+      const department = await loadDepartment(pool, departmentId);
+      return department?.warehouseId === warehouseId ? department : null;
+    },
+    async createDepartment(input) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<{ id: string }>(
+          `INSERT INTO departments (warehouse_id, code, name)
+           VALUES ($1, $2, $3)
+           RETURNING id`,
+          [input.warehouseId, input.code, input.name],
+        );
+        const departmentId = result.rows[0]?.id;
+        if (!departmentId) throw new Error("Department insert returned no row");
+        await client.query(
+          `INSERT INTO department_roles (department_id, role_id)
+           SELECT $1, unnest($2::uuid[])`,
+          [departmentId, input.roleIds],
+        );
+        const department = await loadDepartment(client, departmentId);
+        await client.query("COMMIT");
+        return department!;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    async updateDepartment(warehouseId, departmentId, input) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const locked = await client.query<{ id: string }>(
+          `SELECT id FROM departments WHERE id = $1 AND warehouse_id = $2 FOR UPDATE`,
+          [departmentId, warehouseId],
+        );
+        if (!locked.rows[0]) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+        await client.query(
+          `UPDATE departments SET name = $3, updated_at = now() WHERE id = $1 AND warehouse_id = $2`,
+          [departmentId, warehouseId, input.name],
+        );
+        await client.query(`DELETE FROM department_roles WHERE department_id = $1`, [departmentId]);
+        await client.query(
+          `INSERT INTO department_roles (department_id, role_id)
+           SELECT $1, unnest($2::uuid[])`,
+          [departmentId, input.roleIds],
+        );
+        const department = await loadDepartment(client, departmentId);
+        await client.query("COMMIT");
+        return department;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+    async setDepartmentStatus(warehouseId, departmentId, status) {
+      const result = await pool.query<{ id: string }>(
+        `UPDATE departments SET status = $1, updated_at = now()
+         WHERE id = $2 AND warehouse_id = $3
+         RETURNING id`,
+        [status, departmentId, warehouseId],
+      );
+      const updatedDepartmentId = result.rows[0]?.id;
+      return updatedDepartmentId ? loadDepartment(pool, updatedDepartmentId) : null;
     },
     async listRoles(warehouseId, limit, offset) {
       const [rows, count] = await Promise.all([
@@ -579,6 +880,10 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
         ),
       ]);
       return { data: rows.rows, total: Number(count.rows[0]?.count ?? 0) };
+    },
+    async findRole(warehouseId, roleId) {
+      const role = await loadRole(pool, roleId);
+      return role?.warehouseId === warehouseId ? role : null;
     },
     async createRole(input) {
       const client = await pool.connect();
@@ -651,8 +956,11 @@ export function createPostgresAdminStore(pool: Pool): AdminStore {
           `SELECT EXISTS (
              SELECT 1 FROM user_roles WHERE role_id = $1
              UNION ALL
+             SELECT 1 FROM department_roles WHERE role_id = $1
+             UNION ALL
              SELECT 1 FROM audit_logs
-             WHERE action = 'admin.user.roles' AND (metadata -> 'roleIds') ? $2
+             WHERE action IN ('admin.user.roles', 'admin.department.create', 'admin.department.update')
+               AND (metadata -> 'roleIds') ? $2
            ) AS assigned`,
           [roleId, roleId],
         );

@@ -1,8 +1,12 @@
 export const permissionCatalog = {
   "admin.users": ["view", "create", "update", "delete"],
+  "admin.departments": ["view", "create", "update", "delete"],
   "admin.roles": ["view", "create", "update", "delete"],
+  "warehouse.metadata": ["view", "create", "update", "delete"],
+  "warehouse.operations": ["view", "create", "update", "approve", "print", "export"],
   locations: ["view", "create", "update", "delete"],
   "catalog.categories": ["view", "create", "update", "delete"],
+  "catalog.specs": ["view", "create", "update", "delete"],
   "catalog.units": ["view", "create", "update", "delete"],
   products: ["view", "create", "update", "delete"],
   partners: ["view", "create", "update", "delete"],
@@ -29,9 +33,13 @@ export type PermissionCode = {
 
 const featureLabels = {
   "admin.users": "Người dùng",
+  "admin.departments": "Phòng ban",
   "admin.roles": "Vai trò",
+  "warehouse.metadata": "Danh mục kho",
+  "warehouse.operations": "Vận hành kho",
   locations: "Vị trí kho",
   "catalog.categories": "Danh mục",
+  "catalog.specs": "Thuộc tính sản phẩm",
   "catalog.units": "Đơn vị",
   products: "Sản phẩm",
   partners: "Đối tác",
@@ -49,6 +57,27 @@ const featureLabels = {
   reports: "Báo cáo",
   print: "In",
 } satisfies Record<keyof PermissionCatalog, string>;
+
+const permissionFeatureGroups = {
+  "warehouse.metadata": ["locations", "catalog.categories", "catalog.specs", "catalog.units", "products", "partners"],
+  "warehouse.operations": [
+    "receipts",
+    "outbounds",
+    "picking",
+    "checking",
+    "outbound.exceptions",
+    "purchasing",
+    "sales",
+    "returns",
+    "stockCounts",
+    "transfers",
+    "inventory",
+    "reports",
+    "print",
+  ],
+} as const satisfies Partial<Record<keyof PermissionCatalog, ReadonlyArray<keyof PermissionCatalog>>>;
+
+type ParentPermissionFeature = keyof typeof permissionFeatureGroups;
 
 const actionLabels = {
   view: "Xem",
@@ -72,35 +101,54 @@ export const permissionMatrix = Object.entries(permissionCatalog).map(([featureC
 
 export const routePermissionCatalog = {
   "GET /api/admin/users": "admin.users.view",
+  "GET /api/admin/users/:id": "admin.users.view",
   "POST /api/admin/users": "admin.users.create",
   "PATCH /api/admin/users/:id": "admin.users.update",
   "POST /api/admin/users/:id/avatar": "admin.users.update",
   "PATCH /api/admin/users/:id/status": "admin.users.delete",
   "PUT /api/admin/users/:id/roles": "admin.users.update",
+  "GET /api/admin/departments": "admin.departments.view",
+  "GET /api/admin/departments/:id": "admin.departments.view",
+  "POST /api/admin/departments": "admin.departments.create",
+  "PATCH /api/admin/departments/:id": "admin.departments.update",
+  "PATCH /api/admin/departments/:id/status": "admin.departments.delete",
   "GET /api/admin/roles": "admin.roles.view",
+  "GET /api/admin/roles/:id": "admin.roles.view",
   "GET /api/admin/permissions": "admin.roles.view",
   "POST /api/admin/roles": "admin.roles.create",
   "PATCH /api/admin/roles/:id": "admin.roles.update",
   "DELETE /api/admin/roles/:id": "admin.roles.delete",
   "GET /api/locations": "locations.view",
+  "GET /api/locations/:id": "locations.view",
   "POST /api/locations": "locations.create",
   "PATCH /api/locations/:id": "locations.update",
   "PATCH /api/locations/:id/status": "locations.delete",
   "GET /api/locations/lookup/:barcode": "locations.view",
   "GET /api/catalog/categories": "catalog.categories.view",
+  "GET /api/catalog/categories/:id": "catalog.categories.view",
   "POST /api/catalog/categories": "catalog.categories.create",
   "PATCH /api/catalog/categories/:id": "catalog.categories.update",
   "PATCH /api/catalog/categories/:id/status": "catalog.categories.delete",
+  "GET /api/catalog/categories/:id/spec-definitions": "catalog.specs.view",
+  "POST /api/catalog/categories/:id/spec-definitions": "catalog.specs.create",
+  "PATCH /api/catalog/spec-definitions/:id": "catalog.specs.update",
+  "PATCH /api/catalog/spec-definitions/:id/status": "catalog.specs.delete",
+  "POST /api/catalog/spec-definitions/:id/options": "catalog.specs.create",
+  "PATCH /api/catalog/spec-options/:id": "catalog.specs.update",
+  "PATCH /api/catalog/spec-options/:id/status": "catalog.specs.delete",
   "GET /api/catalog/units": "catalog.units.view",
+  "GET /api/catalog/units/:id": "catalog.units.view",
   "POST /api/catalog/units": "catalog.units.create",
   "PATCH /api/catalog/units/:id": "catalog.units.update",
   "PATCH /api/catalog/units/:id/status": "catalog.units.delete",
   "GET /api/products": "products.view",
+  "GET /api/products/:id": "products.view",
   "POST /api/products": "products.create",
   "PATCH /api/products/:id": "products.update",
   "PATCH /api/products/:id/status": "products.delete",
   "GET /api/products/lookup/:barcode": "products.view",
   "GET /api/partners": "partners.view",
+  "GET /api/partners/:id": "partners.view",
   "POST /api/partners": "partners.create",
   "PATCH /api/partners/:id": "partners.update",
   "PATCH /api/partners/:id/status": "partners.delete",
@@ -139,6 +187,8 @@ export const routePermissionCatalog = {
   "POST /api/sales/:id/approve": "sales.approve",
   "POST /api/sales/:id/invoice": "sales.approve",
   "GET /api/returns": "returns.view",
+  "GET /api/returns/source-documents": "returns.view",
+  "GET /api/returns/source-documents/:id/lines": "returns.view",
   "POST /api/returns": "returns.create",
   "POST /api/returns/:id/confirm": "returns.approve",
   "GET /api/stock-counts": "stockCounts.view",
@@ -166,4 +216,34 @@ const permissionCodeSet = new Set<string>(permissionCodes);
 
 export function isPermissionCode(value: string): value is PermissionCode {
   return permissionCodeSet.has(value);
+}
+
+function splitPermissionCode(value: string) {
+  const delimiter = value.lastIndexOf(".");
+  if (delimiter < 0) return null;
+  return {
+    feature: value.slice(0, delimiter) as keyof PermissionCatalog,
+    action: value.slice(delimiter + 1) as PermissionAction,
+  };
+}
+
+function isParentPermissionFeature(feature: keyof PermissionCatalog): feature is ParentPermissionFeature {
+  return feature in permissionFeatureGroups;
+}
+
+export function permissionImplies(granted: string, required: PermissionCode) {
+  if (granted === "*" || granted === required) return true;
+  if (!isPermissionCode(granted)) return false;
+  const parts = splitPermissionCode(granted);
+  if (!parts) return false;
+  if (!isParentPermissionFeature(parts.feature)) return false;
+  const children = permissionFeatureGroups[parts.feature];
+  if (!children) return false;
+  return children.some((feature) =>
+    (permissionCatalog[feature] as readonly string[]).includes(parts.action) && `${feature}.${parts.action}` === required,
+  );
+}
+
+export function hasPermission(permissions: readonly string[], required: PermissionCode) {
+  return permissions.some((permission) => permissionImplies(permission, required));
 }

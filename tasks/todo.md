@@ -1,6 +1,6 @@
-# Todo: Hoàn thiện form, user metadata và phân quyền v4
+# Todo: Hoàn thiện form, user metadata, phân quyền và thông số sản phẩm v6
 
-Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
+Status: active v6 — đang build theo phase, backend thông số sản phẩm đã xong
 
 ## Phase 1 — Rule nền và nhãn bắt buộc
 
@@ -37,7 +37,7 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 - [x] [T43 UI danh mục và đơn vị](task-detail/task-43.md).
 - [x] [T44 UI vị trí và sản phẩm](task-detail/task-44.md).
 - [x] [T45 UI đối tác và role](task-detail/task-45.md).
-- [ ] Checkpoint E reviewed.
+- [x] Checkpoint E reviewed.
 
 ## Phase 6 — Multi-line document forms
 
@@ -47,10 +47,39 @@ Status: đang thực hiện v4.1 — đã được xác nhận build toàn bộ
 - [x] [T49 Phiếu xuất nhiều dòng](task-detail/task-49.md).
 - [x] [T50 Trả hàng nhiều dòng](task-detail/task-50.md).
 - [x] [T51 Chuyển kho và kiểm kê nhiều dòng](task-detail/task-51.md).
-- [ ] Checkpoint F reviewed.
+- [x] Checkpoint F reviewed.
 
 ## Phase 7 — E2E và review
 
 - [ ] [T52 Browser E2E cho rule mới](task-detail/task-52.md).
 - [ ] [T53 Review và cleanup trước merge](task-detail/task-53.md).
 - [ ] Checkpoint G reviewed.
+
+## Phase 8 — Rule dùng chung trang Thêm/Sửa
+
+- [x] [T54 Detail API và client cho form sửa metadata](task-detail/task-54.md).
+- [x] [T55 Route form dùng chung cho danh mục và đơn vị](task-detail/task-55.md).
+- [x] [T56 Route form dùng chung cho vị trí và sản phẩm](task-detail/task-56.md).
+- [x] [T57 Route form dùng chung cho đối tác, người dùng và vai trò](task-detail/task-57.md).
+- [x] Checkpoint H reviewed.
+
+## Phase 9 — Backend thông số sản phẩm
+
+- [x] [T58 Permission catalog và migration cho thông số](task-detail/task-58.md).
+- [x] [T59 API quản lý thông số danh mục](task-detail/task-59.md).
+- [x] [T60 Product API nhận và trả giá trị thông số](task-detail/task-60.md).
+- [x] Checkpoint I reviewed.
+
+## Phase 10 — UI thông số sản phẩm
+
+- [x] [T61 API client và type frontend cho thông số](task-detail/task-61.md).
+- [x] [T62 UI quản lý Thông số trong danh mục](task-detail/task-62.md).
+- [x] [T63 Product create/edit tự render thông số theo danh mục](task-detail/task-63.md).
+- [x] [T64 Hiển thị thông số trong danh sách/chi tiết sản phẩm](task-detail/task-64.md).
+- [x] Checkpoint J reviewed.
+
+## Phase 11 — E2E và review v6
+
+- [ ] [T65 Browser E2E cho route form và thông số](task-detail/task-65.md).
+- [ ] [T66 Review và cleanup v6](task-detail/task-66.md).
+- [ ] Checkpoint K reviewed.

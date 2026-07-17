@@ -70,3 +70,14 @@ Use this file for `vibe-e2e` failures or blockers only. Passing evidence can sta
 - Expected: production TLS/static headers, monitoring and alerts, encrypted backup schedule, successful isolated restore drill, and agreed RPO/RTO.
 - Actual: these platform controls cannot be proven from the local repository and no production target is attached.
 - Recommended fix: provision the target environment, execute the launch runbook and record the restore/device evidence before external release.
+
+### RESULT-006: Phiếu trả nhiều dòng chưa là flow nghiệp vụ dùng được
+
+- Status: FAIL
+- Case ID: E2E-017
+- Date: 2026-07-17
+- Environment: docker stack local `db:5433`, `api:4000`, `web:5173`; Playwright CLI session `pmqk-t52`
+- Evidence: `POST /api/purchase-orders` request `135` gửi đủ `lines[2]` và trả `201`, nhưng route `/returns/create` chỉ render các field raw `ID chứng từ gốc (*)` và `ID biến động kho gốc dòng N (*)` thay vì chọn chứng từ/sản phẩm; snapshot: `.playwright-cli/page-2026-07-17T05-13-54-908Z.yml`, screenshot: `.playwright-cli/page-2026-07-17T05-36-17-085Z.png`
+- Expected: người dùng tạo phiếu trả nhiều dòng từ flow nghiệp vụ thường, chọn loại trả, chứng từ liên quan và nhiều dòng hàng mà không cần biết internal IDs của stock movement.
+- Actual: form trả hàng yêu cầu nhập trực tiếp internal IDs nên không thể xem là multi-line return flow hoàn chỉnh cho browser E2E; case dừng trước khi có thể xác nhận payload/effect theo nghiệp vụ.
+- Recommended fix: thay các input raw ID bằng flow chọn chứng từ gốc và danh sách dòng/sản phẩm tương ứng, vẫn submit về `lines[]` nhưng không lộ internal IDs ra UI.

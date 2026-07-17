@@ -31,6 +31,9 @@ class MemoryPartnerStore implements AuthStore, AccessStore, PartnerStore {
     const data = warehouseId ? this.partners.filter((item) => item.warehouseId === warehouseId) : this.partners;
     return { data, total: data.length };
   }
+  async findPartner(warehouseId: string, id: string) {
+    return this.partners.find((item) => item.warehouseId === warehouseId && item.id === id) ?? null;
+  }
   async createPartner(input: Omit<Partner, "id" | "status">) {
     if (this.partners.some((item) => item.warehouseId === input.warehouseId && item.code === input.code)) {
       throw Object.assign(new Error("duplicate"), { code: "23505" });
@@ -156,6 +159,30 @@ test("partners reject duplicate code and cannot cross warehouse", async () => {
   store.partners.push({ id: randomUUID(), warehouseId: "warehouse-b", code: "CUS-1", name: "Khách hàng kho B", kind: "customer", taxCode: null, phone: null, email: null, address: null, status: "active" });
   const listB = await app.request("/api/partners", { headers: { cookie: cookieB } });
   assert.equal((await listB.json()).pagination.totalItems, 1);
+});
+
+test("partner detail is scoped by warehouse", async () => {
+  const { app, store } = await setup();
+  const cookieA = await login(app, "admin@example.test");
+  const cookieB = await login(app, "admin-b@example.test");
+  const partner: Partner = {
+    id: randomUUID(),
+    warehouseId: "warehouse-a",
+    code: "SUP-1",
+    name: "Nhà cung cấp 1",
+    kind: "supplier",
+    taxCode: null,
+    phone: "0900000000",
+    email: null,
+    address: null,
+    status: "active",
+  };
+  store.partners.push(partner);
+
+  const found = await app.request(`/api/partners/${partner.id}`, { headers: { cookie: cookieA } });
+  assert.equal(found.status, 200);
+  assert.equal((await found.json()).partner.name, "Nhà cung cấp 1");
+  assert.equal((await app.request(`/api/partners/${partner.id}`, { headers: { cookie: cookieB } })).status, 404);
 });
 
 test("partner view permission cannot create, update or disable", async () => {

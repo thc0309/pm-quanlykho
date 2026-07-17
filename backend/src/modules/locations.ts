@@ -21,6 +21,7 @@ export interface WarehouseLocation {
 export interface LocationStore {
   defaultWarehouseId(): Promise<string | null>;
   list(warehouseId: string | null): Promise<WarehouseLocation[]>;
+  find(warehouseId: string, id: string): Promise<WarehouseLocation | null>;
   create(input: Omit<WarehouseLocation, "id" | "status">): Promise<WarehouseLocation>;
   update(warehouseId: string, id: string, input: Partial<Pick<WarehouseLocation, "name" | "barcode" | "type">>): Promise<WarehouseLocation | null>;
   setStatus(warehouseId: string, id: string, status: WarehouseLocation["status"]): Promise<WarehouseLocation | null>;
@@ -90,6 +91,14 @@ export function registerLocationRoutes(app: Hono, authStore: AuthStore, accessSt
   app.get("/api/locations", async (c) => {
     const current = await actor(c, routePermissionCatalog["GET /api/locations"]);
     return c.json({ data: await store.list(warehouseScopeFor(c, current)) });
+  });
+
+  app.get("/api/locations/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/locations/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const location = await store.find(warehouseId, routeId(c));
+    if (!location) throw new HttpError(404, "LOCATION_NOT_FOUND", "Không tìm thấy vị trí");
+    return c.json({ location });
   });
 
   app.post("/api/locations", async (c) => {
@@ -188,6 +197,12 @@ export function createPostgresLocationStore(pool: Pool): LocationStore {
     },
     async list(warehouseId) {
       return (await pool.query<WarehouseLocation>(`SELECT ${columns} FROM locations WHERE ($1::uuid IS NULL OR warehouse_id = $1) ORDER BY code`, [warehouseId])).rows;
+    },
+    async find(warehouseId, id) {
+      return (await pool.query<WarehouseLocation>(
+        `SELECT ${columns} FROM locations WHERE warehouse_id = $1 AND id = $2`,
+        [warehouseId, id],
+      )).rows[0] ?? null;
     },
     async create(input) {
       const result = await pool.query<WarehouseLocation>(`INSERT INTO locations (warehouse_id, code, barcode, name, type) VALUES ($1, $2, $3, $4, $5) RETURNING ${columns}`, [input.warehouseId, input.code, input.barcode, input.name, input.type]);

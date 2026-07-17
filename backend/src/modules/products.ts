@@ -6,6 +6,13 @@ import { HttpError } from "../http/errors.js";
 import { parseJson, parsePagination } from "../http/validation.js";
 import { auditChange, requireAccess, type AccessActor, type AccessStore } from "./access.js";
 import type { AuthStore } from "./auth.js";
+import {
+  loadProductSpecValuesByProductIds,
+  replaceProductSpecValues,
+  type ProductSpecValue,
+  type ProductSpecValueInput,
+  validateProductSpecValues,
+} from "./catalog-specs.js";
 import { routePermissionCatalog, type PermissionCode } from "./permissions.js";
 
 type Page<T> = { data: T[]; total: number };
@@ -23,22 +30,51 @@ export interface Product {
   fefoEnabled: boolean;
   status: "active" | "inactive";
   barcodes: string[];
+  specValues: ProductSpecValue[];
+}
+
+export interface ProductCreateInput {
+  warehouseId: string;
+  categoryId: string | null;
+  baseUnitId: string | null;
+  sku: string;
+  name: string;
+  productType: Product["productType"];
+  trackingMode: Product["trackingMode"];
+  expiryManaged: boolean;
+  fefoEnabled: boolean;
+  barcodes: string[];
+  specValues: ProductSpecValueInput[];
+}
+
+export interface ProductUpdateInput {
+  name?: string;
+  expiryManaged?: boolean;
+  fefoEnabled?: boolean;
+  categoryId?: string | null;
+  baseUnitId?: string | null;
+  barcodes?: string[];
+  specValues?: ProductSpecValueInput[];
 }
 
 export interface ProductStore {
   defaultWarehouseId(): Promise<string | null>;
   listProducts(warehouseId: string | null, limit: number, offset: number): Promise<Page<Product>>;
-  createProduct(input: Omit<Product, "id" | "status">): Promise<Product>;
-  updateProduct(
-    warehouseId: string,
-    id: string,
-    input: Partial<Pick<Product, "name" | "barcodes" | "categoryId" | "baseUnitId" | "expiryManaged" | "fefoEnabled">>,
-  ): Promise<Product | null>;
+  findProduct(warehouseId: string, id: string): Promise<Product | null>;
+  createProduct(input: ProductCreateInput): Promise<Product>;
+  updateProduct(warehouseId: string, id: string, input: ProductUpdateInput): Promise<Product | null>;
   setProductStatus(warehouseId: string, id: string, status: Product["status"]): Promise<Product | null>;
   findByBarcode(warehouseId: string, barcode: string): Promise<Product | null>;
 }
 
 const barcodeSchema = z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_.-]+$/);
+const productSpecValueSchema = z.object({
+  definitionId: z.string().uuid(),
+  textValue: z.string().optional(),
+  numberValue: z.number().finite().optional(),
+  booleanValue: z.boolean().optional(),
+  optionValue: z.string().min(1).optional(),
+}).strict();
 
 const productSchema = z.object({
   sku: z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/),
@@ -50,6 +86,7 @@ const productSchema = z.object({
   categoryId: z.string().uuid().optional(),
   baseUnitId: z.string().uuid().optional(),
   barcodes: z.array(barcodeSchema).min(1).max(10),
+  specValues: z.array(productSpecValueSchema).max(100).default([]),
 }).strict().superRefine((value, context) => {
   if (new Set(value.barcodes).size !== value.barcodes.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["barcodes"], message: "Barcodes must be unique" });
@@ -72,6 +109,7 @@ const productUpdateSchema = z.object({
   categoryId: z.string().uuid().nullable().optional(),
   baseUnitId: z.string().uuid().nullable().optional(),
   barcodes: z.array(barcodeSchema).min(1).max(10).optional(),
+  specValues: z.array(productSpecValueSchema).max(100).optional(),
 }).strict().superRefine((value, context) => {
   if (Object.keys(value).length === 0) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Cần ít nhất một trường để cập nhật" });
@@ -119,6 +157,7 @@ function conflict(error: unknown) {
 }
 
 function mutationError(error: unknown): never {
+  if (error instanceof HttpError) throw error;
   if (typeof error === "object" && error !== null && "code" in error) {
     if (error.code === "23505") throw new HttpError(409, "DUPLICATE_PRODUCT", "Barcode đã tồn tại trong kho");
     if (error.code === "23503" || error.code === "INVALID_PRODUCT_REFERENCE") {
@@ -163,6 +202,14 @@ export function registerProductRoutes(
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
+  app.get("/api/products/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/products/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const product = await store.findProduct(warehouseId, routeIdSchema.parse(c.req.param("id")));
+    if (!product) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy sản phẩm");
+    return c.json({ product });
+  });
+
   app.post("/api/products", async (c) => {
     const current = await actor(c, routePermissionCatalog["POST /api/products"]);
     const warehouseId = await warehouseFor(c, current, store);
@@ -180,9 +227,10 @@ export function registerProductRoutes(
         barcodes: input.barcodes,
         categoryId: input.categoryId ?? null,
         baseUnitId: input.baseUnitId ?? null,
+        specValues: input.specValues ?? [],
       });
     } catch (error) {
-      conflict(error);
+      mutationError(error);
     }
     await auditChange(accessStore, current, { warehouseId, action: "products.create", entityType: "product", entityId: product!.id });
     return c.json({ product: product! }, 201);
@@ -257,7 +305,10 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
        GROUP BY p.id`,
       [id],
     );
-    return result.rows[0] ?? null;
+    const product = result.rows[0] ?? null;
+    if (!product) return null;
+    product.specValues = (await loadProductSpecValuesByProductIds(pool, [id])).get(id) ?? [];
+    return product;
   }
 
   async function productInUse(client: PoolClient, id: string) {
@@ -278,7 +329,7 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
   async function assertScopedReferences(
     client: PoolClient,
     warehouseId: string,
-    input: Partial<Pick<Product, "categoryId" | "baseUnitId">>,
+    input: Pick<ProductCreateInput, "categoryId" | "baseUnitId"> | Pick<ProductUpdateInput, "categoryId" | "baseUnitId">,
   ) {
     const result = await client.query<{ categoryValid: boolean; unitValid: boolean }>(
       `SELECT
@@ -312,12 +363,22 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
           [warehouseId],
         ),
       ]);
+      const specMap = await loadProductSpecValuesByProductIds(pool, rows.rows.map((product) => product.id));
+      for (const product of rows.rows) {
+        product.specValues = specMap.get(product.id) ?? [];
+      }
       return { data: rows.rows, total: Number(count.rows[0]?.count ?? 0) };
+    },
+    async findProduct(warehouseId, id) {
+      const product = await rowById(id);
+      return product && product.warehouseId === warehouseId ? product : null;
     },
     async createProduct(input) {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
+        await assertScopedReferences(client, input.warehouseId, input);
+        const normalizedSpecs = await validateProductSpecValues(client, input.warehouseId, input.categoryId, input.specValues);
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO products
             (warehouse_id, category_id, base_unit_id, sku, name, product_type, tracking_mode, expiry_managed, fefo_enabled)
@@ -332,6 +393,7 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
            SELECT $1, $2, unnest($3::text[])`,
           [input.warehouseId, id, input.barcodes],
         );
+        await replaceProductSpecValues(client, id, normalizedSpecs.values);
         await client.query("COMMIT");
         const product = await rowById(id);
         if (!product) throw new Error("Product lookup returned no row");
@@ -347,8 +409,11 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        const locked = await client.query<Pick<Product, "trackingMode" | "expiryManaged" | "fefoEnabled">>(
-          `SELECT tracking_mode AS "trackingMode", expiry_managed AS "expiryManaged", fefo_enabled AS "fefoEnabled"
+        const locked = await client.query<Pick<Product, "trackingMode" | "expiryManaged" | "fefoEnabled" | "categoryId">>(
+          `SELECT tracking_mode AS "trackingMode",
+              expiry_managed AS "expiryManaged",
+              fefo_enabled AS "fefoEnabled",
+              category_id AS "categoryId"
            FROM products WHERE id = $1 AND warehouse_id = $2 FOR UPDATE`,
           [id, warehouseId],
         );
@@ -360,6 +425,7 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
         await assertScopedReferences(client, warehouseId, input);
         const expiryManaged = input.expiryManaged ?? current.expiryManaged;
         const fefoEnabled = input.fefoEnabled ?? current.fefoEnabled;
+        const nextCategoryId = input.categoryId !== undefined ? input.categoryId : current.categoryId;
         if ((expiryManaged || fefoEnabled) && current.trackingMode !== "lot") {
           throw Object.assign(new Error("Invalid tracking policy"), { code: "INVALID_TRACKING_POLICY" });
         }
@@ -384,6 +450,15 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
              SELECT $1, $2, unnest($3::text[])`,
             [warehouseId, id, input.barcodes],
           );
+        }
+        if (input.specValues !== undefined || input.categoryId !== undefined) {
+          const normalizedSpecs = await validateProductSpecValues(
+            client,
+            warehouseId,
+            nextCategoryId ?? null,
+            input.specValues ?? [],
+          );
+          await replaceProductSpecValues(client, id, normalizedSpecs.values);
         }
         await client.query("COMMIT");
         return await rowById(id);
@@ -429,7 +504,10 @@ export function createPostgresProductStore(pool: Pool): ProductStore {
          GROUP BY p.id`,
         [warehouseId, barcode],
       );
-      return result.rows[0] ?? null;
+      const product = result.rows[0] ?? null;
+      if (!product) return null;
+      product.specValues = (await loadProductSpecValuesByProductIds(pool, [product.id])).get(product.id) ?? [];
+      return product;
     },
   };
 }

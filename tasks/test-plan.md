@@ -1,6 +1,6 @@
 # Test Plan: Hệ thống quản lý kho đa ngành
 
-Status: draft v4.1 — bổ sung required markers, metadata, multi-line forms, avatar và granular permissions
+Status: draft v6 — bổ sung required markers, metadata, multi-line forms, avatar, granular permissions, shared create/edit routes và thông số sản phẩm
 
 Use with `vibe-e2e`. Do not mark PASS without browser/runtime evidence in `tasks/test-result.md`.
 
@@ -34,6 +34,8 @@ Use with `vibe-e2e`. Do not mark PASS without browser/runtime evidence in `tasks
 | E2E-017 Multi-line documents | Products/partners/stock exist | Create purchase order with two lines; create return with two lines; inspect submitted payload/effects | Both documents persist all lines; last line cannot be removed; totals/status reflect all lines. |
 | E2E-018 User metadata/avatar | Warehouse admin | Create user with phone, employee code, department, job title and avatar image; edit metadata; reload list | Phone is required; avatar is resized and displayed; metadata persists and list shows avatar/phone/department/title. |
 | E2E-019 Granular permissions | Master admin | Create role with only `catalog.categories.view/create`; use that user in UI and direct API calls | User can view/create categories only; update/deactivate/export/admin actions are hidden in UI and return `403` through API. |
+| E2E-020 Shared create/edit routes | Admin có quyền create/update cho metadata | Open category, unit, location, product, partner, user and role list; click `Thêm` then `Sửa`; inspect URLs and form modes; retry with user thiếu `*.update` | `Thêm` uses `/create`, `Sửa` uses `/:id/edit`; both reuse the same form behavior; edit loads existing data; status actions stay row actions; user thiếu quyền không thấy action và direct API returns `403`. |
+| E2E-021 Product specifications | Category and product permissions including `catalog.specs.*` | Create category laptop; add specs `RAM` select and `CPU` text; create product with spec values; reopen edit form; try invalid spec payload through UI/API; retry mutate specs without `catalog.specs.update` | Product form auto-renders specs by category; required/spec validation works; saved values persist; wrong type/category returns validation error; thiếu quyền ghi specs returns `403`. |
 
 ## API and Concurrency Coverage
 
@@ -52,3 +54,4 @@ Use with `vibe-e2e`. Do not mark PASS without browser/runtime evidence in `tasks
 - Checkpoint C: E2E-005–012; all are release blockers for outbound MVP.
 - Checkpoint D: E2E-013 and E2E-014 only if Tauri is approved.
 - Checkpoint G v4: E2E-015–019 for required markers, metadata actions, multi-line document forms, user metadata/avatar and granular permissions.
+- Checkpoint K v6: E2E-020–021 for shared create/edit route rule and product specifications.

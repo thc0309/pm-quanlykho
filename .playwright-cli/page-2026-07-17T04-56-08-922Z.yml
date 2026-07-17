@@ -1,0 +1,14 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: Warehouse Suite
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - heading "Đổi mật khẩu tạm" [level=1] [ref=e17]
+        - paragraph [ref=e18]: Mật khẩu mới cần ít nhất 12 ký tự.
+      - generic [ref=e19]:
+        - text: Mật khẩu mới (*)
+        - textbox "Mật khẩu mới (*)" [ref=e20]
+      - generic [ref=e21]:
+        - text: Nhập lại mật khẩu (*)
+        - textbox "Nhập lại mật khẩu (*)" [ref=e22]
+      - button "Cập nhật mật khẩu" [ref=e23] [cursor=pointer]

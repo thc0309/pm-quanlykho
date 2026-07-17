@@ -1,0 +1,14 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: Warehouse Suite
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "Đăng nhập" [level=1] [ref=e8]
+        - paragraph [ref=e9]: Dùng tài khoản do quản trị viên cấp.
+      - generic [ref=e10]:
+        - text: Email (*)
+        - textbox "Email (*)" [ref=e11]
+      - generic [ref=e12]:
+        - text: Mật khẩu (*)
+        - textbox "Mật khẩu (*)" [ref=e13]
+      - button "Đăng nhập" [ref=e14] [cursor=pointer]

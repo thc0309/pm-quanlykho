@@ -31,6 +31,7 @@ export interface CatalogUnit {
 export interface CatalogStore {
   defaultWarehouseId(): Promise<string | null>;
   listCategories(warehouseId: string | null, limit: number, offset: number): Promise<Page<CatalogCategory>>;
+  findCategory(warehouseId: string, id: string): Promise<CatalogCategory | null>;
   createCategory(input: Omit<CatalogCategory, "id" | "status">): Promise<CatalogCategory>;
   updateCategory(warehouseId: string, id: string, name: string): Promise<CatalogCategory | null>;
   setCategoryStatus(warehouseId: string, id: string, status: CatalogCategory["status"]): Promise<CatalogCategory | null>;
@@ -139,6 +140,14 @@ export function registerCatalogRoutes(
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
   });
 
+  app.get("/api/catalog/categories/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/catalog/categories/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const category = await store.findCategory(warehouseId, routeId(c));
+    if (!category) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy danh mục");
+    return c.json({ category });
+  });
+
   app.post("/api/catalog/categories", async (c) => {
     const current = await actor(c, routePermissionCatalog["POST /api/catalog/categories"]);
     const warehouseId = await warehouseFor(c, current, store);
@@ -188,6 +197,14 @@ export function registerCatalogRoutes(
     const pagination = parsePagination(c.req.query());
     const result = await store.listUnits(warehouseScopeFor(c, current), pagination.pageSize, pagination.offset);
     return c.json(pageResponse(result, pagination.page, pagination.pageSize));
+  });
+
+  app.get("/api/catalog/units/:id", async (c) => {
+    const current = await actor(c, routePermissionCatalog["GET /api/catalog/units/:id"]);
+    const warehouseId = await warehouseFor(c, current, store);
+    const unit = await store.findUnit(warehouseId, routeId(c));
+    if (!unit) throw new HttpError(404, "NOT_FOUND", "Không tìm thấy đơn vị");
+    return c.json({ unit });
   });
 
   app.post("/api/catalog/units", async (c) => {
@@ -271,6 +288,12 @@ export function createPostgresCatalogStore(pool: Pool): CatalogStore {
         ),
       ]);
       return { data: rows.rows, total: Number(count.rows[0]?.count ?? 0) };
+    },
+    async findCategory(warehouseId, id) {
+      return (await pool.query<CatalogCategory>(
+        `SELECT ${categoryColumns} FROM categories WHERE warehouse_id = $1 AND id = $2`,
+        [warehouseId, id],
+      )).rows[0] ?? null;
     },
     async createCategory(input) {
       const result = await pool.query<CatalogCategory>(

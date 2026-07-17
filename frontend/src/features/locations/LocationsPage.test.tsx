@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import type { ReactElement } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -17,10 +17,22 @@ function renderWithRouter(element: ReactElement) {
   return render(<MemoryRouter>{element}</MemoryRouter>);
 }
 
+function renderWithRoute(path: string, routePath: string, element: ReactElement) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path={routePath} element={element} />
+        <Route path="*" element={<div />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 describe("LocationsPage", () => {
   it("creates a typed warehouse location", async () => {
     const api: LocationClient = {
       listLocations: vi.fn().mockResolvedValue([]),
+      getLocation: vi.fn(),
       createLocation: vi.fn().mockImplementation(async (input) => ({ id: "location-1", warehouseId: "warehouse-a", status: "active", ...input })),
       updateLocation: vi.fn(),
       setLocationStatus: vi.fn(),
@@ -39,10 +51,11 @@ describe("LocationsPage", () => {
     expect(await screen.findByText("Đã tạo vị trí")).toBeTruthy();
   });
 
-  it("updates and deactivates a location without reloading", async () => {
+  it("updates a location on the shared edit route and deactivates from the list", async () => {
     const location = { id: "location-1", warehouseId: "warehouse-a", status: "active" as const, code: "ST-01", barcode: "SCAN-ST-01", name: "Kệ 01", type: "storage" as const };
     const api: LocationClient = {
       listLocations: vi.fn().mockResolvedValue([location]),
+      getLocation: vi.fn().mockResolvedValue(location),
       createLocation: vi.fn(),
       updateLocation: vi.fn().mockResolvedValue({ ...location, barcode: "SCAN-ST-02", name: "Kệ 02", type: "staging" }),
       setLocationStatus: vi.fn().mockResolvedValue({ ...location, barcode: "SCAN-ST-02", name: "Kệ 02", type: "staging", status: "inactive" }),
@@ -50,28 +63,27 @@ describe("LocationsPage", () => {
     };
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const user = userEvent.setup();
-    renderWithRouter(<LocationsPage api={api} permissions={["locations.view", "locations.update", "locations.delete"]} />);
+    renderWithRoute("/locations/location-1/edit", "/locations/:locationId/edit", <LocationCreatePage api={api} />);
 
-    await user.click(await screen.findByRole("button", { name: "Sửa vị trí Kệ 01" }));
-    const name = screen.getByRole("textbox", { name: "Tên vị trí Kệ 01" });
-    expect(name).toHaveFocus();
+    const name = await screen.findByLabelText("Tên vị trí (*)");
     await user.clear(name);
     await user.type(name, "Kệ 02");
-    await user.clear(screen.getByRole("textbox", { name: "Barcode vị trí Kệ 01" }));
-    await user.type(screen.getByRole("textbox", { name: "Barcode vị trí Kệ 01" }), "SCAN-ST-02");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Loại vị trí Kệ 01" }), "staging");
-    await user.click(screen.getByRole("button", { name: "Lưu vị trí Kệ 01" }));
+    await user.clear(screen.getByLabelText("Barcode (*)"));
+    await user.type(screen.getByLabelText("Barcode (*)"), "SCAN-ST-02");
+    await user.selectOptions(screen.getByLabelText("Loại vị trí (*)"), "staging");
+    await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
     expect(api.updateLocation).toHaveBeenCalledWith("location-1", { name: "Kệ 02", barcode: "SCAN-ST-02", type: "staging" });
-    expect(await screen.findByText("Kệ 02")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Vô hiệu hóa vị trí Kệ 02" }));
+    renderWithRouter(<LocationsPage api={api} permissions={["locations.view", "locations.update", "locations.delete"]} />);
+    expect(await screen.findByRole("link", { name: "Sửa vị trí Kệ 01" })).toHaveAttribute("href", "/locations/location-1/edit");
+    await user.click(screen.getByRole("button", { name: "Vô hiệu hóa vị trí Kệ 01" }));
     expect(api.setLocationStatus).toHaveBeenCalledWith("location-1", "inactive");
     expect(await screen.findByText("Tạm ngưng")).toBeTruthy();
   });
 
-  it("hides unauthorized location actions and preserves state on conflict", async () => {
+  it("hides unauthorized location actions and shows edit route error on conflict", async () => {
     const location = { id: "location-1", warehouseId: "warehouse-a", status: "active" as const, code: "ST-01", barcode: "SCAN-ST-01", name: "Kệ 01", type: "storage" as const };
-    const viewApi: LocationClient = { listLocations: vi.fn().mockResolvedValue([location]), createLocation: vi.fn(), updateLocation: vi.fn(), setLocationStatus: vi.fn(), findLocationByBarcode: vi.fn() };
+    const viewApi: LocationClient = { listLocations: vi.fn().mockResolvedValue([location]), getLocation: vi.fn(), createLocation: vi.fn(), updateLocation: vi.fn(), setLocationStatus: vi.fn(), findLocationByBarcode: vi.fn() };
     const { unmount } = renderWithRouter(<LocationsPage api={viewApi} permissions={["locations.view"]} />);
     expect(await screen.findByText("Kệ 01")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Sửa vị trí/ })).not.toBeInTheDocument();
@@ -79,15 +91,13 @@ describe("LocationsPage", () => {
     expect(screen.queryByRole("link", { name: "Thêm vị trí" })).not.toBeInTheDocument();
     unmount();
 
-    const errorApi: LocationClient = { ...viewApi, updateLocation: vi.fn().mockRejectedValue(new Error("Vị trí còn tồn kho nên không thể thay đổi")) };
+    const errorApi: LocationClient = { ...viewApi, getLocation: vi.fn().mockResolvedValue(location), updateLocation: vi.fn().mockRejectedValue(new Error("Vị trí còn tồn kho nên không thể thay đổi")) };
     const user = userEvent.setup();
-    renderWithRouter(<LocationsPage api={errorApi} permissions={["locations.view", "locations.update"]} />);
-    await user.click(await screen.findByRole("button", { name: "Sửa vị trí Kệ 01" }));
-    await user.clear(screen.getByRole("textbox", { name: "Tên vị trí Kệ 01" }));
-    await user.type(screen.getByRole("textbox", { name: "Tên vị trí Kệ 01" }), "Tên không lưu");
-    await user.click(screen.getByRole("button", { name: "Lưu vị trí Kệ 01" }));
+    renderWithRoute("/locations/location-1/edit", "/locations/:locationId/edit", <LocationCreatePage api={errorApi} />);
+    await user.clear(await screen.findByLabelText("Tên vị trí (*)"));
+    await user.type(screen.getByLabelText("Tên vị trí (*)"), "Tên không lưu");
+    await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Vị trí còn tồn kho nên không thể thay đổi");
-    expect(screen.queryByText("Tên không lưu", { selector: "td" })).not.toBeInTheDocument();
   });
 
   it("keeps the location screen as a list with an add action", async () => {
@@ -103,6 +113,7 @@ describe("LocationsPage", () => {
           type: "storage",
         },
       ]),
+      getLocation: vi.fn(),
       createLocation: vi.fn(),
       updateLocation: vi.fn(),
       setLocationStatus: vi.fn(),

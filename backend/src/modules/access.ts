@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 
 import { HttpError } from "../http/errors.js";
 import { resolveSession, type AuthStore, type AuthUser } from "./auth.js";
-import type { PermissionCode } from "./permissions.js";
+import { hasPermission, type PermissionCode } from "./permissions.js";
 
 export interface AuditEntry {
   warehouseId: string | null;
@@ -52,8 +52,7 @@ export async function requireAccess(
     user.kind === "master_admin" ? ["*"] : await accessStore.listPermissions(user.id);
   if (
     required.permission &&
-    !permissions.includes("*") &&
-    !permissions.includes(required.permission)
+    !hasPermission(permissions, required.permission)
   ) {
     throw new HttpError(403, "FORBIDDEN", "Không có quyền thực hiện thao tác");
   }
@@ -107,9 +106,17 @@ export function createPostgresAccessStore(pool: Pool): AccessStore {
     async listPermissions(userId) {
       const result = await pool.query<{ permissionCode: string }>(
         `SELECT DISTINCT rpc.permission_code AS "permissionCode"
-         FROM user_roles ur
-         JOIN role_permission_codes rpc ON rpc.role_id = ur.role_id
-         WHERE ur.user_id = $1`,
+         FROM (
+           SELECT ur.role_id
+           FROM user_roles ur
+           WHERE ur.user_id = $1
+           UNION
+           SELECT dr.role_id
+           FROM users u
+           JOIN department_roles dr ON dr.department_id = u.department_id
+           WHERE u.id = $1
+         ) granted
+         JOIN role_permission_codes rpc ON rpc.role_id = granted.role_id`,
         [userId],
       );
       return result.rows.map((row) => row.permissionCode);
